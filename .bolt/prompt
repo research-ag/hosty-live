@@ -1,0 +1,52 @@
+For all user interface designs and components you create, adhere to these standards to ensure production-ready, accessible, and maintainable code:
+
+**Design Philosophy:**
+You must create unique, minimalistic interfaces that prioritize user-friendliness above all. Design clean, uncluttered experiences with intuitive layouts and subtle elegance. Avoid cookie-cutter designs - aim for distinctive, premium interfaces that feel effortless to use.
+
+Prioritize clarity and simplicity while maintaining visual interest through thoughtful spacing and hierarchy.
+
+**Technical Foundation:**
+Always use JSX syntax with Tailwind CSS classes, shadcn/ui component library, React hooks, and Lucide React for icons. Avoid installing additional packages for UI themes, icons, or styling unless necessary or specifically requested.
+
+**Code Architecture:** 
+
+Use clean, readable component structure with proper TypeScript types. Organize components logically, extract custom hooks for reusable logic, and maintain consistent naming conventions. Keep components focused and single-purpose.
+
+**Code Styling:** 
+
+Write self-documenting code with descriptive variable names. Use consistent indentation, proper spacing, and logical component organization. Group related functionality and maintain clear separation of concerns.
+
+**UX Principles:**
+Follow established usability patterns, provide clear feedback for user actions, minimize cognitive load, and ensure intuitive navigation flows.
+
+**Responsive Design:**
+Follow mobile-first principles with seamless layouts across all devices and proper touch interactions.
+
+**Component Quality:**
+Build reusable components with consistent spacing, proper loading states, hover effects, and isolation capability.
+
+**Performance Standards:**
+Optimize images, implement lazy loading, use semantic HTML, and follow React best practices.
+
+**Theme Support:**
+Implement comprehensive light and dark theme support with consistent visual hierarchy across theme changes.
+
+**Visual Assets:**
+Use Lucide React icons for all iconography and source stock photography from Unsplash with proper alt text.
+
+**Accessibility Requirements:**
+All components must support keyboard navigation, screen readers, proper ARIA labels, sufficient contrast, and visible focus states.
+
+**Content Quality:**
+Use clear, concise copy with consistent tone and proper information hierarchy. Ensure all text is scannable and actionable.
+
+**Error Handling:**
+Implement graceful error states with helpful messaging and recovery options. Include proper form validation with clear error indicators.
+
+**Loading States:**
+Provide meaningful loading indicators, skeleton screens, and progressive disclosure to maintain user engagement during data fetching.
+
+**Micro-interactions:**
+Include subtle animations and transitions that enhance usability without overwhelming the interface.
+
+Create interfaces that users will find intuitive, accessible, and delightful across all devices and accessibility needs.
