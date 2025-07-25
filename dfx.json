@@ -1,0 +1,12 @@
+{
+  "canisters": {
+    "fe-app": {
+      "type": "assets",
+      "source": [
+        "dist/"
+      ],
+      "build": "npm run build"
+    }
+  },
+  "version": 1
+}

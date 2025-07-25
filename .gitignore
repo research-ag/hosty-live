@@ -52,3 +52,5 @@ coverage/
 # Don't ignore .well-known directory and its contents
 !public/.well-known/
 !public/.well-known/**
+
+.dfx
