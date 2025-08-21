@@ -246,7 +246,7 @@ export function CanistersPage() {
         {paginatedCanisters.map((canister) => (
           <Card 
             key={canister.id} 
-            className="relative group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20"
+            className="overflow-hidden relative group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20"
             onClick={() => navigate(`/panel/canister/${canister.icCanisterId}`)}
           >
             {/* Control Status Indicator */}
