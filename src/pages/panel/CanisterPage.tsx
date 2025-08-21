@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ChevronRight, Copy, Upload, DollarSign, CheckCircle, AlertCircle, Globe, ExternalLink } from 'lucide-react'
+import { ChevronRight, Copy, Upload, DollarSign, CheckCircle, AlertCircle, Globe, ExternalLink, UserCheck, Settings } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { DeployModal } from '../../components/panel/DeployModal'
+import { TransferOwnershipModal } from '../../components/panel/TransferOwnershipModal'
+import { CustomDomainModal } from '../../components/panel/CustomDomainModal'
+import { TooltipWrapper } from '../../components/ui/TooltipWrapper'
 import { useCanisters } from '../../hooks/useCanisters'
 import { useDeployments } from '../../hooks/useDeployments'
 import { useToast } from '../../hooks/useToast'
@@ -12,16 +15,20 @@ import { useToast } from '../../hooks/useToast'
 export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { getCanister } = useCanisters()
+  const { getCanister, addController } = useCanisters()
   const { deployToCanister, deployFromGit } = useDeployments()
   const { toast } = useToast()
   
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
+  const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [canister, setCanister] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [deployError, setDeployError] = useState<string>('')
+  const [transferError, setTransferError] = useState<string>('')
+  const [isTransferring, setIsTransferring] = useState(false)
 
   // Fetch canister data
   const fetchCanister = async () => {
@@ -30,7 +37,7 @@ export function CanisterPage() {
     setIsLoading(true)
     setError('')
     
-    const result = await getCanister(icCanisterId)
+    const result = await getCanister(icCanisterId, true)
     
     if (result.success && result.data) {
       console.log('🎯 [CanisterPage] Canister data received:', result.data)
@@ -90,6 +97,28 @@ export function CanisterPage() {
       toast.error('Deployment failed', result.error || 'Failed to start deployment from GitHub')
       setDeployError(result.error || 'Failed to start deployment from GitHub')
     }
+  }
+  
+  const handleTransferOwnership = async (userPrincipal: string) => {
+    if (!canister) return
+    
+    setTransferError('')
+    setIsTransferring(true)
+
+    const result = await addController(canister.id, userPrincipal)
+    
+    if (result.success) {
+      toast.success('Controller added successfully', 'The user has been added as a controller to this canister.')
+      setIsTransferModalOpen(false)
+      // Refresh canister data to get updated controller info and system flags
+      console.log('=== Hello world')
+      fetchCanister()
+    } else {
+      toast.error('Failed to add controller', result.error || 'There was an error adding the controller.')
+      setTransferError(result.error || 'Failed to add controller')
+    }
+    
+    setIsTransferring(false)
   }
 
   // Loading state
@@ -180,6 +209,11 @@ export function CanisterPage() {
     return cycles.toFixed(1)
   }
 
+  const canDeploy = canister?.isAssetCanister && canister?.isSystemController
+  const deployTooltip = !canDeploy 
+    ? "Deployment disabled: System is no longer controller or canister is not an asset canister"
+    : undefined
+
   return (
     <div className="p-6">
       {/* Breadcrumbs */}
@@ -192,8 +226,8 @@ export function CanisterPage() {
       </nav>
 
       {/* General Info */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-6">
+        <div className="flex-1">
           <h1 className="text-2xl font-semibold mb-2">{canister.name || `${canister.icCanisterId?.slice(0, 5)}...`}</h1>
           <div className="flex items-center space-x-2">
             {getStatusIcon(canister.status)}
@@ -202,14 +236,35 @@ export function CanisterPage() {
             </Badge>
           </div>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-col md:flex-row gap-3 md:flex-shrink-0">
           <Button
-            variant="default"
-            onClick={() => setIsDeployModalOpen(true)}
+            variant="outline"
+            onClick={() => setIsCustomDomainModalOpen(true)}
+            disabled={!canister?.isSystemController}
+            className="w-full sm:w-auto"
           >
-            <Upload className="mr-2 h-4 w-4" />
-            Deploy
+            <Settings className="mr-2 h-4 w-4" />
+            Custom Domain
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setIsTransferModalOpen(true)}
+            className="w-full sm:w-auto"
+          >
+            <UserCheck className="mr-2 h-4 w-4" />
+            Ownership
+          </Button>
+          <TooltipWrapper content={deployTooltip} disabled={!deployTooltip}>
+            <Button
+              variant="default"
+              onClick={() => setIsDeployModalOpen(true)}
+              disabled={!canDeploy}
+              className="w-full sm:w-auto"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Deploy
+            </Button>
+          </TooltipWrapper>
         </div>
       </div>
 
@@ -227,7 +282,7 @@ export function CanisterPage() {
             <div>
               <label className="text-sm font-medium text-muted-foreground">Cycles</label>
               <div className="space-y-1">
-                <p className="text-sm">{formatCycles(canister.cyclesBalanceRaw || canister.cycles)} TC</p>
+                <p className="text-sm">{canister.cyclesBalanceRaw ? `${formatCycles(canister.cyclesBalanceRaw || canister.cycles)} TC` : "unknown"}</p>
                 {canister.cyclesBalanceRaw && (
                   <p className="text-xs text-muted-foreground">
                     Raw: {BigInt(canister.cyclesBalanceRaw).toLocaleString()} cycles
@@ -255,10 +310,25 @@ export function CanisterPage() {
                 <div className="space-y-1">
                   {canister.controllers.map((controller, index) => (
                     <p key={index} className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                      {controller === 'i2qrn-wou4z-zo3z2-g6vlg-dma7w-siosb-tfkdt-gw2ut-s2tmr-66dzg-fae' && (
+                        <span className="text-primary">(hosty.live) </span>
+                      )}
                       {controller}
                     </p>
                   ))}
                 </div>
+              </div>
+            )}
+            {canister.isAssetCanister !== undefined && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Asset Canister</label>
+                <p className="text-sm">{canister.isAssetCanister ? 'Yes' : 'No'}</p>
+              </div>
+            )}
+            {canister.isSystemController !== undefined && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Controlled by hosty.live</label>
+                <p className="text-sm">{canister.isSystemController ? 'Yes' : 'No'}</p>
               </div>
             )}
           </CardContent>
@@ -346,10 +416,12 @@ export function CanisterPage() {
                 <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
                   No frontend deployed yet
                 </p>
-                <Button onClick={() => setIsDeployModalOpen(true)}>
+                <TooltipWrapper content={deployTooltip} disabled={!deployTooltip}>
+                  <Button onClick={() => setIsDeployModalOpen(true)} disabled={!canDeploy}>
                   <Upload className="mr-2 h-4 w-4" />
                   Deploy Now
                 </Button>
+                </TooltipWrapper>
               </div>
             )}
           </CardContent>
@@ -363,6 +435,21 @@ export function CanisterPage() {
         onDeployFromGit={handleDeployFromGit}
         canister={canister}
         error={deployError}
+      />
+
+      <TransferOwnershipModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        onTransfer={handleTransferOwnership}
+        canister={canister}
+        isLoading={isTransferring}
+        error={transferError}
+      />
+
+      <CustomDomainModal
+        isOpen={isCustomDomainModalOpen}
+        onClose={() => setIsCustomDomainModalOpen(false)}
+        canister={canister}
       />
     </div>
   )

@@ -246,9 +246,17 @@ export function CanistersPage() {
         {paginatedCanisters.map((canister) => (
           <Card 
             key={canister.id} 
-            className="group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20"
+            className="relative group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20"
             onClick={() => navigate(`/panel/canister/${canister.icCanisterId}`)}
           >
+            {/* Control Status Indicator */}
+            {canister.isSystemController === false && (
+              <div className="absolute top-0 left-0 right-0 h-3 bg-red-500/10 flex items-center justify-center z-10">
+                <span className="text-[8px] font-medium text-red-600 tracking-[4px]">
+                  not controlled by hosty.live
+                </span>
+              </div>
+            )}
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -269,7 +277,7 @@ export function CanistersPage() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">Cycles</p>
-                  <p className="font-semibold text-primary">{formatCycles(canister.cycles)} TC</p>
+                  <p className="font-semibold text-primary">{canister.isSystemController ? `${formatCycles(canister.cycles)} TC` : "unknown"}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">Created</p>

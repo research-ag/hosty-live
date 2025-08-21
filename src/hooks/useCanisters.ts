@@ -23,6 +23,8 @@ function transformApiCanisterToFrontend(apiCanister: ApiCanister) {
     wasmBinarySize: apiCanister.wasmBinarySize,
     moduleHash: apiCanister.moduleHash,
     controllers: apiCanister.controllers,
+    isAssetCanister: apiCanister.isAssetCanister,
+    isSystemController: apiCanister.isSystemController,
     // Store additional API data
     _apiData: apiCanister
   }
@@ -114,13 +116,13 @@ export function useCanisters() {
   })
 
   // Get single canister with caching
-  const getCanister = async (icCanisterId: string): Promise<{ success: boolean; error?: string; data?: any }> => {
+  const getCanister = async (icCanisterId: string, skipCache?: boolean): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       console.log('🔍 [useCanisters.getCanister] Getting canister by IC ID:', icCanisterId)
       
       // Try to get from cache first
       const cachedCanister = canisters?.find(c => c.icCanisterId === icCanisterId)
-      if (cachedCanister) {
+      if (!skipCache && cachedCanister) {
         console.log('💾 [useCanisters.getCanister] Found in cache:', cachedCanister)
         return { success: true, data: cachedCanister }
       }
@@ -176,6 +178,32 @@ export function useCanisters() {
     }
   }
 
+  // Add controller to canister
+  const addController = async (canisterDbId: string, userPrincipal: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Find the IC canister ID from the database ID
+      const canister = canisters.find(c => c.id === canisterDbId)
+      if (!canister) {
+        throw new Error('Canister not found')
+      }
+      
+      const response = await canistersApi.addController(canister.icCanisterId, userPrincipal)
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to add controller')
+      }
+      
+      // Invalidate all canister-related cache after adding controller
+      queryClient.invalidateQueries({ queryKey: ['canisters'] })
+      
+      return { success: true }
+    } catch (err) {
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : 'Failed to add controller'
+      }
+    }
+  }
+
   // Convert canisters data and error to match original interface
   const canisters = canistersData || []
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to fetch canisters') : ''
@@ -186,6 +214,7 @@ export function useCanisters() {
     error,
     createCanister,
     deleteCanister,
+    addController,
     getCanister,
     refreshCanisters
   }

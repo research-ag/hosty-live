@@ -17,6 +17,8 @@ export interface Canister {
   moduleHash?: string
   controllers?: string[]
   _apiData?: ApiCanister
+  isAssetCanister?: boolean
+  isSystemController?: boolean
 }
 
 export interface Deployment {
@@ -95,6 +97,8 @@ export interface ApiCanister {
   wasmBinarySize?: string
   moduleHash?: string
   controllers?: string[]
+  isAssetCanister?: boolean
+  isSystemController?: boolean
 }
 
 export interface ApiDeployment {
