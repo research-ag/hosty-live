@@ -450,37 +450,18 @@ export function CanisterPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => copyToClipboard(canister.frontendUrl!)}
+                        onClick={() => {
+                          copyToClipboard(canister.frontendUrl!);
+                          toast.success("URL copied to clipboard");
+                        }}
                         className="h-7 px-2 text-xs"
-                        disabled={copied}
                       >
-                        {copied ? (
-                          <>
-                            <CheckCircle className="h-3 w-3 mr-1 text-green-600" />
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3 w-3 mr-1" />
-                            Copy
-                          </>
-                        )}
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copy
                       </Button>
                     </div>
                   </div>
                 </div>
-
-                {/* Copy Success Feedback */}
-                {copied && (
-                  <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800/50 rounded-lg animate-in slide-in-from-top-2 duration-200">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      <span className="text-sm font-medium text-green-800 dark:text-green-200">
-                        URL copied successfully!
-                      </span>
-                    </div>
-                  </div>
-                )}
 
                 {/* Frontend Preview */}
                 <div className="space-y-3">
