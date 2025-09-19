@@ -238,21 +238,21 @@ export function DeployModal({ isOpen, onClose, onDeploy, onDeployFromGit, canist
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               <h4 className="font-medium text-sm sm:text-base text-amber-800 dark:text-amber-200">
-                Important Notes
+                Notes
               </h4>
             </div>
             <ul className="space-y-1 sm:space-y-2 text-xs sm:text-sm text-amber-700 dark:text-amber-300">
               <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-2 shrink-0"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
                 <span>This deployment will replace the current version of your application</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-2 shrink-0"></span>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
                 <span>The canister may be briefly unavailable during the deployment process</span>
               </li>
               {deploymentMethod === 'zip' && (
                 <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-2 shrink-0"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
                   <span>Ensure your ZIP file includes all necessary assets and dependencies</span>
                 </li>
               )}
