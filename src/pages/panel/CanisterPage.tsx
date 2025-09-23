@@ -441,7 +441,9 @@ export function CanisterPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(canister.frontendUrl, "_blank")}
+                        onClick={() =>
+                          window.open(canister.frontendUrl, "_blank")
+                        }
                         className="h-7 px-2 text-xs"
                       >
                         <ExternalLink className="h-3 w-3 mr-1" />
@@ -470,16 +472,24 @@ export function CanisterPage() {
                       Preview
                     </label>
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted-foreground">Interactive</label>
+                      <label className="text-xs text-muted-foreground">
+                        Interactive
+                      </label>
                       <button
-                        onClick={() => setIsPreviewInteractive(!isPreviewInteractive)}
+                        onClick={() =>
+                          setIsPreviewInteractive(!isPreviewInteractive)
+                        }
                         className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                          isPreviewInteractive ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'
+                          isPreviewInteractive
+                            ? "bg-primary"
+                            : "bg-gray-300 dark:bg-gray-600"
                         }`}
                       >
                         <span
                           className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                            isPreviewInteractive ? 'translate-x-3.5' : 'translate-x-0.5'
+                            isPreviewInteractive
+                              ? "translate-x-3.5"
+                              : "translate-x-0.5"
                           }`}
                         />
                       </button>
@@ -493,13 +503,16 @@ export function CanisterPage() {
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                       loading="lazy"
                       style={{
-                        pointerEvents: isPreviewInteractive ? 'auto' : 'none',
-                        userSelect: isPreviewInteractive ? 'auto' : 'none'
+                        pointerEvents: isPreviewInteractive ? "auto" : "none",
+                        userSelect: isPreviewInteractive ? "auto" : "none",
                       }}
                     />
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{isPreviewInteractive ? 'Interactive' : 'Static'} preview of your frontend</span>
+                    <span>
+                      {isPreviewInteractive ? "Interactive" : "Static"} preview
+                      of your frontend
+                    </span>
                     <Button
                       variant="ghost"
                       size="sm"

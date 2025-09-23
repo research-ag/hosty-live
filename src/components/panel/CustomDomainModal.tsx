@@ -9,11 +9,13 @@ import {
   Settings,
   BookOpen,
 } from "lucide-react";
+import psl from "psl";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { customDomainApi } from "../../services/api";
 import { Canister } from "../../types";
+import { CopyButton } from "../ui/CopyButton";
 
 interface CustomDomainModalProps {
   isOpen: boolean;
@@ -29,6 +31,17 @@ const isValidDomain = (domain: string): boolean => {
   const domainRegex =
     /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9])*$/;
   return domainRegex.test(domain) && domain.length <= 253;
+};
+
+const getDomainParts = (domain: string) => {
+  if (!domain) return { isApex: false, subdomain: null, baseDomain: domain };
+
+  const parsed = psl.parse(domain);
+  return {
+    isApex: !parsed.subdomain,
+    subdomain: parsed.subdomain,
+    baseDomain: parsed.domain,
+  };
 };
 
 export function CustomDomainModal({
@@ -158,23 +171,42 @@ export function CustomDomainModal({
     const displayDomain = domain || "<domain>";
     const displayCanisterId = canister?.icCanisterId || "<canister-id>";
 
+    const { isApex, subdomain } = getDomainParts(domain);
+
+    // Generate names based on apex/subdomain
+    const aliasName = domain ? (isApex ? "@" : subdomain) : "@ or subdomain";
+    const txtName = domain
+      ? isApex
+        ? "_canister-id"
+        : `_canister-id.${subdomain}`
+      : "_canister-id or _canister-id.subdomain";
+    const cnameName = domain
+      ? isApex
+        ? "_acme-challenge"
+        : `_acme-challenge.${subdomain}`
+      : "_acme-challenge or _acme-challenge.subdomain";
+
+    const cnameValue = domain
+      ? `_acme-challenge.${displayDomain}.icp2.io.`
+      : "_acme-challenge.yourdomain.com.icp2.io.";
+
     return [
       {
         type: "ALIAS",
-        name: displayDomain,
+        name: aliasName,
         value: "icp1.io.",
         description: "Domain mapping",
       },
       {
         type: "TXT",
-        name: `_canister-id.${displayDomain}`,
+        name: txtName,
         value: displayCanisterId,
         description: "Canister ID verification",
       },
       {
         type: "CNAME",
-        name: `_acme-challenge.${displayDomain}`,
-        value: `_acme-challenge.${displayDomain}.icp2.io`,
+        name: cnameName,
+        value: cnameValue,
         description: "SSL certificate validation",
       },
     ];
@@ -185,7 +217,7 @@ export function CustomDomainModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Configure Custom Domain"
-      className="max-w-2xl"
+      className="max-w-4xl"
     >
       <div className="space-y-6">
         {/* Tab Navigation */}
@@ -287,23 +319,37 @@ export function CustomDomainModal({
                         <div className="font-mono font-medium">
                           {record.type}
                         </div>
-                        <div
-                          className={`font-mono text-xs break-all ${
-                            !domain
-                              ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1 py-0.5 rounded"
-                              : ""
-                          }`}
-                        >
-                          {record.name}
+                        <div className="flex items-center w-full gap-1">
+                          <div
+                            className={`flex-1 font-mono text-xs break-all ${
+                              !domain
+                                ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1 py-0.5 rounded"
+                                : ""
+                            }`}
+                          >
+                            {record.name}
+                          </div>
+                          <CopyButton
+                            text={record.name}
+                            size="icon"
+                            buttonClassName="w-5 h-5"
+                          />
                         </div>
-                        <div
-                          className={`font-mono text-xs break-all ${
-                            !domain || !canister?.icCanisterId
-                              ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1 py-0.5 rounded"
-                              : ""
-                          }`}
-                        >
-                          {record.value}
+                        <div className="flex items-center w-full gap-1">
+                          <div
+                            className={`flex-1 font-mono text-xs break-all ${
+                              !domain || !canister?.icCanisterId
+                                ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1 py-0.5 rounded"
+                                : ""
+                            }`}
+                          >
+                            {record.value}
+                          </div>
+                          <CopyButton
+                            text={record.value}
+                            size="icon"
+                            buttonClassName="w-5 h-5"
+                          />
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {record.description}
@@ -322,8 +368,8 @@ export function CustomDomainModal({
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground mt-1 shrink-0"></span>
                   <span>
-                    Some DNS providers don't require the full domain name in the
-                    "Name" field - check your provider's documentation
+                    DNS record names are shown in the format your DNS provider
+                    expects (@ for apex domains, subdomain names for subdomains)
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
