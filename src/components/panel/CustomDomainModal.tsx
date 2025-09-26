@@ -14,8 +14,10 @@ import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { customDomainApi } from "../../services/api";
+import { customDomainApi as customDomainApiV2 } from "../../api";
 import { Canister } from "../../types";
 import { CopyButton } from "../ui/CopyButton";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface CustomDomainModalProps {
   isOpen: boolean;
@@ -49,6 +51,8 @@ export function CustomDomainModal({
   onClose,
   canister,
 }: CustomDomainModalProps) {
+  const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState<TabType>("configure");
   const [domain, setDomain] = useState("");
   const [registerDomain, setRegisterDomain] = useState("");
@@ -59,18 +63,109 @@ export function CustomDomainModal({
   const [requestId, setRequestId] = useState("");
   const [registrationStatus, setRegistrationStatus] = useState<any>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [showDnsCheck, setShowDnsCheck] = useState(false);
+
+  const { domainFromIcDomains } =
+    customDomainApiV2.fetchDomainFromIcDomains.useQuery(
+      {
+        canisterId: canister?.icCanisterId ?? "",
+      },
+      { enabled: !!canister?.icCanisterId }
+    );
+
+  const {
+    aliasRecordValidationRes,
+    aliasRecordValidationResIsLoading,
+    aliasRecordValidationResRefetch,
+  } = customDomainApiV2.validateAliasRecord.useQuery(
+    {
+      domain: domain,
+    },
+    { enabled: false }
+  );
+
+  const {
+    canisterIdRecordValidationRes,
+    canisterIdRecordValidationResIsLoading,
+    canisterIdRecordValidationResRefetch,
+  } = customDomainApiV2.validateCanisterIdRecord.useQuery(
+    {
+      domain: domain,
+      expectedCanisterId: canister?.icCanisterId ?? "",
+    },
+    { enabled: false }
+  );
+
+  const {
+    acmeChallengeRecordValidationRes,
+    acmeChallengeRecordValidationResIsLoading,
+    acmeChallengeRecordValidationResRefetch,
+  } = customDomainApiV2.validateAcmeChallengeRecord.useQuery(
+    {
+      domain: domain,
+    },
+    { enabled: false }
+  );
+
+  const isAnyDnsCheckLoading =
+    aliasRecordValidationResIsLoading ||
+    canisterIdRecordValidationResIsLoading ||
+    acmeChallengeRecordValidationResIsLoading;
+
+  const handleDnsCheck = async () => {
+    if (!domain || !isValidDomain(domain)) return;
+
+    setShowDnsCheck(true);
+
+    // Trigger all DNS checks
+    await Promise.all([
+      aliasRecordValidationResRefetch(),
+      canisterIdRecordValidationResRefetch(),
+      acmeChallengeRecordValidationResRefetch(),
+    ]);
+  };
+
+  const getDnsStatusIcon = (status: string) => {
+    switch (status) {
+      case "valid":
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case "missing":
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case "wrong_target":
+      case "wrong_value":
+        return <AlertCircle className="h-4 w-4 text-orange-500" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-400" />;
+    }
+  };
+
+  const getDnsStatusMessage = (status: string) => {
+    switch (status) {
+      case "valid":
+        return "Configured correctly";
+      case "missing":
+        return "Record not found";
+      case "wrong_target":
+        return "Not pointing to ICP";
+      case "wrong_value":
+        return "Incorrect value";
+      default:
+        return "Unknown status";
+    }
+  };
 
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setActiveTab("configure");
-      setDomain("");
-      setRegisterDomain("");
-      setInitialDomain("");
+      setDomain(domainFromIcDomains ?? "");
+      setRegisterDomain(domainFromIcDomains ?? "");
+      setInitialDomain(domainFromIcDomains ?? "");
       setError("");
       setRequestId("");
       setRegistrationStatus(null);
       setIsCheckingStatus(false);
+      setShowDnsCheck(false);
 
       // Fetch current domain
       if (canister?.icCanisterId) {
@@ -78,6 +173,16 @@ export function CustomDomainModal({
       }
     }
   }, [isOpen, canister?.icCanisterId]);
+
+  useEffect(() => {
+    setDomain(domainFromIcDomains ?? "");
+    setRegisterDomain(domainFromIcDomains ?? "");
+    setInitialDomain(domainFromIcDomains ?? "");
+  }, [domainFromIcDomains]);
+
+  useEffect(() => {
+    setShowDnsCheck(false);
+  }, [domain]);
 
   const fetchCurrentDomain = async () => {
     if (!canister?.icCanisterId) return;
@@ -140,6 +245,26 @@ export function CustomDomainModal({
         isCheckStatus
       );
 
+      queryClient.invalidateQueries({
+        queryKey: ["alias-record-validation-res", registerDomain],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "canister-id-record-validation-res",
+          registerDomain,
+          canister.icCanisterId,
+        ],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["acme-challenge-record-validation-res", registerDomain],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["domain-from-ic-domains", canister.icCanisterId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["domain-check-result", canister.icCanisterId],
+      });
+
       if (result.success && result.requestId) {
         setRequestId(result.requestId);
         // Immediately check status
@@ -167,8 +292,9 @@ export function CustomDomainModal({
     isValidDomain(initialDomain);
   const submitButtonText = isCheckStatus ? "Check Status" : "Register Domain";
 
+  const displayDomain = domain || "<domain>";
+
   const getDnsRecords = () => {
-    const displayDomain = domain || "<domain>";
     const displayCanisterId = canister?.icCanisterId || "<canister-id>";
 
     const { isApex, subdomain } = getDomainParts(domain);
@@ -296,7 +422,30 @@ export function CustomDomainModal({
 
             {/* DNS Records Table */}
             <div>
-              <h3 className="text-sm font-medium mb-3">Required DNS Records</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium">Required DNS Records</h3>
+                {domain && isValidDomain(domain) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDnsCheck}
+                    disabled={isAnyDnsCheckLoading}
+                    className="text-xs h-7"
+                  >
+                    {isAnyDnsCheckLoading ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-3 w-3" />
+                        Check DNS
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
               <div className="border rounded-lg overflow-hidden">
                 <div className="bg-muted/50 px-4 py-2 border-b">
                   <div
@@ -329,11 +478,13 @@ export function CustomDomainModal({
                           >
                             {record.name}
                           </div>
-                          <CopyButton
-                            text={record.name}
-                            size="icon"
-                            buttonClassName="w-5 h-5"
-                          />
+                          {domain && (
+                            <CopyButton
+                              text={record.name}
+                              size="icon"
+                              buttonClassName="w-5 h-5"
+                            />
+                          )}
                         </div>
                         <div className="flex items-center w-full gap-1">
                           <div
@@ -345,11 +496,13 @@ export function CustomDomainModal({
                           >
                             {record.value}
                           </div>
-                          <CopyButton
-                            text={record.value}
-                            size="icon"
-                            buttonClassName="w-5 h-5"
-                          />
+                          {domain && (
+                            <CopyButton
+                              text={record.value}
+                              size="icon"
+                              buttonClassName="w-5 h-5"
+                            />
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {record.description}
@@ -360,6 +513,94 @@ export function CustomDomainModal({
                 </div>
               </div>
             </div>
+
+            {/* DNS Check Results */}
+            {showDnsCheck && domain && isValidDomain(domain) && (
+              <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4">
+                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  DNS Configuration Status
+                </h4>
+
+                <div className="space-y-3">
+                  {/* ALIAS Record Check */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                        ALIAS
+                      </div>
+                      <span className="text-sm">Domain points to ICP</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {aliasRecordValidationResIsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : aliasRecordValidationRes ? (
+                        <>
+                          {getDnsStatusIcon(aliasRecordValidationRes.status)}
+                          <span className="text-xs text-muted-foreground">
+                            {getDnsStatusMessage(
+                              aliasRecordValidationRes.status
+                            )}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* TXT Record Check */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                        TXT
+                      </div>
+                      <span className="text-sm">Canister ID verification</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {canisterIdRecordValidationResIsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : canisterIdRecordValidationRes ? (
+                        <>
+                          {getDnsStatusIcon(
+                            canisterIdRecordValidationRes.status
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {getDnsStatusMessage(
+                              canisterIdRecordValidationRes.status
+                            )}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* CNAME Record Check */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                        CNAME
+                      </div>
+                      <span className="text-sm">SSL certificate setup</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {acmeChallengeRecordValidationResIsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : acmeChallengeRecordValidationRes ? (
+                        <>
+                          {getDnsStatusIcon(
+                            acmeChallengeRecordValidationRes.status
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {getDnsStatusMessage(
+                              acmeChallengeRecordValidationRes.status
+                            )}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Additional Notes */}
             <div className="bg-muted/30 border rounded-lg p-4">
