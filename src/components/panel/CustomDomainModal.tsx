@@ -18,6 +18,7 @@ import { customDomainApi as customDomainApiV2 } from "../../api";
 import { Canister } from "../../types";
 import { CopyButton } from "../ui/CopyButton";
 import { useQueryClient } from "@tanstack/react-query";
+import { CustomDomain } from "../ui/CustomDomain";
 
 interface CustomDomainModalProps {
   isOpen: boolean;
@@ -71,6 +72,14 @@ export function CustomDomainModal({
         canisterId: canister?.icCanisterId ?? "",
       },
       { enabled: !!canister?.icCanisterId }
+    );
+
+  const { domainCheckResult, domainCheckResultIsLoading } =
+    customDomainApiV2.checkCustomDomain.useQuery(
+      {
+        canisterId: canister?.icCanisterId ?? "",
+      },
+      { enabled: !!canister?.icCanisterId && !!domainFromIcDomains }
     );
 
   const {
@@ -234,7 +243,7 @@ export function CustomDomainModal({
     setRegistrationStatus(null);
 
     const isCheckStatus =
-      initialDomain &&
+      !!initialDomain &&
       registerDomain === initialDomain &&
       isValidDomain(initialDomain);
 
@@ -290,7 +299,7 @@ export function CustomDomainModal({
     initialDomain &&
     registerDomain === initialDomain &&
     isValidDomain(initialDomain);
-  const submitButtonText = isCheckStatus ? "Check Status" : "Register Domain";
+  const submitButtonText = isCheckStatus ? "Register Domain (check)" : "Register Domain";
 
   const displayDomain = domain || "<domain>";
 
@@ -301,11 +310,6 @@ export function CustomDomainModal({
 
     // Generate names based on apex/subdomain
     const aliasName = domain ? (isApex ? "@" : subdomain) : "@ or subdomain";
-    const txtName = domain
-      ? isApex
-        ? "_canister-id"
-        : `_canister-id.${subdomain}`
-      : "_canister-id or _canister-id.subdomain";
     const cnameName = domain
       ? isApex
         ? "_acme-challenge"
@@ -315,6 +319,11 @@ export function CustomDomainModal({
     const cnameValue = domain
       ? `_acme-challenge.${displayDomain}.icp2.io.`
       : "_acme-challenge.yourdomain.com.icp2.io.";
+    const txtName = domain
+      ? isApex
+        ? "_canister-id"
+        : `_canister-id.${subdomain}`
+      : "_canister-id or _canister-id.subdomain";
 
     return [
       {
@@ -324,16 +333,16 @@ export function CustomDomainModal({
         description: "Domain mapping",
       },
       {
-        type: "TXT",
-        name: txtName,
-        value: displayCanisterId,
-        description: "Canister ID verification",
-      },
-      {
         type: "CNAME",
         name: cnameName,
         value: cnameValue,
         description: "SSL certificate validation",
+      },
+      {
+        type: "TXT",
+        name: txtName,
+        value: displayCanisterId,
+        description: "Canister ID verification",
       },
     ];
   };
@@ -547,32 +556,6 @@ export function CustomDomainModal({
                     </div>
                   </div>
 
-                  {/* TXT Record Check */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
-                        TXT
-                      </div>
-                      <span className="text-sm">Canister ID verification</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {canisterIdRecordValidationResIsLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      ) : canisterIdRecordValidationRes ? (
-                        <>
-                          {getDnsStatusIcon(
-                            canisterIdRecordValidationRes.status
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {getDnsStatusMessage(
-                              canisterIdRecordValidationRes.status
-                            )}
-                          </span>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-
                   {/* CNAME Record Check */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -592,6 +575,32 @@ export function CustomDomainModal({
                           <span className="text-xs text-muted-foreground">
                             {getDnsStatusMessage(
                               acmeChallengeRecordValidationRes.status
+                            )}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* TXT Record Check */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                        TXT
+                      </div>
+                      <span className="text-sm">Canister ID verification</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {canisterIdRecordValidationResIsLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : canisterIdRecordValidationRes ? (
+                        <>
+                          {getDnsStatusIcon(
+                            canisterIdRecordValidationRes.status
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {getDnsStatusMessage(
+                              canisterIdRecordValidationRes.status
                             )}
                           </span>
                         </>
@@ -664,10 +673,24 @@ export function CustomDomainModal({
             </div>
 
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
+              {/* Current domain */}
+              {!!domainFromIcDomains && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Current Custom Domain
+                  </label>
+                  <CustomDomain
+                    domain={domainFromIcDomains}
+                    checkResult={domainCheckResult}
+                    isLoading={domainCheckResultIsLoading}
+                  />
+                </div>
+              )}
+
               {/* Domain Input */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Custom Domain
+                  New Custom Domain
                 </label>
                 <Input
                   value={registerDomain}

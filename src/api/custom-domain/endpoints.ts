@@ -81,7 +81,9 @@ export interface CustomDomainCheckResult {
 export const checkCustomDomain = queryEndpoint({
   entity: "domainCheckResult",
   queryKey: (payload) => ["domain-check-result", payload.canisterId],
-  queryFn: async (payload: { canisterId: string }) => {
+  queryFn: async (payload: {
+    canisterId: string;
+  }): Promise<CustomDomainCheckResult> => {
     try {
       const domain = await apiService.fetchDomainFromIcDomains(
         payload.canisterId

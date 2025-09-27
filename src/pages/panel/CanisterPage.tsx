@@ -28,38 +28,7 @@ import { useCanisters } from "../../hooks/useCanisters";
 import { useDeployments } from "../../hooks/useDeployments";
 import { useToast } from "../../hooks/useToast";
 import { customDomainApi } from "../../api";
-
-const getDomainStatusColor = (status: string) => {
-  switch (status) {
-    case "active":
-      return "bg-green-500";
-    case "not_configured":
-    case "registration_pending":
-      return "bg-yellow-500";
-    case "dns_invalid":
-    case "registration_failed":
-      return "bg-red-500";
-    default:
-      return "bg-gray-400";
-  }
-};
-
-const getDomainStatusName = (status: string) => {
-  switch (status) {
-    case "active":
-      return "Active";
-    case "not_configured":
-      return "Not configured";
-    case "registration_pending":
-      return "Registration pending";
-    case "dns_invalid":
-      return "DNS invalid";
-    case "registration_failed":
-      return "Registration failed";
-    default:
-      return status;
-  }
-};
+import { CustomDomain } from "../../components/ui/CustomDomain";
 
 export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
@@ -83,8 +52,6 @@ export function CanisterPage() {
       },
       { enabled: !!icCanisterId && !!domainFromIcDomains }
     );
-
-  console.log("=== domainCheckResult", domainCheckResult);
 
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -379,45 +346,11 @@ export function CanisterPage() {
                 <label className="text-sm font-medium text-muted-foreground">
                   Custom domain
                 </label>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-mono">{domainFromIcDomains}</p>
-
-                  {/* Status Indicator */}
-                  <div className="flex items-center gap-1">
-                    {domainCheckResultIsLoading ? (
-                      // Loading state
-                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                    ) : domainCheckResult?.status ? (
-                      // Status circle
-                      <div className="relative group">
-                        <div
-                          className={`h-3 w-3 rounded-full ${getDomainStatusColor(
-                            domainCheckResult.status
-                          )} cursor-help`}
-                        />
-                        <div
-                          className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-900 dark:bg-gray-700 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10`}
-                        >
-                          {getDomainStatusName(domainCheckResult.status)}
-                        </div>
-                      </div>
-                    ) : (
-                      // No status available
-                      <div className="h-3 w-3 rounded-full bg-gray-400" />
-                    )}
-
-                    {/* Error indicator with tooltip */}
-                    {domainCheckResult?.errorMessage && (
-                      <div className="relative group">
-                        <AlertCircle className="h-3 w-3 text-red-500 cursor-help" />
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs text-white bg-red-600 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10 max-w-[180px] w-max">
-                          {domainCheckResult.errorMessage}
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-red-600" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <CustomDomain
+                  domain={domainFromIcDomains}
+                  checkResult={domainCheckResult}
+                  isLoading={domainCheckResultIsLoading}
+                />
               </div>
             )}
             <div>

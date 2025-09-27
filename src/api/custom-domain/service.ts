@@ -3,6 +3,7 @@ import { makeRequest } from "../system";
 const resetHeaders = {
   "ngrok-skip-browser-warning": null,
   Authorization: null,
+  "Cache-Control": "no-cache, no-store, must-revalidate",
 };
 
 const ICP_BOUNDARY_NODE_IPS = [
@@ -12,7 +13,7 @@ const ICP_BOUNDARY_NODE_IPS = [
   "147.75.202.74",
 ];
 
-export interface GoogleDnsResponse {
+export interface CloudflareDnsResponse {
   Status: number;
   TC: boolean;
   RD: boolean;
@@ -29,16 +30,15 @@ export interface GoogleDnsResponse {
     TTL: number;
     data: string;
   }[];
-  edns_client_subnet?: string;
 }
 
 export const validateAliasRecord = async (
   domain: string
 ): Promise<{ status: string; ips?: string[] }> => {
-  const data = await makeRequest.auto<GoogleDnsResponse>({
-    url: `https://dns.google/resolve?name=${domain}&type=A`,
+  const data = await makeRequest.auto<CloudflareDnsResponse>({
+    url: `https://cloudflare-dns.com/dns-query?name=${domain}&type=A`,
     method: "GET",
-    headers: resetHeaders,
+    headers: { ...resetHeaders, Accept: "application/dns-json" },
   });
 
   if (data.Status !== 0) return { status: "missing" };
@@ -56,10 +56,10 @@ export const validateCanisterIdRecord = async (
   domain: string,
   expectedCanisterId: string
 ): Promise<{ status: string; values?: string[] }> => {
-  const data = await makeRequest.auto<GoogleDnsResponse>({
-    url: `https://dns.google/resolve?name=_canister-id.${domain}&type=TXT`,
+  const data = await makeRequest.auto<CloudflareDnsResponse>({
+    url: `https://cloudflare-dns.com/dns-query?name=_canister-id.${domain}&type=TXT`,
     method: "GET",
-    headers: resetHeaders,
+    headers: { ...resetHeaders, Accept: "application/dns-json" },
   });
 
   if (data.Status !== 0) return { status: "missing" };
@@ -77,10 +77,10 @@ export const validateCanisterIdRecord = async (
 export const validateAcmeChallengeRecord = async (
   domain: string
 ): Promise<{ status: string; values?: string[] }> => {
-  const data = await makeRequest.auto<GoogleDnsResponse>({
-    url: `https://dns.google/resolve?name=_acme-challenge.${domain}&type=CNAME`,
+  const data = await makeRequest.auto<CloudflareDnsResponse>({
+    url: `https://cloudflare-dns.com/dns-query?name=_acme-challenge.${domain}&type=CNAME`,
     method: "GET",
-    headers: resetHeaders,
+    headers: { ...resetHeaders, Accept: "application/dns-json" },
   });
 
   if (data.Status !== 0) return { status: "missing" };
