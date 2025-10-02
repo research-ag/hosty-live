@@ -127,17 +127,17 @@ export const checkNamecheapDns = async (
     data: {
       queries: [
         {
-          name: "hosty.live",
+          name: domain,
           type: "A",
           server: "dns1.registrar-servers.com",
         },
         {
-          name: "_canister-id.hosty.live",
+          name: `_canister-id.${domain}`,
           type: "TXT",
           server: "dns1.registrar-servers.com",
         },
         {
-          name: "_acme-challenge.hosty.live",
+          name: `_acme-challenge.${domain}`,
           type: "CNAME",
           server: "dns1.registrar-servers.com",
         },
@@ -152,46 +152,51 @@ export const checkNamecheapDns = async (
 
   // Alias validation
 
-  if (!aliasRecord.answers.length) fnResult.push({ status: "missing" });
+  if (!aliasRecord.answers.length) {
+    fnResult.push({ status: "missing" });
+  } else {
+    const ips = aliasRecord.answers.map((record) => record);
+    const hasIcpIPs = ips.some(
+      (ip) => ICP_BOUNDARY_NODE_IPS.includes(ip) || ip === "icp1.io."
+    );
 
-  const ips = aliasRecord.answers.map((record) => record);
-  const hasIcpIPs = ips.some(
-    (ip) => ICP_BOUNDARY_NODE_IPS.includes(ip) || ip === "icp1.io."
-  );
-
-  fnResult.push({
-    status: hasIcpIPs ? "valid" : "wrong_target",
-    ips,
-  });
+    fnResult.push({
+      status: hasIcpIPs ? "valid" : "wrong_target",
+      ips,
+    });
+  }
 
   // Canister id validation
 
-  if (!canisterIdRecord.answers.length) fnResult.push({ status: "missing" });
+  if (!canisterIdRecord.answers.length) {
+    fnResult.push({ status: "missing" });
+  } else {
+    const txtRecords = canisterIdRecord.answers.map((record) =>
+      record.replace(/"/g, "")
+    );
+    const hasCorrectCanisterId = txtRecords.includes(expectedCanisterId);
 
-  const txtRecords = canisterIdRecord.answers.map((record) =>
-    record.replace(/"/g, "")
-  );
-  const hasCorrectCanisterId = txtRecords.includes(expectedCanisterId);
-
-  fnResult.push({
-    status: hasCorrectCanisterId ? "valid" : "wrong_value",
-    values: txtRecords,
-  });
-
+    fnResult.push({
+      status: hasCorrectCanisterId ? "valid" : "wrong_value",
+      values: txtRecords,
+    });
+  }
   // Acme challenge validation
 
-  if (!acmeChallengeRecord.answers.length) fnResult.push({ status: "missing" });
+  if (!acmeChallengeRecord.answers.length) {
+    fnResult.push({ status: "missing" });
+  } else {
+    const expectedValue = `_acme-challenge.${domain}.icp2.io.`;
+    const cnameRecords = acmeChallengeRecord.answers.map((record) => record);
+    const hasCorrectCname = cnameRecords.some(
+      (record) => record === expectedValue
+    );
 
-  const expectedValue = `_acme-challenge.${domain}.icp2.io.`;
-  const cnameRecords = acmeChallengeRecord.answers.map((record) => record);
-  const hasCorrectCname = cnameRecords.some(
-    (record) => record === expectedValue
-  );
-
-  fnResult.push({
-    status: hasCorrectCname ? "valid" : "wrong_value",
-    values: cnameRecords,
-  });
+    fnResult.push({
+      status: hasCorrectCname ? "valid" : "wrong_value",
+      values: cnameRecords,
+    });
+  }
 
   return {
     alias: fnResult[0],
