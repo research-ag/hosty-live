@@ -3,7 +3,6 @@ import { makeRequest } from "../system";
 const resetHeaders = {
   "ngrok-skip-browser-warning": null,
   Authorization: null,
-  "Cache-Control": "no-cache, no-store, must-revalidate",
 };
 
 const ICP_BOUNDARY_NODE_IPS = [
@@ -11,9 +10,10 @@ const ICP_BOUNDARY_NODE_IPS = [
   "63.251.162.12",
   "147.75.108.42",
   "147.75.202.74",
+  "icp1.io.",
 ];
 
-export interface CloudflareDnsResponse {
+export interface GoogleDnsResponse {
   Status: number;
   TC: boolean;
   RD: boolean;
@@ -35,16 +35,19 @@ export interface CloudflareDnsResponse {
 export const validateAliasRecord = async (
   domain: string
 ): Promise<{ status: string; ips?: string[] }> => {
-  const data = await makeRequest.auto<CloudflareDnsResponse>({
-    url: `https://cloudflare-dns.com/dns-query?name=${domain}&type=A`,
+  const timestamp = Date.now();
+  const data = await makeRequest.auto<GoogleDnsResponse>({
+    url: `https://dns.google/resolve?name=${domain}&type=A&_t=${timestamp}`,
     method: "GET",
-    headers: { ...resetHeaders, Accept: "application/dns-json" },
+    headers: resetHeaders,
   });
 
   if (data.Status !== 0) return { status: "missing" };
 
   const ips = data.Answer?.map((record) => record.data) || [];
-  const hasIcpIPs = ips.some((ip) => ICP_BOUNDARY_NODE_IPS.includes(ip));
+  const hasIcpIPs = ips.some(
+    (ip) => ICP_BOUNDARY_NODE_IPS.includes(ip) || ip === "icp1.io."
+  );
 
   return {
     status: hasIcpIPs ? "valid" : "wrong_target",
@@ -56,10 +59,11 @@ export const validateCanisterIdRecord = async (
   domain: string,
   expectedCanisterId: string
 ): Promise<{ status: string; values?: string[] }> => {
-  const data = await makeRequest.auto<CloudflareDnsResponse>({
-    url: `https://cloudflare-dns.com/dns-query?name=_canister-id.${domain}&type=TXT`,
+  const timestamp = Date.now();
+  const data = await makeRequest.auto<GoogleDnsResponse>({
+    url: `https://dns.google/resolve?name=_canister-id.${domain}&type=TXT&_t=${timestamp}`,
     method: "GET",
-    headers: { ...resetHeaders, Accept: "application/dns-json" },
+    headers: resetHeaders,
   });
 
   if (data.Status !== 0) return { status: "missing" };
@@ -77,10 +81,11 @@ export const validateCanisterIdRecord = async (
 export const validateAcmeChallengeRecord = async (
   domain: string
 ): Promise<{ status: string; values?: string[] }> => {
-  const data = await makeRequest.auto<CloudflareDnsResponse>({
-    url: `https://cloudflare-dns.com/dns-query?name=_acme-challenge.${domain}&type=CNAME`,
+  const timestamp = Date.now();
+  const data = await makeRequest.auto<GoogleDnsResponse>({
+    url: `https://dns.google/resolve?name=_acme-challenge.${domain}&type=CNAME&_t=${timestamp}`,
     method: "GET",
-    headers: { ...resetHeaders, Accept: "application/dns-json" },
+    headers: resetHeaders,
   });
 
   if (data.Status !== 0) return { status: "missing" };
@@ -96,6 +101,105 @@ export const validateAcmeChallengeRecord = async (
     values: cnameRecords,
   };
 };
+
+// @ Namecheap check
+
+interface DnsQueryResponse {
+  results: Array<{
+    name: string;
+    type: string;
+    server: string;
+    answers: string[];
+    error?: string;
+  }>;
+  error?: string;
+}
+
+export const checkNamecheapDns = async (
+  domain: string,
+  expectedCanisterId: string
+) => {
+  const data = await makeRequest.auto<DnsQueryResponse>({
+    url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dns-query`,
+    method: "POST",
+    headers: { ...resetHeaders },
+    data: {
+      queries: [
+        {
+          name: "hosty.live",
+          type: "A",
+          server: "dns1.registrar-servers.com",
+        },
+        {
+          name: "_canister-id.hosty.live",
+          type: "TXT",
+          server: "dns1.registrar-servers.com",
+        },
+        {
+          name: "_acme-challenge.hosty.live",
+          type: "CNAME",
+          server: "dns1.registrar-servers.com",
+        },
+      ],
+    },
+  });
+
+  const fnResult: Array<{ status: string; ips?: string[]; values?: string[] }> =
+    [];
+
+  const [aliasRecord, canisterIdRecord, acmeChallengeRecord] = data.results;
+
+  // Alias validation
+
+  if (!aliasRecord.answers.length) fnResult.push({ status: "missing" });
+
+  const ips = aliasRecord.answers.map((record) => record);
+  const hasIcpIPs = ips.some(
+    (ip) => ICP_BOUNDARY_NODE_IPS.includes(ip) || ip === "icp1.io."
+  );
+
+  fnResult.push({
+    status: hasIcpIPs ? "valid" : "wrong_target",
+    ips,
+  });
+
+  // Canister id validation
+
+  if (!canisterIdRecord.answers.length) fnResult.push({ status: "missing" });
+
+  const txtRecords = canisterIdRecord.answers.map((record) =>
+    record.replace(/"/g, "")
+  );
+  const hasCorrectCanisterId = txtRecords.includes(expectedCanisterId);
+
+  fnResult.push({
+    status: hasCorrectCanisterId ? "valid" : "wrong_value",
+    values: txtRecords,
+  });
+
+  // Acme challenge validation
+
+  if (!acmeChallengeRecord.answers.length) fnResult.push({ status: "missing" });
+
+  const expectedValue = `_acme-challenge.${domain}.icp2.io.`;
+  const cnameRecords = acmeChallengeRecord.answers.map((record) => record);
+  const hasCorrectCname = cnameRecords.some(
+    (record) => record === expectedValue
+  );
+
+  fnResult.push({
+    status: hasCorrectCname ? "valid" : "wrong_value",
+    values: cnameRecords,
+  });
+
+  return {
+    alias: fnResult[0],
+    canisterId: fnResult[1],
+    acmeChallenge: fnResult[2],
+  };
+};
+
+// @
 
 export interface RegistrationsResponse {
   name: string;

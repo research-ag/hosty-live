@@ -57,6 +57,21 @@ export const fetchDomainFromIcDomains = queryEndpoint({
 
 // @
 
+export const checkNamecheapDns = queryEndpoint({
+  entity: "checkNamecheapDns",
+  queryKey: (payload) => [
+    "check-namecheap-dns",
+    payload.domain,
+    payload.expectedCanisterId,
+  ],
+  queryFn: (payload: { domain: string; expectedCanisterId: string }) =>
+    apiService.checkNamecheapDns(payload.domain, payload.expectedCanisterId),
+  defaultValue: null,
+  nullable: true,
+});
+
+// @
+
 export interface CustomDomainCheckResult {
   domain: string | null;
   status:
