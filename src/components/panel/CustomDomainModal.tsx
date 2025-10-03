@@ -607,9 +607,7 @@ export function CustomDomainModal({
                             <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
                               ALIAS
                             </div>
-                            <span className="text-sm">
-                              Domain points to ICP
-                            </span>
+                            <span className="text-sm">Domain mapping</span>
                           </div>
                         </td>
                         <td className="py-3 px-2">
@@ -642,6 +640,56 @@ export function CustomDomainModal({
                                 <span className="text-xs text-muted-foreground hidden sm:inline">
                                   {getDnsStatusMessage(
                                     aliasRecordValidationRes.status
+                                  )}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* CNAME Record Row */}
+                      <tr>
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-2">
+                            <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
+                              CNAME
+                            </div>
+                            <span className="text-sm">
+                              SSL certificate validation
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-2">
+                          <div className="flex items-center justify-center gap-1">
+                            {checkNamecheapDnsIsLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            ) : checkNamecheapDns?.acmeChallenge ? (
+                              <>
+                                {getDnsStatusIcon(
+                                  checkNamecheapDns.acmeChallenge.status
+                                )}
+                                <span className="text-xs text-muted-foreground hidden sm:inline">
+                                  {getDnsStatusMessage(
+                                    checkNamecheapDns.acmeChallenge.status
+                                  )}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="py-3 px-2">
+                          <div className="flex items-center justify-center gap-1">
+                            {acmeChallengeRecordValidationResIsLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            ) : acmeChallengeRecordValidationRes ? (
+                              <>
+                                {getDnsStatusIcon(
+                                  acmeChallengeRecordValidationRes.status
+                                )}
+                                <span className="text-xs text-muted-foreground hidden sm:inline">
+                                  {getDnsStatusMessage(
+                                    acmeChallengeRecordValidationRes.status
                                   )}
                                 </span>
                               </>
@@ -692,56 +740,6 @@ export function CustomDomainModal({
                                 <span className="text-xs text-muted-foreground hidden sm:inline">
                                   {getDnsStatusMessage(
                                     canisterIdRecordValidationRes.status
-                                  )}
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* CNAME Record Row */}
-                      <tr>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-2">
-                            <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
-                              CNAME
-                            </div>
-                            <span className="text-sm">
-                              SSL certificate setup
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center justify-center gap-1">
-                            {checkNamecheapDnsIsLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : checkNamecheapDns?.acmeChallenge ? (
-                              <>
-                                {getDnsStatusIcon(
-                                  checkNamecheapDns.acmeChallenge.status
-                                )}
-                                <span className="text-xs text-muted-foreground hidden sm:inline">
-                                  {getDnsStatusMessage(
-                                    checkNamecheapDns.acmeChallenge.status
-                                  )}
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center justify-center gap-1">
-                            {acmeChallengeRecordValidationResIsLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : acmeChallengeRecordValidationRes ? (
-                              <>
-                                {getDnsStatusIcon(
-                                  acmeChallengeRecordValidationRes.status
-                                )}
-                                <span className="text-xs text-muted-foreground hidden sm:inline">
-                                  {getDnsStatusMessage(
-                                    acmeChallengeRecordValidationRes.status
                                   )}
                                 </span>
                               </>
