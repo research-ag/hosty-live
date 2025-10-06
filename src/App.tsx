@@ -56,8 +56,8 @@ function App() {
                     <Route path="canister/:id" element={<CanisterPage />} />
                     <Route path="deployments" element={<DeploymentsPage />} />
                     <Route path="deployment/:id" element={<DeploymentPage />} />
-                    <Route path="cycles" element={<CyclesPage />} />
-                    <Route path="tcycles" element={<TCyclesPage />} />
+                    <Route path="credits" element={<CyclesPage />} />
+                    <Route path="cycles" element={<TCyclesPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                   </Route>
                   

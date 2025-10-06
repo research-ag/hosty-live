@@ -10,7 +10,7 @@ function getLedgerCanisterId(): string {
   const fromEnv = import.meta.env.VITE_TCYCLES_LEDGER_CANISTER_ID as string | undefined
   const cid = fromEnv || generatedCanisterId
   if (!cid) {
-    throw new Error('TCYCLES ledger canister ID is not configured. Set VITE_TCYCLES_LEDGER_CANISTER_ID in your env.')
+    throw new Error('Cycles ledger canister ID is not configured. Set VITE_TCYCLES_LEDGER_CANISTER_ID in your env.')
   }
   return cid
 }

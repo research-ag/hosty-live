@@ -5,8 +5,8 @@ import { cn } from '../../lib/utils'
 const navigation = [
   { name: 'Canisters', href: '/panel/canisters', icon: Server },
   { name: 'Deployments', href: '/panel/deployments', icon: Zap },
+  { name: 'Credits', href: '/panel/credits', icon: Coins },
   { name: 'Cycles', href: '/panel/cycles', icon: Coins },
-  { name: 'TCYCLES', href: '/panel/tcycles', icon: Coins },
   { name: 'Settings', href: '/panel/settings', icon: Settings },
 ]
 

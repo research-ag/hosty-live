@@ -99,7 +99,7 @@ export function CyclesPage() {
     return (
       <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold mb-2">Cycles</h1>
+          <h1 className="text-2xl font-semibold mb-2">Credits</h1>
           <p className="text-muted-foreground">Manage your compute cycles for canister operations</p>
         </div>
         <div className="flex items-center justify-center py-12">
@@ -116,7 +116,7 @@ export function CyclesPage() {
     return (
       <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold mb-2">Cycles</h1>
+          <h1 className="text-2xl font-semibold mb-2">Credits</h1>
           <p className="text-muted-foreground">Manage your compute cycles for canister operations</p>
         </div>
         <Card className="border-destructive/50">
@@ -142,7 +142,7 @@ export function CyclesPage() {
     <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold mb-2">Cycles</h1>
+          <h1 className="text-2xl font-semibold mb-2">Credits</h1>
           <p className="text-muted-foreground">Manage your compute cycles for canister operations</p>
         </div>
         <Button 

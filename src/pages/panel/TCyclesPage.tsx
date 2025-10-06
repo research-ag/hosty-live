@@ -16,8 +16,8 @@ export function TCyclesPage() {
     <div className="container mx-auto p-4 sm:p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold mb-2">TCYCLES</h1>
-          <p className="text-muted-foreground">Manage your TCYCLES ICRC-1 ledger balance</p>
+          <h1 className="text-2xl font-semibold mb-2">Cycles</h1>
+          <p className="text-muted-foreground">Manage your cycles ICRC-1 ledger balance</p>
         </div>
         <Button 
           variant="outline" 
@@ -67,16 +67,16 @@ export function TCyclesPage() {
           <CardHeader>
             <CardTitle className="flex items-center">
               <Info className="mr-2 h-5 w-5" />
-              About TCYCLES (ICRC-1)
+              About Cycles (ICRC-1)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <p>
-              TCYCLES is an ICRC-1 compliant ledger token that represents compute cycles on the Internet Computer.
-              You can deposit TCYCLES to your account and later spend them within the platform.
+              An ICRC-1 compliant ledger token is used that represents compute cycles on the Internet Computer.
+              You can deposit cycles to your account and later spend them within the platform.
             </p>
             <div className="space-y-2">
-              <p className="font-medium text-foreground">How to deposit TCYCLES</p>
+              <p className="font-medium text-foreground">How to deposit cycles</p>
               {!isAuthenticated ? (
                 <div className="space-y-3">
                   <p>Please sign in with Internet Identity to view your deposit account.</p>
@@ -85,7 +85,7 @@ export function TCyclesPage() {
               ) : (
                 <div className="space-y-2">
                   <p>
-                    Send TCYCLES from any ICRC-1 compatible wallet to your account below.
+                    Send cycles from any ICRC-1 compatible wallet to your account below.
                     Use null subaccount.
                   </p>
                   <div className="rounded-md border p-3">
