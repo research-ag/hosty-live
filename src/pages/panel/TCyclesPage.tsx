@@ -19,30 +19,30 @@ export function TCyclesPage() {
           <h1 className="text-2xl font-semibold mb-2">Cycles</h1>
           <p className="text-muted-foreground">Manage your cycles ICRC-1 ledger balance</p>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={handleRefresh}
           disabled={isLoading || isFetching}
           className="flex items-center gap-2"
         >
-          <RefreshCw className={`h-4 w-4 ${isLoading || isFetching ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${isLoading || isFetching ? 'animate-spin' : ''}`}/>
           Refresh
         </Button>
       </div>
 
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
-        <Card className="hover:shadow-lg transition-all duration-200">
+        <Card className="hover:shadow-lg transition-all duration-200" style={{ display: 'flex', flexDirection: 'column' }}>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Coins className="mr-2 h-5 w-5" />
+              <Coins className="mr-2 h-5 w-5"/>
               Current Balance
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-center">
+          <CardContent style={{ display: 'flex', flexDirection: 'column', flexGrow: '1' }}>
+            <div className="text-center" style={{ display: 'contents' }}>
               {isLoading ? (
                 <div className="flex items-center justify-center gap-3 py-6">
-                  <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+                  <RefreshCw className="h-5 w-5 animate-spin text-primary"/>
                   <span>Loading balance...</span>
                 </div>
               ) : error ? (
@@ -52,11 +52,24 @@ export function TCyclesPage() {
               ) : (
                 <>
                   <div className="text-4xl font-bold mb-2">
-                    {balanceTC ?? '0.0000'} TC
+                    {isAuthenticated ? ((balanceTC ?? '0.0000') + ' TC') : '-'}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Raw: {balanceRaw ? BigInt(balanceRaw).toLocaleString() : '0'} e-12
-                  </p>
+                  {isAuthenticated && (
+                    <p className="text-sm text-muted-foreground">
+                      Raw: {balanceRaw ? BigInt(balanceRaw).toLocaleString() : '0'} e-12
+                    </p>
+                  )}
+                  <div style={{ flexGrow: '1' }}></div>
+                  {isAuthenticated && principal && (
+                    <div className="mt-4">
+                      <Button
+                        onClick={() => window.open(`https://cycle.express/?to=${principal}`, '_blank', 'noopener,noreferrer')}
+                        size="sm"
+                      >
+                        Deposit using Cycle Express
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -66,7 +79,7 @@ export function TCyclesPage() {
         <Card className="hover:shadow-lg transition-all duration-200">
           <CardHeader>
             <CardTitle className="flex items-center">
-              <Info className="mr-2 h-5 w-5" />
+              <Info className="mr-2 h-5 w-5"/>
               About Cycles (ICRC-1)
             </CardTitle>
           </CardHeader>
@@ -95,7 +108,8 @@ export function TCyclesPage() {
                 </div>
               )}
               <p>
-                After sending, it may take a short while for the transfer to be confirmed. Click Refresh to update your balance.
+                After sending, it may take a short while for the transfer to be confirmed. Click Refresh to update your
+                balance.
               </p>
             </div>
           </CardContent>
