@@ -9,13 +9,25 @@ export type IIState = {
   logout: () => Promise<void>;
 };
 
-let authClientPromise: Promise<AuthClient> | null = null;
+let authClient: AuthClient | null = null;
+let authClientPromise: Promise<void> | null = AuthClient.create().then(c => {
+  authClient = c;
+  authClientPromise = null;
+});
 
 async function getClient(): Promise<AuthClient> {
-  if (!authClientPromise) {
-    authClientPromise = AuthClient.create();
+  if (!authClient) {
+    await authClientPromise!;
   }
-  return authClientPromise;
+  return authClient!;
+}
+
+function getClientSync(): AuthClient {
+  if (authClient) {
+    return authClient;
+  } else {
+    throw new Error("AuthClient not initialized");
+  }
 }
 
 export function useInternetIdentity(): IIState {
@@ -47,10 +59,10 @@ export function useInternetIdentity(): IIState {
 
   const login = useMemo(
     () =>
-      async () => {
-        const client = await getClient();
-        const identityProvider = "https://identity.ic0.app/#authorize";
-        await new Promise<void>((resolve, reject) => {
+      () => {
+        return new Promise<void>((resolve, reject) => {
+          const client = getClientSync();
+          const identityProvider = "https://identity.ic0.app/#authorize";
           client.login({
             identityProvider,
             onSuccess: async () => {
