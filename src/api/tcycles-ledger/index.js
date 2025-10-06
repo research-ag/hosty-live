@@ -10,25 +10,15 @@ export { idlFactory } from "./tcycles_ledger.did.js";
  * beginning in dfx 0.15.0
  */
 export const canisterId =
-  process.env.CANISTER_ID_TCYCLES_LEDGER;
+    import.meta.env.VITE_TCYCLES_LEDGER_CANISTER_ID;
 
 export const createActor = (canisterId, options = {}) => {
-  const agent = options.agent || new HttpAgent({ ...options.agentOptions });
+  const agent = options.agent || new HttpAgent({ ...options.agentOptions, host: "https://ic0.app" });
 
   if (options.agent && options.agentOptions) {
     console.warn(
       "Detected both agent and agentOptions passed to createActor. Ignoring agentOptions and proceeding with the provided agent."
     );
-  }
-
-  // Fetch root key for certificate validation during development
-  if (process.env.DFX_NETWORK !== "ic") {
-    agent.fetchRootKey().catch((err) => {
-      console.warn(
-        "Unable to fetch root key. Check to ensure that your local replica is running"
-      );
-      console.error(err);
-    });
   }
 
   // Creates an actor with using the candid interface and the HttpAgent

@@ -9,6 +9,18 @@ export type IIState = {
   logout: () => Promise<void>;
 };
 
+type IIListener = (state: { principal?: string; isAuthenticated: boolean }) => void;
+const iiListeners = new Set<IIListener>();
+function subscribeII(listener: IIListener) {
+  iiListeners.add(listener);
+  return () => iiListeners.delete(listener);
+}
+function notifyII(state: { principal?: string; isAuthenticated: boolean }) {
+  iiListeners.forEach((l) => {
+    try { l(state); } catch { /* pass */ }
+  });
+}
+
 let authClient: AuthClient | null = null;
 let authClientPromise: Promise<void> | null = AuthClient.create().then(c => {
   authClient = c;
@@ -37,6 +49,13 @@ export function useInternetIdentity(): IIState {
 
   useEffect(() => {
     let cancelled = false;
+
+    const unsubscribe = subscribeII(({ principal: p, isAuthenticated: authed }) => {
+      if (cancelled) return;
+      setIsAuthenticated(authed);
+      setPrincipal(p);
+    });
+
     (async () => {
       try {
         const client = await getClient();
@@ -48,12 +67,14 @@ export function useInternetIdentity(): IIState {
           const p = identity?.getPrincipal?.().toText?.();
           if (p) setPrincipal(p);
         }
+        notifyII({ principal: authed ? (authClient?.getIdentity()?.getPrincipal?.().toText?.()) : undefined, isAuthenticated: authed });
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     })();
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
@@ -72,6 +93,7 @@ export function useInternetIdentity(): IIState {
                 const identity = client.getIdentity();
                 const p = identity?.getPrincipal?.().toText?.();
                 setPrincipal(p);
+                notifyII({ principal: p, isAuthenticated: authed });
                 resolve();
               } catch (e) {
                 reject(e);
@@ -91,6 +113,7 @@ export function useInternetIdentity(): IIState {
         await client.logout();
         setIsAuthenticated(false);
         setPrincipal(undefined);
+        notifyII({ principal: undefined, isAuthenticated: false });
       },
     []
   );
