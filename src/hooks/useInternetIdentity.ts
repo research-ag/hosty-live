@@ -27,14 +27,14 @@ let authClientPromise: Promise<void> | null = AuthClient.create().then(c => {
   authClientPromise = null;
 });
 
-async function getClient(): Promise<AuthClient> {
+export async function getClient(): Promise<AuthClient> {
   if (!authClient) {
     await authClientPromise!;
   }
   return authClient!;
 }
 
-function getClientSync(): AuthClient {
+export function getClientSync(): AuthClient {
   if (authClient) {
     return authClient;
   } else {

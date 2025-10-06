@@ -51,6 +51,7 @@ export function TCyclesPage() {
                 </div>
               ) : (
                 <>
+                  <div style={{ flexGrow: '1' }}></div>
                   <div className="text-4xl font-bold mb-2">
                     {isAuthenticated ? ((balanceTC ?? '0.0000') + ' TC') : '-'}
                   </div>
