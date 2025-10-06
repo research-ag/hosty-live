@@ -16,6 +16,8 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import logoImg from "../../assets/logo.png";
 import { Server, Zap, Coins } from "lucide-react";
+import { useInternetIdentity } from "../../hooks/useInternetIdentity";
+import { CopyButton } from "../ui/CopyButton";
 
 // Internet Computer Logo SVG Component
 const ICPLogo = ({ className }: { className?: string }) => (
@@ -86,6 +88,7 @@ export function Header() {
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const { toast } = useToast();
+  const { principal, isAuthenticated: isIIAuthed, isLoading: isIILoading, login: loginII, logout: logoutII } = useInternetIdentity();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -247,6 +250,43 @@ export function Header() {
                         </>
                       )}
                     </button>
+
+                    <div className="px-4 py-2 text-sm border-t">
+                      <div className="text-muted-foreground mb-1">Your principal:</div>
+                      {isIILoading ? (
+                        <div className="text-xs text-muted-foreground">Loading…</div>
+                      ) : isIIAuthed && principal ? (
+                        <div className="flex items-center gap-2 w-full max-w-full">
+                          <span
+                            className="font-mono text-xs flex-1 min-w-0 truncate"
+                            title={principal}
+                          >
+                            {principal}
+                          </span>
+                          <CopyButton text={principal} size="icon" variant="ghost" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Logout Internet Identity"
+                            title="Logout Internet Identity"
+                            onClick={async () => {
+                              try {
+                                await logoutII();
+                              } catch (e) {
+                                console.error(e);
+                              }
+                            }}
+                          >
+                            <LogOut className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={loginII}>
+                          Login with II
+                        </Button>
+                      )}
+                    </div>
+
                     <button
                       onClick={() => {
                         logout();
