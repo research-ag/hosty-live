@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Plus, Eye, Trash2, ChevronLeft, ChevronRight, Server, Clock, Zap } from 'lucide-react'
+import { Plus, Eye, Trash2, ChevronLeft, ChevronRight, Server, Zap } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { SortButton } from '../../components/ui/SortButton'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
@@ -9,10 +9,17 @@ import { CreateCanisterModal } from '../../components/panel/CreateCanisterModal'
 import { DeleteCanisterModal } from '../../components/panel/DeleteCanisterModal'
 import { useCanisters } from '../../hooks/useCanisters'
 import { useToast } from '../../hooks/useToast'
+import { useTCycles } from '../../hooks/useTCycles'
+import { useInternetIdentity } from '../../hooks/useInternetIdentity'
+import { TopUpCanisterModal } from '../../components/panel/TopUpCanisterModal'
 
 export function CanistersPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { principal } = useInternetIdentity()
+  const { withdrawToCanister, balanceRaw, formatTC, refresh } = useTCycles(principal)
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false)
+  const [topUpCanisterId, setTopUpCanisterId] = useState<string | null>(null)
   
   // Read initial state from URL parameters
   const initialPage = parseInt(searchParams.get('page') || '1', 10)
@@ -277,7 +284,26 @@ export function CanistersPage() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">Cycles</p>
-                  <p className="font-semibold text-primary">{canister.isSystemController ? `${formatCycles(canister.cycles)} TC` : "unknown"}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-primary">
+                      {canister.isSystemController ? `${formatCycles(canister.cycles)} TC` : 'unknown'}
+                    </p>
+                    {canister.isSystemController && (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setTopUpCanisterId(canister.icCanisterId)
+                          setIsTopUpModalOpen(true)
+                        }}
+                        title="Top up"
+                        className="h-6 w-6 p-0"
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">Created</p>
@@ -419,6 +445,22 @@ export function CanistersPage() {
         isLoading={isDeleting}
         error={actionError}
       />
+
+      {topUpCanisterId && (
+        <TopUpCanisterModal
+          isOpen={isTopUpModalOpen}
+          onClose={() => { setIsTopUpModalOpen(false); setTopUpCanisterId(null); }}
+          canisterId={topUpCanisterId}
+          userBalanceRaw={balanceRaw}
+          formatTC={formatTC}
+          onWithdraw={async (cid, amt) => {
+            const res = await withdrawToCanister(cid, amt)
+            toast.success('Top up successful', `Deposit submitted. Block index: ${res.toString()}`)
+            await refresh()
+            return res
+          }}
+        />
+      )}
     </div>
   )
 }
