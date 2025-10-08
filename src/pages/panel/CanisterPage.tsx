@@ -10,7 +10,6 @@ import {
   ExternalLink,
   UserCheck,
   Settings,
-  Loader2,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import {
@@ -29,6 +28,20 @@ import { useDeployments } from "../../hooks/useDeployments";
 import { useToast } from "../../hooks/useToast";
 import { customDomainApi } from "../../api";
 import { CustomDomain } from "../../components/ui/CustomDomain";
+import { useCanisterStatus } from "../../hooks/useCanisterStatus";
+
+function CyclesValue({ canisterId, isSystemController }: { canisterId: string; isSystemController?: boolean }) {
+  const { cyclesRaw, isLoading } = useCanisterStatus(isSystemController === false ? undefined : canisterId)
+  if (isSystemController === false) return <>unknown</>
+  if (isLoading) return <>…</>
+  if (!cyclesRaw) return <>unknown</>
+  try {
+    const tc = Number(BigInt(cyclesRaw)) / 1_000_000_000_000
+    return <>{tc.toFixed(1)} TC</>
+  } catch {
+    return <>unknown</>
+  }
+}
 
 export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
@@ -365,18 +378,8 @@ export function CanisterPage() {
               </label>
               <div className="space-y-1">
                 <p className="text-sm">
-                  {canister.cyclesBalanceRaw
-                    ? `${formatCycles(
-                        canister.cyclesBalanceRaw || canister.cycles
-                      )} TC`
-                    : "unknown"}
+                  <CyclesValue canisterId={canister.icCanisterId} isSystemController={canister.isSystemController} />
                 </p>
-                {canister.cyclesBalanceRaw && (
-                  <p className="text-xs text-muted-foreground">
-                    Raw: {BigInt(canister.cyclesBalanceRaw).toLocaleString()}{" "}
-                    cycles
-                  </p>
-                )}
               </div>
             </div>
             <div>
