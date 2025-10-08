@@ -12,6 +12,20 @@ import { useToast } from '../../hooks/useToast'
 import { useTCycles } from '../../hooks/useTCycles'
 import { useInternetIdentity } from '../../hooks/useInternetIdentity'
 import { TopUpCanisterModal } from '../../components/panel/TopUpCanisterModal'
+import { useCanisterStatus } from '../../hooks/useCanisterStatus'
+
+function CyclesCell({ canisterId, isSystemController }: { canisterId: string; isSystemController: boolean }) {
+  const { cyclesRaw, isLoading } = useCanisterStatus(isSystemController ? canisterId : undefined)
+  if (!isSystemController) return <>unknown</>
+  if (isLoading) return <>…</>
+  if (!cyclesRaw) return <>unknown</>
+  try {
+    const tc = Number(BigInt(cyclesRaw)) / 1_000_000_000_000
+    return <>{tc.toFixed(1)} TC</>
+  } catch {
+    return <>unknown</>
+  }
+}
 
 export function CanistersPage() {
   const navigate = useNavigate()
@@ -286,7 +300,7 @@ export function CanistersPage() {
                   <p className="text-muted-foreground text-xs font-medium">Cycles</p>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-primary">
-                      {canister.isSystemController ? `${formatCycles(canister.cycles)} TC` : 'unknown'}
+                      <CyclesCell canisterId={canister.icCanisterId} isSystemController={canister.isSystemController} />
                     </p>
                     {canister.isSystemController && (
                       <Button
