@@ -19,6 +19,7 @@ import { Canister } from "../../types";
 import { CopyButton } from "../ui/CopyButton";
 import { useQueryClient } from "@tanstack/react-query";
 import { CustomDomain } from "../ui/CustomDomain";
+import { isValidDomain } from "../../utils/domains";
 
 interface CustomDomainModalProps {
   isOpen: boolean;
@@ -27,14 +28,6 @@ interface CustomDomainModalProps {
 }
 
 type TabType = "configure" | "register";
-
-// Simple domain validation
-const isValidDomain = (domain: string): boolean => {
-  if (!domain) return false;
-  const domainRegex =
-    /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9])*$/;
-  return domainRegex.test(domain) && domain.length <= 253;
-};
 
 const getDomainParts = (domain: string) => {
   if (!domain) return { isApex: false, subdomain: null, baseDomain: domain };

@@ -1,4 +1,5 @@
 import { makeRequest } from "../system";
+import { isValidDomain } from "../../utils/domains";
 
 const resetHeaders = {
   "ngrok-skip-browser-warning": null,
@@ -249,5 +250,7 @@ export const fetchDomainFromIcDomains = async (
     headers: { ...resetHeaders, "Content-Type": "text/plain" },
   });
 
-  return (data ?? "").trim();
+  const domain = (data ?? "").trim();
+
+  return isValidDomain(domain) ? domain : "";
 };
