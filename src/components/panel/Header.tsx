@@ -6,6 +6,7 @@ import {
   X,
   Moon,
   Sun,
+  User,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -209,14 +210,13 @@ export function Header() {
                   }
                 `}
               >
-                <div className="text-xs sm:text-sm">
-                  <div className="font-medium text-left font-mono">
-                    {principal ? `${principal.substring(0, 8)}...${principal.substring(principal.length - 6)}` : "User"}
-                  </div>
-                  <div className="text-muted-foreground text-xs leading-tight">
-                    Internet Identity
-                  </div>
-                </div>
+                <User
+                  className={`
+                  transition-all duration-300 ease-in-out
+                  ${isScrolled ? "h-4 w-4" : "h-5 w-5"}
+                `}
+                />
+                <span className="text-sm font-medium">Account</span>
                 <ChevronDown
                   className={`
                   transition-all duration-300 ease-in-out
