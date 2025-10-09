@@ -6,6 +6,14 @@ const ACCESS_TOKEN_KEY = 'hosty_access_token'
 const REFRESH_TOKEN_KEY = 'hosty_refresh_token'
 const PRINCIPAL_KEY = 'hosty_principal'
 
+// Handle 401 errors globally
+function handle401Error() {
+  console.warn('🔒 [API] 401 Unauthorized - Redirecting to sign-in')
+  clearAuthTokens()
+  // Use window.location for immediate redirect, bypassing React Router
+  window.location.href = '/panel/sign-in'
+}
+
 // Token management
 export function getStoredAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY)
@@ -53,6 +61,14 @@ async function getAuthHeaders() {
   
   console.log('✅ [getAuthHeaders] Headers prepared')
   return headers
+}
+
+// Helper function to check response for 401 errors
+function checkUnauthorized(response: Response) {
+  if (response.status === 401) {
+    handle401Error()
+    throw new Error('Unauthorized - redirecting to login')
+  }
 }
 
 // Auth API
@@ -108,6 +124,8 @@ export const cyclesApi = {
       headers,
     })
 
+    checkUnauthorized(response)
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Network error' }))
       throw new Error(error.error || `HTTP ${response.status}`)
@@ -128,6 +146,8 @@ export const faucetApi = {
       headers,
     })
 
+    checkUnauthorized(response)
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Network error' }))
       throw new Error(error.error || `HTTP ${response.status}`)
@@ -144,6 +164,8 @@ export const faucetApi = {
       method: 'POST',
       headers,
     })
+
+    checkUnauthorized(response)
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Network error' }))
@@ -187,6 +209,8 @@ export const canistersApi = {
       console.log('📡 [canistersApi.listCanisters] Response status:', response.status, response.statusText)
       console.log('📡 [canistersApi.listCanisters] Response headers:', Object.fromEntries(response.headers.entries()))
 
+      checkUnauthorized(response)
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
         console.error('❌ [canistersApi.listCanisters] Error response:', error)
@@ -222,6 +246,8 @@ export const canistersApi = {
         headers,
       })
 
+      checkUnauthorized(response)
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
         return { success: false, error: error.error || `HTTP ${response.status}` }
@@ -250,6 +276,8 @@ export const canistersApi = {
       })
 
       console.log('📡 [canistersApi.getCanister] Response status:', response.status)
+
+      checkUnauthorized(response)
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
@@ -280,6 +308,8 @@ export const canistersApi = {
         body: JSON.stringify({ canisterId }),
       })
 
+      checkUnauthorized(response)
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
         return { success: false, error: error.error || `HTTP ${response.status}` }
@@ -305,6 +335,8 @@ export const canistersApi = {
         headers,
         body: JSON.stringify({ canisterId, userPrincipal }),
       })
+
+      checkUnauthorized(response)
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
@@ -335,6 +367,8 @@ export const customDomainApi = {
         body: JSON.stringify({ canisterId, domain, skipUpload }),
       })
 
+      checkUnauthorized(response)
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
         return { success: false, error: error.error || `HTTP ${response.status}` }
@@ -361,7 +395,7 @@ export const customDomainApi = {
 
       const text = await response.text()
       return text.trim() || null
-    } catch (err) {
+    } catch (_err) {
       return null
     }
   },
@@ -407,6 +441,8 @@ export const deploymentsApi = {
 
       console.log('📡 [deploymentsApi.listDeployments] Response status:', response.status)
 
+      checkUnauthorized(response)
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
         console.error('❌ [deploymentsApi.listDeployments] Error response:', error)
@@ -443,6 +479,8 @@ export const deploymentsApi = {
 
       console.log('📡 [deploymentsApi.getDeployment] Response status:', response.status, response.statusText)
       console.log('📡 [deploymentsApi.getDeployment] Response headers:', Object.fromEntries(response.headers.entries()))
+
+      checkUnauthorized(response)
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
@@ -501,6 +539,8 @@ export const deploymentsApi = {
         body: formData,
       })
 
+      checkUnauthorized(response)
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
         return { success: false, error: error.error || `HTTP ${response.status}` }
@@ -545,6 +585,8 @@ export const deploymentsApi = {
           outputDir: data.outputDir,
         }),
       })
+
+      checkUnauthorized(response)
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
