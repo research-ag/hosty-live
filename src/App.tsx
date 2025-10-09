@@ -8,7 +8,6 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { PanelLayout } from './components/panel/PanelLayout'
 import { HomePage } from './pages/marketing/HomePage'
 import { SignInPage } from './pages/panel/SignInPage'
-import { SignUpPage } from './pages/panel/SignUpPage'
 import { CanistersPage } from './pages/panel/CanistersPage'
 import { CanisterPage } from './pages/panel/CanisterPage'
 import { DeploymentsPage } from './pages/panel/DeploymentsPage'
@@ -43,7 +42,6 @@ function App() {
                   {/* Public Routes */}
                   <Route path="/" element={<HomePage />} />
                   <Route path="/panel/sign-in" element={<SignInPage />} />
-                  <Route path="/panel/sign-up" element={<SignUpPage />} />
                   
                   {/* Protected Panel Routes */}
                   <Route path="/panel" element={

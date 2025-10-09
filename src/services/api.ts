@@ -1,37 +1,99 @@
-import { supabase } from '../lib/supabase'
-
 // Base API configuration
 const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
 
+// Token storage keys
+const ACCESS_TOKEN_KEY = 'hosty_access_token'
+const REFRESH_TOKEN_KEY = 'hosty_refresh_token'
+const PRINCIPAL_KEY = 'hosty_principal'
+
+// Token management
+export function getStoredAccessToken(): string | null {
+  return localStorage.getItem(ACCESS_TOKEN_KEY)
+}
+
+export function getStoredRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
+export function getStoredPrincipal(): string | null {
+  return localStorage.getItem(PRINCIPAL_KEY)
+}
+
+export function setAuthTokens(accessToken: string, refreshToken: string, principal: string) {
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+  localStorage.setItem(PRINCIPAL_KEY, principal)
+}
+
+export function clearAuthTokens() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(REFRESH_TOKEN_KEY)
+  localStorage.removeItem(PRINCIPAL_KEY)
+}
+
 // Helper function to get auth headers
 async function getAuthHeaders() {
-  console.log('🔐 [getAuthHeaders] Getting session...')
-  const { data: { session } } = await supabase.auth.getSession()
+  console.log('🔐 [getAuthHeaders] Getting access token...')
+  const accessToken = getStoredAccessToken()
   
-  console.log('🔐 [getAuthHeaders] Session check:', {
-    hasSession: !!session,
-    hasAccessToken: !!session?.access_token,
-    tokenPreview: session?.access_token ? `${session.access_token.substring(0, 20)}...` : 'none',
-    user: session?.user ? {
-      id: session.user.id,
-      email: session.user.email
-    } : 'none'
+  console.log('🔐 [getAuthHeaders] Token check:', {
+    hasAccessToken: !!accessToken,
+    tokenPreview: accessToken ? `${accessToken.substring(0, 20)}...` : 'none',
   })
   
-  if (!session?.access_token) {
-    console.error('❌ [getAuthHeaders] No active session')
+  if (!accessToken) {
+    console.error('❌ [getAuthHeaders] No access token')
     throw new Error('No active session')
   }
 
   const headers = {
-    'Authorization': `Bearer ${session.access_token}`,
+    'Authorization': `Bearer ${accessToken}`,
     'Content-Type': 'application/json',
   }
   
   console.log('✅ [getAuthHeaders] Headers prepared')
-  return {
-    'Authorization': `Bearer ${session.access_token}`,
-    'Content-Type': 'application/json',
+  return headers
+}
+
+// Auth API
+export const authApi = {
+  // Authenticate with Internet Identity
+  async authWithII(principal: string) {
+    try {
+      console.log('🔐 [authApi.authWithII] Authenticating with principal:', principal)
+      
+      const response = await fetch(`${API_BASE}/auth-ii`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ principal }),
+      })
+
+      console.log('📡 [authApi.authWithII] Response status:', response.status)
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Network error' }))
+        console.error('❌ [authApi.authWithII] Error response:', error)
+        return { success: false, error: error.error || `HTTP ${response.status}` }
+      }
+
+      const data = await response.json()
+      console.log('✅ [authApi.authWithII] Success response:', data)
+      
+      // Store tokens
+      if (data.success && data.accessToken && data.refreshToken) {
+        setAuthTokens(data.accessToken, data.refreshToken, principal)
+      }
+      
+      return data
+    } catch (err) {
+      console.error('💥 [authApi.authWithII] Exception:', err)
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : 'Authentication failed'
+      }
+    }
   }
 }
 
@@ -415,9 +477,9 @@ export const deploymentsApi = {
     outputDir?: string;
   }) {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = getStoredAccessToken()
       
-      if (!session?.access_token) {
+      if (!accessToken) {
         throw new Error('No active session')
       }
 
@@ -434,7 +496,7 @@ export const deploymentsApi = {
       const response = await fetch(`${API_BASE}/upload-deployment`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: formData,
       })
@@ -463,16 +525,16 @@ export const deploymentsApi = {
     outputDir?: string;
   }) {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = getStoredAccessToken()
       
-      if (!session?.access_token) {
+      if (!accessToken) {
         throw new Error('No active session')
       }
 
       const response = await fetch(`${API_BASE}/upload-deployment-git`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

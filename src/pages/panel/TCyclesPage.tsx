@@ -2,11 +2,11 @@ import { RefreshCw, Info, Coins } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { useTCycles } from '../../hooks/useTCycles'
-import { useInternetIdentity } from '../../hooks/useInternetIdentity'
+import { useAuth } from '../../hooks/useAuth'
 
 export function TCyclesPage() {
-  const { principal, isAuthenticated, login } = useInternetIdentity()
-  const { balanceTC, balanceRaw, isLoading, isFetching, error, refresh } = useTCycles(principal)
+  const { principal } = useAuth()
+  const { balanceTC, balanceRaw, isLoading, isFetching, error, refresh } = useTCycles(principal ?? undefined)
 
   const handleRefresh = async () => {
     await refresh()
@@ -53,15 +53,15 @@ export function TCyclesPage() {
                 <>
                   <div style={{ flexGrow: '1' }}></div>
                   <div className="text-4xl font-bold mb-2">
-                    {isAuthenticated ? ((balanceTC ?? '0.0000') + ' TC') : '-'}
+                    {principal ? ((balanceTC ?? '0.0000') + ' TC') : '-'}
                   </div>
-                  {isAuthenticated && (
+                  {principal && (
                     <p className="text-sm text-muted-foreground">
                       Raw: {balanceRaw ? BigInt(balanceRaw).toLocaleString() : '0'} e-12
                     </p>
                   )}
                   <div style={{ flexGrow: '1' }}></div>
-                  {isAuthenticated && principal && (
+                  {principal && (
                     <div className="mt-4">
                       <Button
                         onClick={() => window.open(`https://cycle.express/?to=${principal}`, '_blank', 'noopener,noreferrer')}
@@ -91,12 +91,7 @@ export function TCyclesPage() {
             </p>
             <div className="space-y-2">
               <p className="font-medium text-foreground">How to deposit cycles</p>
-              {!isAuthenticated ? (
-                <div className="space-y-3">
-                  <p>Please sign in with Internet Identity to view your deposit account.</p>
-                  <Button onClick={login} size="sm">Sign in with Internet Identity</Button>
-                </div>
-              ) : (
+              {principal ? (
                 <div className="space-y-2">
                   <p>
                     Send cycles from any ICRC-1 compatible wallet to your account below.
@@ -106,6 +101,10 @@ export function TCyclesPage() {
                     <div className="text-xs text-muted-foreground">Your principal</div>
                     <div className="font-mono break-all text-foreground">{principal}</div>
                   </div>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  Your principal will be displayed here
                 </div>
               )}
               <p>

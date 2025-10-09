@@ -13,10 +13,8 @@ import { Button } from "../ui/Button";
 import { ThemeToggle } from "../shared/ThemeToggle";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
-import { useToast } from "../../hooks/useToast";
 import logoImg from "../../assets/logo.png";
 import { Server, Zap, Coins } from "lucide-react";
-import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { CopyButton } from "../ui/CopyButton";
 
 // Internet Computer Logo SVG Component
@@ -29,7 +27,6 @@ const ICPLogo = ({ className }: { className?: string }) => (
     x="0px"
     y="0px"
     viewBox="0 0 358.8 179.8"
-    style={{ enableBackground: "new 0 0 358.8 179.8" }}
     xmlSpace="preserve"
     className={className}
   >
@@ -87,9 +84,7 @@ const navigation = [
 export function Header() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
-  const { toast } = useToast();
-  const { principal, isAuthenticated: isIIAuthed, isLoading: isIILoading, login: loginII, logout: logoutII } = useInternetIdentity();
+  const { principal, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -215,11 +210,11 @@ export function Header() {
                 `}
               >
                 <div className="text-xs sm:text-sm">
-                  <div className="font-medium text-left">
-                    {user?.email?.split("@")[0] || "User"}
+                  <div className="font-medium text-left font-mono">
+                    {principal ? `${principal.substring(0, 8)}...${principal.substring(principal.length - 6)}` : "User"}
                   </div>
                   <div className="text-muted-foreground text-xs leading-tight">
-                    {user?.email || "user@example.com"}
+                    Internet Identity
                   </div>
                 </div>
                 <ChevronDown
@@ -233,7 +228,7 @@ export function Header() {
 
               {/* Desktop Dropdown Menu */}
               {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-popover border rounded-lg shadow-lg z-50 animate-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 mt-2 w-64 bg-popover border rounded-lg shadow-lg z-50 animate-in slide-in-from-top-2 duration-200">
                   <div className="py-1">
                     <button
                       onClick={toggleTheme}
@@ -254,9 +249,7 @@ export function Header() {
 
                     <div className="px-4 py-2 text-sm border-t">
                       <div className="text-muted-foreground mb-1">Your principal:</div>
-                      {isIILoading ? (
-                        <div className="text-xs text-muted-foreground">Loading…</div>
-                      ) : isIIAuthed && principal ? (
+                      {principal ? (
                         <div className="flex items-center gap-2 w-full max-w-full">
                           <span
                             className="font-mono text-xs flex-1 min-w-0 truncate"
@@ -265,26 +258,9 @@ export function Header() {
                             {principal}
                           </span>
                           <CopyButton text={principal} size="icon" variant="ghost" />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label="Logout Internet Identity"
-                            title="Logout Internet Identity"
-                            onClick={async () => {
-                              try {
-                                await logoutII();
-                              } catch (e) {
-                                console.error(e);
-                              }
-                            }}
-                          >
-                            <LogOut className="h-3 w-3" />
-                          </Button>
                         </div>
                       ) : (
-                        <Button size="sm" variant="outline" onClick={loginII}>
-                          Login with II
-                        </Button>
+                        <div className="text-xs text-muted-foreground">Not available</div>
                       )}
                     </div>
 
@@ -334,15 +310,14 @@ export function Header() {
               <div className="p-4 border-b bg-muted/30">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
-                    {user?.email?.split("@")[0]?.charAt(0)?.toUpperCase() ||
-                      "U"}
+                    <ICPLogo className="h-7 w-7" />
                   </div>
-                  <div>
-                    <div className="font-medium">
-                      {user?.email?.split("@")[0] || "User"}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium font-mono text-sm truncate">
+                      {principal ? `${principal.substring(0, 12)}...${principal.substring(principal.length - 8)}` : "User"}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {user?.email || "user@example.com"}
+                      Internet Identity
                     </div>
                   </div>
                 </div>

@@ -1,88 +1,102 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
-import type { User, Session } from '@supabase/supabase-js'
+import { useInternetIdentity, getClientSync } from './useInternetIdentity'
+import { authApi, getStoredAccessToken, getStoredPrincipal, clearAuthTokens } from '../services/api'
 
 interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
-  user: User | null
-  session: Session | null
+  principal: string | null
 }
 
 export function useAuth() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { principal: iiPrincipal, isAuthenticated: isIIAuthed, isLoading: isIILoading, login: loginII, logout: logoutII } = useInternetIdentity()
   
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     isLoading: true,
-    user: null,
-    session: null
+    principal: null
   })
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession()
+    // Check if we have stored tokens on mount
+    const checkStoredAuth = () => {
+      const accessToken = getStoredAccessToken()
+      const principal = getStoredPrincipal()
       
-      if (error) {
-        console.error('Error getting session:', error)
+      console.log('🔍 [useAuth] Checking stored auth:', { hasToken: !!accessToken, principal })
+      
+      if (accessToken && principal) {
+        setAuthState({
+          isAuthenticated: true,
+          isLoading: false,
+          principal
+        })
+      } else {
         setAuthState({
           isAuthenticated: false,
           isLoading: false,
-          user: null,
-          session: null
-        })
-        return
-      }
-
-      setAuthState({
-        isAuthenticated: !!session,
-        isLoading: false,
-        user: session?.user || null,
-        session
-      })
-    }
-
-    getInitialSession()
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email)
-        
-        setAuthState({
-          isAuthenticated: !!session,
-          isLoading: false,
-          user: session?.user || null,
-          session
+          principal: null
         })
       }
-    )
-
-    return () => {
-      subscription.unsubscribe()
     }
+
+    checkStoredAuth()
   }, [])
 
-  const login = async (email: string, password: string) => {
+  // Sync with II authentication state
+  useEffect(() => {
+    if (isIILoading) return
+    
+    // If II is authenticated but we don't have backend tokens, authenticate with backend
+    if (isIIAuthed && iiPrincipal && !getStoredAccessToken()) {
+      console.log('🔐 [useAuth] II authenticated, calling backend auth...')
+      authApi.authWithII(iiPrincipal).then(result => {
+        if (result.success) {
+          setAuthState({
+            isAuthenticated: true,
+            isLoading: false,
+            principal: iiPrincipal
+          })
+        }
+      })
+    }
+  }, [isIIAuthed, iiPrincipal, isIILoading])
+
+  const login = async () => {
     setAuthState(prev => ({ ...prev, isLoading: true }))
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        setAuthState(prev => ({ ...prev, isLoading: false }))
-        return { success: false, error: error.message }
+      // First, login with Internet Identity
+      await loginII()
+      
+      // Get the principal directly from the auth client (after successful login)
+      const client = getClientSync()
+      const identity = client.getIdentity()
+      const principal = identity?.getPrincipal?.().toText?.()
+      
+      if (!principal) {
+        throw new Error('No principal received from Internet Identity')
       }
 
-      // State will be updated by the auth listener
-      return { success: true, data }
+      // Authenticate with backend
+      const result = await authApi.authWithII(principal)
+
+      if (!result.success) {
+        setAuthState(prev => ({ ...prev, isLoading: false }))
+        return { success: false, error: result.error || 'Authentication failed' }
+      }
+
+      setAuthState({
+        isAuthenticated: true,
+        isLoading: false,
+        principal
+      })
+
+      return { success: true, data: result }
     } catch (error) {
       setAuthState(prev => ({ ...prev, isLoading: false }))
       return { 
@@ -92,38 +106,25 @@ export function useAuth() {
     }
   }
 
-  const signup = async (email: string, password: string) => {
-    setAuthState(prev => ({ ...prev, isLoading: true }))
-    
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-
-      if (error) {
-        setAuthState(prev => ({ ...prev, isLoading: false }))
-        return { success: false, error: error.message }
-      }
-
-      // State will be updated by the auth listener
-      return { success: true, data }
-    } catch (error) {
-      setAuthState(prev => ({ ...prev, isLoading: false }))
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Signup failed' 
-      }
-    }
-  }
-
   const logout = async () => {
     try {
       // Clear all TanStack Query cache to prevent data leakage between users
       queryClient.clear()
       
-      await supabase.auth.signOut()
-      // State will be updated by the auth listener
+      // Clear stored tokens
+      clearAuthTokens()
+      
+      // Logout from Internet Identity
+      await logoutII()
+      
+      // Update state
+      setAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        principal: null
+      })
+      
+      // Navigate to sign-in page
       navigate('/panel/sign-in', { replace: true })
     } catch (error) {
       console.error('Logout error:', error)
@@ -134,6 +135,5 @@ export function useAuth() {
     ...authState,
     login,
     logout,
-    signup
   }
 }

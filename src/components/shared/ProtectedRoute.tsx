@@ -30,8 +30,7 @@ export function ProtectedRoute({ children, requireAuth = true }: ProtectedRouteP
   }
 
   // Redirect authenticated users away from auth pages
-  if (!requireAuth && isAuthenticated && 
-      (location.pathname === '/panel/sign-in' || location.pathname === '/panel/sign-up')) {
+  if (!requireAuth && isAuthenticated && location.pathname === '/panel/sign-in') {
     console.log('✅ User already authenticated - redirecting to panel')
     return <Navigate to="/panel/canisters" replace />
   }
