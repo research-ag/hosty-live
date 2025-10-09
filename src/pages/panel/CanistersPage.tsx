@@ -473,6 +473,7 @@ export function CanistersPage() {
             await refresh()
             return res
           }}
+          onRefreshBalance={refresh}
         />
       )}
     </div>

@@ -10,9 +10,10 @@ interface TopUpCanisterModalProps {
   userBalanceRaw?: string
   formatTC: (raw: string | number | bigint) => string
   onWithdraw: (canisterId: string, amountTC: string) => Promise<bigint>
+  onRefreshBalance?: () => Promise<unknown>
 }
 
-export function TopUpCanisterModal({ isOpen, onClose, canisterId, userBalanceRaw, formatTC, onWithdraw }: TopUpCanisterModalProps) {
+export function TopUpCanisterModal({ isOpen, onClose, canisterId, userBalanceRaw, formatTC, onWithdraw, onRefreshBalance }: TopUpCanisterModalProps) {
   const [amount, setAmount] = useState('')
   const [error, setError] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -26,6 +27,16 @@ export function TopUpCanisterModal({ isOpen, onClose, canisterId, userBalanceRaw
       setIsSubmitting(false)
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (isOpen && !userBalanceRaw) {
+      try {
+        onRefreshBalance?.()
+      } catch {
+        // pass
+      }
+    }
+  }, [isOpen, userBalanceRaw, onRefreshBalance])
 
   const userBalanceTC = useMemo(() => {
     if (!userBalanceRaw) return undefined
