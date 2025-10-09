@@ -83,7 +83,7 @@ export function useInternetIdentity(): IIState {
       () => {
         return new Promise<void>((resolve, reject) => {
           const client = getClientSync();
-          const identityProvider = "https://identity.ic0.app/#authorize";
+          const identityProvider = "https://id.ai";
           client.login({
             identityProvider,
             onSuccess: async () => {
