@@ -239,7 +239,7 @@ export const canistersApi = {
     try {
       const headers = await getAuthHeaders()
 
-      const response = await fetch(`${API_BASE}/canister-register`, {
+      const response = await fetch(`${API_BASE}/canister-create`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ canisterId }),
