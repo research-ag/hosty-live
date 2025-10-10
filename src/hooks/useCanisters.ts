@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { canistersApi } from '../services/api'
+import { canistersApi, CreateCanisterResponse } from '../services/api'
 import type { ApiCanister } from '../types'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 
@@ -80,10 +80,10 @@ export function useCanisters() {
     mutationFn: async () => {
       const { canisterId } = await createCanisterOnLedger()
       const registrationResult = await canistersApi.registerCanister(canisterId)
-      return { success: true, data: { canisterId, registrationResult } }
+      return [canisterId, registrationResult] as [string, CreateCanisterResponse]
     },
     onSuccess: (response) => {
-      if (response.success) {
+      if (response[1].success) {
         // Invalidate and refetch canisters list
         queryClient.invalidateQueries({ queryKey: ['canisters'] })
         // Also invalidate cycles data as creating a canister consumes cycles
@@ -164,8 +164,8 @@ export function useCanisters() {
   // Wrapper functions to maintain the same interface
   const createCanister = async (): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
-      const result = await createCanisterMutation.mutateAsync()
-      return { success: result.success, error: result.error, data: result.data }
+      const [canisterId, result] = await createCanisterMutation.mutateAsync()
+      return { success: result.success, error: result.error, data: result.success ? result.data : { canisterId } }
     } catch (err) {
       return {
         success: false,
