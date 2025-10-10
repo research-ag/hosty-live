@@ -33,6 +33,48 @@ async function fetchBalance(principalText: string): Promise<TCyclesBalance> {
   return { balance: balance.toString() }
 }
 
+export async function createCanisterOnLedger() {
+  const backendPrincipal = import.meta.env.VITE_BACKEND_PRINCIPAL as string | undefined;
+  const statusProxyCanisterId = import.meta.env.VITE_STATUS_PROXY_CANISTER_ID as string | undefined;
+  const myPrincipal = (await getClient()).getIdentity().getPrincipal();
+  if (!backendPrincipal) {
+    throw new Error('Backend principal is not configured. Set VITE_BACKEND_PRINCIPAL in your env.');
+  }
+  if (!statusProxyCanisterId) {
+    throw new Error('Status proxy canister ID is not configured. Set VITE_STATUS_PROXY_CANISTER_ID in your env.');
+  }
+
+  const actor = await getLedger()
+  const res = await actor.create_canister({
+    from_subaccount: [],
+    created_at_time: [],
+    amount: 800_000_000_000n, // 0.8 TC
+    creation_args: [
+      {
+        subnet_selection: [],
+        settings: [
+          {
+            controllers: [[
+              Principal.fromText(backendPrincipal),
+              Principal.fromText(statusProxyCanisterId),
+              myPrincipal
+            ]],
+            compute_allocation: [],
+            memory_allocation: [],
+            freezing_threshold: [],
+            reserved_cycles_limit: [],
+          },
+        ],
+      },
+    ],
+  })
+  
+  if ('Err' in res) {
+    throw new Error(JSON.stringify(res.Err))
+  }
+  return { canisterId: res.Ok.canister_id.toText(), blockId: res.Ok.block_id }
+}
+
 export function useTCycles(principal?: string) {
   const {
     data,

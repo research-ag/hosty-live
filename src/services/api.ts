@@ -224,14 +224,15 @@ export const canistersApi = {
     }
   },
 
-  // Create a new canister
-  async createCanister() {
+  // Register a newly created canister in backend
+  async registerCanister(canisterId: string) {
     try {
       const headers = await getAuthHeaders()
-      
-      const response = await fetch(`${API_BASE}/canister-create`, {
+      // TODO implement this endpoint on the backend side
+      const response = await fetch(`${API_BASE}/canister-register`, {
         method: 'POST',
         headers,
+        body: JSON.stringify({ canisterId }),
       })
 
       checkUnauthorized(response)
