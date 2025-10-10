@@ -4,6 +4,7 @@ import { ActorSubclass, HttpAgent } from '@dfinity/agent'
 import { canisterId as generatedCanisterId, createActor } from '../api/tcycles-ledger'
 import { getClient } from "./useInternetIdentity.ts";
 import { _SERVICE } from "../api/tcycles-ledger/tcycles_ledger.did";
+import { bigIntReplacer } from "../utils/json_bigints.ts";
 
 export type TCyclesBalance = {
   balance: string
@@ -68,9 +69,13 @@ export async function createCanisterOnLedger() {
       },
     ],
   })
-  
+
   if ('Err' in res) {
-    throw new Error(JSON.stringify(res.Err))
+    if ('InsufficientFunds' in res.Err) {
+      throw new Error('Insufficient balance. Please top up your cycles account.')
+    } else {
+      throw new Error(JSON.stringify(res.Err, bigIntReplacer))
+    }
   }
   return { canisterId: res.Ok.canister_id.toText(), blockId: res.Ok.block_id }
 }
