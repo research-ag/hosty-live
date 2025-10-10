@@ -12,7 +12,6 @@ import { CanistersPage } from './pages/panel/CanistersPage'
 import { CanisterPage } from './pages/panel/CanisterPage'
 import { DeploymentsPage } from './pages/panel/DeploymentsPage'
 import { DeploymentPage } from './pages/panel/DeploymentPage'
-import { CyclesPage } from './pages/panel/CyclesPage'
 import { TCyclesPage } from './pages/panel/TCyclesPage'
 import { SettingsPage } from './pages/panel/SettingsPage'
 import { Navigate } from 'react-router-dom'
@@ -54,7 +53,6 @@ function App() {
                     <Route path="canister/:id" element={<CanisterPage />} />
                     <Route path="deployments" element={<DeploymentsPage />} />
                     <Route path="deployment/:id" element={<DeploymentPage />} />
-                    <Route path="credits" element={<CyclesPage />} />
                     <Route path="cycles" element={<TCyclesPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                   </Route>

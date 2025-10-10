@@ -113,75 +113,63 @@ export const authApi = {
   }
 }
 
-// Cycles API
-export const cyclesApi = {
-  // Get cycles information
-  async getCyclesInfo() {
-    const headers = await getAuthHeaders()
-    
-    const response = await fetch(`${API_BASE}/cycles`, {
-      method: 'GET',
-      headers,
-    })
+// Profile API
+export const profileApi = {
+  // Get user profile
+  async getProfile() {
+    try {
+      const headers = await getAuthHeaders()
+      
+      const response = await fetch(`${API_BASE}/profile`, {
+        method: 'GET',
+        headers,
+      })
 
-    checkUnauthorized(response)
+      checkUnauthorized(response)
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Network error' }))
-      throw new Error(error.error || `HTTP ${response.status}`)
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Network error' }))
+        return { success: false, error: error.error || `HTTP ${response.status}` }
+      }
+
+      const data = await response.json()
+      return { success: true, data }
+    } catch (err) {
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : 'Failed to get profile'
+      }
     }
-
-    return response.json()
   }
 }
 
-// Faucet API
-export const faucetApi = {
-  // Get faucet status
-  async getFaucetStatus() {
-    const headers = await getAuthHeaders()
-    
-    const response = await fetch(`${API_BASE}/faucet`, {
-      method: 'GET',
-      headers,
-    })
-
-    checkUnauthorized(response)
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Network error' }))
-      throw new Error(error.error || `HTTP ${response.status}`)
-    }
-
-    return response.json()
-  },
-
-  // Claim cycles from faucet
-  async claimCycles() {
-    const headers = await getAuthHeaders()
-    
-    const response = await fetch(`${API_BASE}/faucet`, {
-      method: 'POST',
-      headers,
-    })
-
-    checkUnauthorized(response)
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Network error' }))
+// Free Canister API
+export const freeCanisterApi = {
+  // Claim free canister
+  async claimFreeCanister() {
+    try {
+      const headers = await getAuthHeaders()
       
-      // Handle cooldown error specifically
-      if (response.status === 429) {
-        throw {
-          isCooldown: true,
-          ...error
-        }
+      const response = await fetch(`${API_BASE}/canister-claim-free`, {
+        method: 'POST',
+        headers,
+      })
+
+      checkUnauthorized(response)
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Network error' }))
+        return { success: false, error: error.error || `HTTP ${response.status}` }
       }
-      
-      throw new Error(error.error || `HTTP ${response.status}`)
-    }
 
-    return response.json()
+      const data = await response.json()
+      return data
+    } catch (err) {
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : 'Failed to claim free canister'
+      }
+    }
   }
 }
 

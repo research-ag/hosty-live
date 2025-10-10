@@ -46,40 +46,25 @@ export interface User {
   email: string
 }
 
-export interface CyclesClaim {
-  lastClaimAt: string
-  nextClaimAt: string
-  amount: number
+// Profile from backend
+export interface Profile {
+  id: string
+  username?: string
+  principal: string
+  freeCanisterClaimedAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
-export interface CyclesBalance {
-  balance: number
-  lastUpdated: string
-}
-
-// API Response Types
-export interface CyclesInfo {
-  cyclesBalance: string
-  canisterCreationCost: string
-  canCreateCanister: boolean
-  balanceFormatted: string
-}
-
-export interface FaucetStatus {
-  canUseFaucet: boolean
-  cyclesBalance: string
-  faucetAmount: string
-  lastUsedAt: string | null
-  nextAvailableAt: string | null
-  cooldownMs: number
-}
-
-export interface FaucetClaimResult {
+// Free Canister Claim Result
+export interface FreeCanisterClaimResult {
   success: boolean
-  cyclesAdded: string
-  newBalance: string
-  faucetUsedAt: string
-  nextAvailableAt: string
+  data?: {
+    canisterNumber: number
+    canisterId: string
+    frontendUrl: string
+  }
+  error?: string
 }
 
 // API Types for Edge Functions
