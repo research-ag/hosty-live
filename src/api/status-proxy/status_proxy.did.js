@@ -44,12 +44,15 @@ export const idlFactory = ({ IDL }) => {
     'reserved_cycles' : IDL.Nat,
   });
   return IDL.Service({
+    'isImmutableInDebugMode' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'loadState' : IDL.Func([IDL.Principal], [IDL.Nat64, CanisterStatus], []),
+    'makeImmutable' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
     'queryState' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(IDL.Tuple(IDL.Nat64, CanisterStatus))],
         ['query'],
     ),
+    'undoImmutability' : IDL.Func([IDL.Principal], [], []),
   });
 };
 export const init = ({ IDL }) => { return []; };

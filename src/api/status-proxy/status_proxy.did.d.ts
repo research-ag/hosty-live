@@ -43,8 +43,11 @@ export interface QueryStats {
   'request_payload_bytes_total' : bigint,
 }
 export interface _SERVICE {
+  'isImmutableInDebugMode' : ActorMethod<[Principal], boolean>,
   'loadState' : ActorMethod<[Principal], [bigint, CanisterStatus]>,
+  'makeImmutable' : ActorMethod<[Principal, boolean], undefined>,
   'queryState' : ActorMethod<[Principal], [] | [[bigint, CanisterStatus]]>,
+  'undoImmutability' : ActorMethod<[Principal], undefined>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];
