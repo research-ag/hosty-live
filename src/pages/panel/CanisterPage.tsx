@@ -29,6 +29,7 @@ import { useToast } from "../../hooks/useToast";
 import { customDomainApi } from "../../api";
 import { CustomDomain } from "../../components/ui/CustomDomain";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
+import { useAuth } from "../../hooks/useAuth";
 
 function CyclesValue({ canisterId, isSystemController }: { canisterId: string; isSystemController?: boolean }) {
   const { cyclesRaw, isLoading } = useCanisterStatus(isSystemController === false ? undefined : canisterId)
@@ -49,6 +50,8 @@ export function CanisterPage() {
   const { getCanister, addController } = useCanisters();
   const { deployToCanister, deployFromGit } = useDeployments();
   const { toast } = useToast();
+
+  const { principal } = useAuth();
 
   const { domainFromIcDomains } =
     customDomainApi.fetchDomainFromIcDomains.useQuery(
@@ -419,8 +422,14 @@ export function CanisterPage() {
                     >
                       {controller ===
                         import.meta.env.VITE_BACKEND_PRINCIPAL && (
-                        <span className="text-primary">(hosty.live) </span>
+                        <span className="text-primary">(hosty.live)</span>
                       )}
+                      {controller === principal && <span className="text-primary">(you)</span>}
+                      {controller ===
+                        import.meta.env.VITE_STATUS_PROXY_CANISTER_ID && (
+                        <span className="text-primary">(status proxy canister)</span>
+                      )}
+                      {' '}
                       {controller}
                     </p>
                   ))}
