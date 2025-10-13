@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AuthClient } from "@dfinity/auth-client";
+import { initAgentAuthSync, onAuthError, onLogin as agentOnLogin, onLogout as agentOnLogout } from "../ic/agent";
 
 export type IIState = {
   principal?: string;
@@ -56,8 +57,23 @@ export function useInternetIdentity(): IIState {
       setPrincipal(p);
     });
 
+    // Listen for agent auth errors (expired/unauthorized) -> force logout and redirect
+    const offAuthError = onAuthError(async () => {
+      try {
+        const client = await getClient();
+        await client.logout();
+      } catch {}
+      agentOnLogout();
+      notifyII({ principal: undefined, isAuthenticated: false });
+      // Redirect to sign-in page
+      try {
+        window.location.assign('/panel/sign-in');
+      } catch {}
+    });
+
     (async () => {
       try {
+        await initAgentAuthSync();
         const client = await getClient();
         const authed = await client.isAuthenticated();
         if (cancelled) return;
@@ -75,6 +91,7 @@ export function useInternetIdentity(): IIState {
     return () => {
       cancelled = true;
       unsubscribe();
+      offAuthError();
     };
   }, []);
 
@@ -91,6 +108,7 @@ export function useInternetIdentity(): IIState {
                 const authed = await client.isAuthenticated();
                 setIsAuthenticated(authed);
                 const identity = client.getIdentity();
+                agentOnLogin(identity);
                 const p = identity?.getPrincipal?.().toText?.();
                 setPrincipal(p);
                 notifyII({ principal: p, isAuthenticated: authed });
@@ -111,9 +129,11 @@ export function useInternetIdentity(): IIState {
       async () => {
         const client = await getClient();
         await client.logout();
+        agentOnLogout();
         setIsAuthenticated(false);
         setPrincipal(undefined);
         notifyII({ principal: undefined, isAuthenticated: false });
+        try { window.location.assign('/panel/sign-in'); } catch {}
       },
     []
   );
