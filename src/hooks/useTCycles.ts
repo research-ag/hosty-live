@@ -49,7 +49,7 @@ export async function createCanisterOnLedger() {
   const res = await actor.create_canister({
     from_subaccount: [],
     created_at_time: [],
-    amount: 800_000_000_000n, // 0.8 TC
+    amount: 840_000_000_000n,
     creation_args: [
       {
         subnet_selection: [],
