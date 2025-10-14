@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AuthClient } from "@dfinity/auth-client";
-import { initAgentAuthSync, onAuthError, onLogin as agentOnLogin, onLogout as agentOnLogout } from "../ic/agent";
+import { HttpAgent } from "@dfinity/agent";
 
 export type IIState = {
   principal?: string;
@@ -12,30 +12,47 @@ export type IIState = {
 
 type IIListener = (state: { principal?: string; isAuthenticated: boolean }) => void;
 const iiListeners = new Set<IIListener>();
+
 function subscribeII(listener: IIListener) {
   iiListeners.add(listener);
   return () => iiListeners.delete(listener);
 }
+
 function notifyII(state: { principal?: string; isAuthenticated: boolean }) {
   iiListeners.forEach((l) => {
-    try { l(state); } catch { /* pass */ }
+    try {
+      l(state);
+    } catch {
+      // pass
+    }
   });
 }
 
+const agent: HttpAgent = new HttpAgent({ host: 'https://ic0.app' })
+
+export function getAgent(): HttpAgent {
+  return agent
+}
+
 let authClient: AuthClient | null = null;
-let authClientPromise: Promise<void> | null = AuthClient.create().then(c => {
+let authClientPromise: Promise<void> | null = AuthClient.create({
+  idleOptions: {
+    disableIdle: true,
+    disableDefaultIdleCallback: true
+  },
+}).then(c => {
   authClient = c;
   authClientPromise = null;
 });
 
-export async function getClient(): Promise<AuthClient> {
+export async function getAuthClient(): Promise<AuthClient> {
   if (!authClient) {
     await authClientPromise!;
   }
   return authClient!;
 }
 
-export function getClientSync(): AuthClient {
+export function getAuthClientSync(): AuthClient {
   if (authClient) {
     return authClient;
   } else {
@@ -57,24 +74,9 @@ export function useInternetIdentity(): IIState {
       setPrincipal(p);
     });
 
-    // Listen for agent auth errors (expired/unauthorized) -> force logout and redirect
-    const offAuthError = onAuthError(async () => {
-      try {
-        const client = await getClient();
-        await client.logout();
-      } catch {}
-      agentOnLogout();
-      notifyII({ principal: undefined, isAuthenticated: false });
-      // Redirect to sign-in page
-      try {
-        window.location.assign('/panel/sign-in');
-      } catch {}
-    });
-
     (async () => {
       try {
-        await initAgentAuthSync();
-        const client = await getClient();
+        const client = await getAuthClient();
         const authed = await client.isAuthenticated();
         if (cancelled) return;
         setIsAuthenticated(authed);
@@ -83,7 +85,10 @@ export function useInternetIdentity(): IIState {
           const p = identity?.getPrincipal?.().toText?.();
           if (p) setPrincipal(p);
         }
-        notifyII({ principal: authed ? (authClient?.getIdentity()?.getPrincipal?.().toText?.()) : undefined, isAuthenticated: authed });
+        notifyII({
+          principal: authed ? (authClient?.getIdentity()?.getPrincipal?.().toText?.()) : undefined,
+          isAuthenticated: authed
+        });
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -91,7 +96,6 @@ export function useInternetIdentity(): IIState {
     return () => {
       cancelled = true;
       unsubscribe();
-      offAuthError();
     };
   }, []);
 
@@ -99,7 +103,7 @@ export function useInternetIdentity(): IIState {
     () =>
       () => {
         return new Promise<void>((resolve, reject) => {
-          const client = getClientSync();
+          const client = getAuthClientSync();
           const identityProvider = "https://id.ai";
           client.login({
             identityProvider,
@@ -108,7 +112,7 @@ export function useInternetIdentity(): IIState {
                 const authed = await client.isAuthenticated();
                 setIsAuthenticated(authed);
                 const identity = client.getIdentity();
-                agentOnLogin(identity);
+                agent.replaceIdentity(identity);
                 const p = identity?.getPrincipal?.().toText?.();
                 setPrincipal(p);
                 notifyII({ principal: p, isAuthenticated: authed });
@@ -127,13 +131,17 @@ export function useInternetIdentity(): IIState {
   const logout = useMemo(
     () =>
       async () => {
-        const client = await getClient();
+        const client = await getAuthClient();
         await client.logout();
-        agentOnLogout();
+        agent.invalidateIdentity();
         setIsAuthenticated(false);
         setPrincipal(undefined);
         notifyII({ principal: undefined, isAuthenticated: false });
-        try { window.location.assign('/panel/sign-in'); } catch {}
+        try {
+          window.location.assign('/panel/sign-in');
+        } catch {
+          // pass
+        }
       },
     []
   );

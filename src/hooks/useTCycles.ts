@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Principal } from '@dfinity/principal'
 import { getTCyclesLedgerActor } from '../api/tcycles-ledger'
-import { getClient } from "./useInternetIdentity.ts";
+import { getAuthClient } from "./useInternetIdentity.ts";
 import { bigIntReplacer } from "../utils/json_bigints.ts";
 import { statusProxyCanisterId } from "../api/status-proxy";
 
@@ -18,7 +18,7 @@ async function fetchBalance(principalText: string): Promise<TCyclesBalance> {
 
 export async function createCanisterOnLedger() {
   const backendPrincipal = import.meta.env.VITE_BACKEND_PRINCIPAL as string | undefined;
-  const myPrincipal = (await getClient()).getIdentity().getPrincipal();
+  const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal();
   if (!backendPrincipal) {
     throw new Error('Backend principal is not configured. Set VITE_BACKEND_PRINCIPAL in your env.');
   }

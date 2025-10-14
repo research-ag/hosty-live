@@ -1,6 +1,6 @@
 import {Actor} from "@dfinity/agent";
-import {getAgent} from "../../ic/agent";
 import {idlFactory} from "./tcycles_ledger.did.js";
+import {getAgent} from "../../hooks/useInternetIdentity.js";
 
 /* CANISTER_ID is replaced by webpack based on node environment
  * Note: canister environment variable will be standardized as
