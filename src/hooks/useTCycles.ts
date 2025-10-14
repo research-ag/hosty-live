@@ -1,34 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { Principal } from '@dfinity/principal'
-import { ActorSubclass, HttpAgent } from '@dfinity/agent'
-import { canisterId as generatedCanisterId, createActor } from '../api/tcycles-ledger'
-import { getClient } from "./useInternetIdentity.ts";
-import { _SERVICE } from "../api/tcycles-ledger/tcycles_ledger.did";
+import { getTCyclesLedgerActor } from '../api/tcycles-ledger'
+import { getAuthClient } from "./useInternetIdentity.ts";
 import { bigIntReplacer } from "../utils/json_bigints.ts";
+import { statusProxyCanisterId } from "../api/status-proxy";
 
 export type TCyclesBalance = {
   balance: string
 }
 
-function getLedgerCanisterId(): string {
-  const fromEnv = import.meta.env.VITE_TCYCLES_LEDGER_CANISTER_ID as string | undefined
-  const cid = fromEnv || generatedCanisterId
-  if (!cid) {
-    throw new Error('Cycles ledger canister ID is not configured. Set VITE_TCYCLES_LEDGER_CANISTER_ID in your env.')
-  }
-  return cid
-}
-
-async function getLedger(): Promise<ActorSubclass<_SERVICE>> {
-  const cid = getLedgerCanisterId()
-  const authClient = await getClient();
-  const identity = authClient.getIdentity();
-  const agent = new HttpAgent({ identity, host: 'https://ic0.app' })
-  return createActor(cid, { agent })
-}
-
 async function fetchBalance(principalText: string): Promise<TCyclesBalance> {
-  const actor = await getLedger()
+  const actor = await getTCyclesLedgerActor()
   const account = { owner: Principal.fromText(principalText), subaccount: [] as [] }
   const balance = (await actor.icrc1_balance_of(account)) as bigint
   return { balance: balance.toString() }
@@ -36,8 +18,7 @@ async function fetchBalance(principalText: string): Promise<TCyclesBalance> {
 
 export async function createCanisterOnLedger() {
   const backendPrincipal = import.meta.env.VITE_BACKEND_PRINCIPAL as string | undefined;
-  const statusProxyCanisterId = import.meta.env.VITE_STATUS_PROXY_CANISTER_ID as string | undefined;
-  const myPrincipal = (await getClient()).getIdentity().getPrincipal();
+  const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal();
   if (!backendPrincipal) {
     throw new Error('Backend principal is not configured. Set VITE_BACKEND_PRINCIPAL in your env.');
   }
@@ -45,7 +26,7 @@ export async function createCanisterOnLedger() {
     throw new Error('Status proxy canister ID is not configured. Set VITE_STATUS_PROXY_CANISTER_ID in your env.');
   }
 
-  const actor = await getLedger()
+  const actor = await getTCyclesLedgerActor()
   const res = await actor.create_canister({
     from_subaccount: [],
     created_at_time: [],
@@ -122,7 +103,7 @@ export function useTCycles(principal?: string) {
   const balanceTC = data?.balance ? formatTC(data.balance) : undefined
 
   const withdrawToCanister = async (canisterIdText: string, amountTC: string | number) => {
-    const actor = await getLedger()
+    const actor = await getTCyclesLedgerActor()
     const toPrincipal = Principal.fromText(canisterIdText)
     const amount = parseTCToRaw(amountTC)
     const res = await actor.withdraw({ to: toPrincipal, amount, created_at_time: [], from_subaccount: [] })

@@ -1,28 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { Principal } from '@dfinity/principal'
-import { ActorSubclass, HttpAgent } from '@dfinity/agent'
-import { canisterId as statusProxyCanisterId, createActor } from '../api/status-proxy'
-import type { _SERVICE, CanisterStatus } from '../api/status-proxy/status_proxy.did'
-import { getClient } from "./useInternetIdentity.ts";
+import { getStatusProxyActor } from '../api/status-proxy'
+import type { CanisterStatus } from '../api/status-proxy/status_proxy.did'
 
 export type CanisterStatusResult = {
   timestampSec: bigint
   status: CanisterStatus
-}
-
-function getStatusProxyCanisterId(): string {
-  const fromEnv = import.meta.env.VITE_STATUS_PROXY_CANISTER_ID as string | undefined
-  const cid = fromEnv || statusProxyCanisterId
-  if (!cid) throw new Error('Status proxy canister ID is not configured. Set VITE_STATUS_PROXY_CANISTER_ID in your env.')
-  return cid
-}
-
-async function getStatusProxyActor(): Promise<ActorSubclass<_SERVICE>> {
-  const cid = getStatusProxyCanisterId()
-  const authClient = await getClient();
-  const identity = authClient.getIdentity();
-  const agent = new HttpAgent({ identity, host: 'https://ic0.app' })
-  return createActor(cid, { agent })
 }
 
 export async function fetchCanisterStatus(targetCanisterIdText: string): Promise<CanisterStatusResult> {

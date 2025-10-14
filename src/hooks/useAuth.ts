@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useInternetIdentity, getClientSync } from './useInternetIdentity'
+import { useInternetIdentity, getAuthClientSync } from './useInternetIdentity'
 import { authApi, getStoredAccessToken, getStoredPrincipal, clearAuthTokens } from '../services/api'
 
 interface AuthState {
@@ -74,7 +74,7 @@ export function useAuth() {
       await loginII()
       
       // Get the principal directly from the auth client (after successful login)
-      const client = getClientSync()
+      const client = getAuthClientSync()
       const identity = client.getIdentity()
       const principal = identity?.getPrincipal?.().toText?.()
       

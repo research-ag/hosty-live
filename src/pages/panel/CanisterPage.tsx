@@ -28,14 +28,10 @@ import { CustomDomain } from "../../components/ui/CustomDomain";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { useAuth } from "../../hooks/useAuth";
 import { Principal } from "@dfinity/principal";
-import { ActorSubclass, HttpAgent } from "@dfinity/agent";
-import { createActor } from "../../api/status-proxy";
-import type { _SERVICE } from "../../api/status-proxy/status_proxy.did";
-import { getClient } from "../../hooks/useInternetIdentity";
+import { getStatusProxyActor, statusProxyCanisterId } from "../../api/status-proxy";
 
-function CyclesValue({ canisterId, isSystemController }: { canisterId: string; isSystemController?: boolean }) {
-  const { cyclesRaw, isLoading } = useCanisterStatus(isSystemController === false ? undefined : canisterId)
-  if (isSystemController === false) return <>unknown</>
+function CyclesValue({ canisterId }: { canisterId: string }) {
+  const { cyclesRaw, isLoading } = useCanisterStatus(canisterId)
   if (isLoading) return <>…</>
   if (!cyclesRaw) return <>unknown</>
   try {
@@ -74,8 +70,8 @@ export function CanisterPage() {
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [canister, setCanister] = useState<any>(null);
+  const [_, setCopied] = useState(false);
+  const [canister, setCanister] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [deployError, setDeployError] = useState<string>("");
@@ -86,21 +82,6 @@ export function CanisterPage() {
   const [debugModeChecked, setDebugModeChecked] = useState(true);
   const [isImmutabilityActionLoading, setIsImmutabilityActionLoading] = useState(false);
   const [isImmutableInDebugMode, setIsImmutableInDebugMode] = useState<boolean | null>(null);
-
-  function getStatusProxyCanisterId(): string {
-    const fromEnv = import.meta.env.VITE_STATUS_PROXY_CANISTER_ID as string | undefined;
-    const cid = fromEnv;
-    if (!cid) throw new Error('Status proxy canister ID is not configured. Set VITE_STATUS_PROXY_CANISTER_ID in your env.');
-    return cid;
-  }
-
-  async function getStatusProxyActor(): Promise<ActorSubclass<_SERVICE>> {
-    const cid = getStatusProxyCanisterId();
-    const authClient = await getClient();
-    const identity = authClient.getIdentity();
-    const agent = new HttpAgent({ identity, host: 'https://ic0.app' });
-    return createActor(cid, { agent });
-  }
 
   const fetchImmutability = async () => {
     try {
@@ -135,11 +116,11 @@ export function CanisterPage() {
 
   // Load canister on mount
   useEffect(() => {
-    fetchCanister();
+    fetchCanister().then();
   }, [icCanisterId]);
 
   useEffect(() => {
-    fetchImmutability();
+    fetchImmutability().then();
   }, [icCanisterId]);
 
   const handleDeploy = async (data: {
@@ -246,7 +227,7 @@ export function CanisterPage() {
       setShowMakeImmutableModal(false);
       await fetchImmutability();
       await fetchCanister();
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
       toast.error("Failed to make immutable", e?.message || String(e));
     } finally {
@@ -263,7 +244,7 @@ export function CanisterPage() {
       toast.success("Immutability undone", "Canister is mutable again.");
       setIsImmutableInDebugMode(false);
       await fetchCanister();
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
       toast.error("Failed to undo immutability", e?.message || String(e));
     } finally {
@@ -350,13 +331,6 @@ export function CanisterPage() {
       default:
         return null;
     }
-  };
-
-  const formatCycles = (cycles: string | number) => {
-    if (typeof cycles === "string") {
-      return (Number(cycles) / 1_000_000_000_000).toFixed(1);
-    }
-    return cycles.toFixed(1);
   };
 
   const canDeploy = canister?.isAssetCanister && canister?.isSystemController;
@@ -453,7 +427,7 @@ export function CanisterPage() {
               </label>
               <div className="space-y-1">
                 <p className="text-sm">
-                  <CyclesValue canisterId={canister.icCanisterId} isSystemController={canister.isSystemController}/>
+                  <CyclesValue canisterId={canister.icCanisterId}/>
                 </p>
               </div>
             </div>
@@ -497,10 +471,9 @@ export function CanisterPage() {
                           <span className="text-primary">(hosty.live)</span>
                         )}
                       {controller === principal && <span className="text-primary">(you)</span>}
-                      {controller ===
-                        import.meta.env.VITE_STATUS_PROXY_CANISTER_ID && (
-                          <span className="text-primary">(status proxy canister)</span>
-                        )}
+                      {controller === statusProxyCanisterId && (
+                        <span className="text-primary">(status proxy canister)</span>
+                      )}
                       {' '}
                       {controller}
                     </p>
@@ -524,6 +497,7 @@ export function CanisterPage() {
                       try {
                         await handleUndoImmutability();
                       } catch {
+                        // pass
                       }
                     }}
                     className="w-full sm:w-auto"
