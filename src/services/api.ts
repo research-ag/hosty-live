@@ -74,7 +74,7 @@ function checkUnauthorized(response: Response) {
 // Auth API
 export const authApi = {
   // Authenticate with Internet Identity
-  async authWithII(principal: string) {
+  async authWithII(principal: string, secret: string) {
     try {
       console.log('🔐 [authApi.authWithII] Authenticating with principal:', principal)
 
@@ -83,7 +83,7 @@ export const authApi = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ principal }),
+        body: JSON.stringify({ principal, secret }),
       })
 
       console.log('📡 [authApi.authWithII] Response status:', response.status)
