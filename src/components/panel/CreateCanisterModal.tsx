@@ -44,7 +44,7 @@ export function CreateCanisterModal({
             <div className="bg-muted/50 border rounded-lg p-4 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Cost:</span>
-                <span className="font-semibold">0.8 TC</span>
+                <span className="font-semibold">0.84 TC</span>
               </div>
             </div>
           </div>
