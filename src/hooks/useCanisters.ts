@@ -1,15 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { canistersApi, CreateCanisterResponse } from '../services/api'
-import type { ApiCanister } from '../types'
+import { ApiCanister, Response } from '../types'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
 import { Principal } from "@dfinity/principal";
 import { getAssetStorageActor } from "../api/asset-storage";
-import { getAgent } from "./useInternetIdentity.ts";
+import { getAgent, getAuthClientSync } from "./useInternetIdentity.ts";
+
+export type CanisterInfo = {
+  id: string;
+  icCanisterId: string;
+  name: string;
+  cycles: number;
+  lastDeployment: string;
+  status: 'active' | 'inactive';
+  frontendUrl: string;
+  createdAt: string;
+  updatedAt: string;
+  deleted: boolean;
+  deletedAt: string | undefined;
+  userId: string;
+  cyclesBalance: string | undefined;
+  cyclesBalanceRaw: string | undefined;
+  wasmBinarySize: string | undefined;
+  moduleHash: string | undefined;
+  controllers: string[] | undefined;
+  isAssetCanister: boolean | undefined;
+  isSystemController: boolean | undefined;
+  isUserController: boolean | undefined;
+  _apiData: ApiCanister;
+}
 
 // Transform API canister to frontend format
-function transformApiCanisterToFrontend(apiCanister: ApiCanister) {
+function transformApiCanisterToFrontend(apiCanister: ApiCanister): CanisterInfo {
   return {
     id: apiCanister.id, // Use database ID as the main ID for frontend
     icCanisterId: apiCanister.icCanisterId,
@@ -30,6 +54,7 @@ function transformApiCanisterToFrontend(apiCanister: ApiCanister) {
     controllers: apiCanister.controllers,
     isAssetCanister: apiCanister.isAssetCanister,
     isSystemController: apiCanister.isSystemController,
+    isUserController: apiCanister.controllers?.includes(getAuthClientSync()?.getIdentity().getPrincipal().toText()),
     // Store additional API data
     _apiData: apiCanister
   }
@@ -109,7 +134,7 @@ export function useCanisters() {
         setCreationMessage(response[1].error || 'Failed to create canister')
       }
     },
-    onError: (err: any) => {
+    onError: (err) => {
       setCreationStatus('error')
       setCreationMessage(err instanceof Error ? err.message : 'Failed to create canister')
     },
@@ -146,11 +171,7 @@ export function useCanisters() {
   })
 
   // Get single canister with caching
-  const getCanister = async (icCanisterId: string, skipCache?: boolean): Promise<{
-    success: boolean;
-    error?: string;
-    data?: ReturnType<typeof transformApiCanisterToFrontend>
-  }> => {
+  const getCanister = async (icCanisterId: string, skipCache?: boolean): Promise<Response<CanisterInfo>> => {
     try {
       console.log('🔍 [useCanisters.getCanister] Getting canister by IC ID:', icCanisterId)
 

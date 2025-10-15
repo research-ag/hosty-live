@@ -411,21 +411,19 @@ export function CanistersPage() {
                     <p className="font-semibold text-primary">
                       <CyclesCell canisterId={canister.icCanisterId}/>
                     </p>
-                    {canister.isSystemController && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTopUpCanisterId(canister.icCanisterId);
-                          setIsTopUpModalOpen(true);
-                        }}
-                        title="Top up"
-                        className="h-6 w-6 p-0"
-                      >
-                        <Zap className="h-3.5 w-3.5"/>
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTopUpCanisterId(canister.icCanisterId);
+                        setIsTopUpModalOpen(true);
+                      }}
+                      title="Top up"
+                      className="h-6 w-6 p-0"
+                    >
+                      <Zap className="h-3.5 w-3.5"/>
+                    </Button>
                   </div>
                 </div>
                 <div>

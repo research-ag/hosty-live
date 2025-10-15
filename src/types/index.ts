@@ -104,3 +104,11 @@ export interface ApiDeployment {
   source_type?: 'zip' | 'git'
   git_branch?: string
 }
+
+export type Response<T> = {
+  success: true
+  data: T
+} | {
+  success: false
+  error: string
+}
