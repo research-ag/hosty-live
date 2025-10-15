@@ -7,6 +7,7 @@ interface CreateCanisterModalProps {
   onClose: () => void
   onCreateCanister: () => void
   isLoading?: boolean
+  statusMessage?: string
   error?: string
 }
 
@@ -15,6 +16,7 @@ export function CreateCanisterModal({
   onClose, 
   onCreateCanister, 
   isLoading = false, 
+  statusMessage,
   error 
 }: CreateCanisterModalProps) {
 
@@ -47,6 +49,11 @@ export function CreateCanisterModal({
                 <span className="font-semibold">0.84 TC</span>
               </div>
             </div>
+            {isLoading && (
+              <div className="mt-4 text-sm text-muted-foreground">
+                {statusMessage || 'Starting canister creation...'}
+              </div>
+            )}
           </div>
         </div>
         

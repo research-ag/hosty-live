@@ -56,6 +56,8 @@ export function CanistersPage() {
     createCanister,
     deleteCanister,
     refreshCanisters,
+    creationMessage,
+    resetCreationStatus,
   } = useCanisters();
   const { toast } = useToast();
 
@@ -564,9 +566,13 @@ export function CanistersPage() {
 
       <CreateCanisterModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          resetCreationStatus()
+        }}
         onCreateCanister={handleCreateCanister}
         isLoading={isCreating}
+        statusMessage={creationMessage}
         error={actionError}
       />
 

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { canistersApi, CreateCanisterResponse } from '../services/api'
 import type { ApiCanister } from '../types'
 import { createCanisterOnLedger } from "./useTCycles.ts";
@@ -41,6 +42,9 @@ function transformCanister(apiCanister: ApiCanister) {
 
 export function useCanisters() {
   const queryClient = useQueryClient()
+  // State for creation progress UI
+  const [creationStatus, setCreationStatus] = useState<'idle' | 'creating' | 'preparing' | 'success' | 'error'>('idle')
+  const [creationMessage, setCreationMessage] = useState<string>('')
 
   // Query for fetching canisters list
   const {
@@ -82,18 +86,36 @@ export function useCanisters() {
   // Mutation for creating canisters
   const createCanisterMutation = useMutation({
     mutationFn: async () => {
+      // Step 1: creating on ledger
+      setCreationStatus('creating')
+      setCreationMessage('Creating your canister...')
       const { canisterId } = await createCanisterOnLedger()
+      // Step 2: preparing via backend
+      setCreationStatus('preparing')
+      setCreationMessage('Preparing your canister...')
       const registrationResult = await canistersApi.registerCanister(canisterId)
       return [canisterId, registrationResult] as [string, CreateCanisterResponse]
     },
     onSuccess: (response) => {
       if (response[1].success) {
+        setCreationStatus('success')
+        setCreationMessage('Your canister is ready!')
         // Invalidate and refetch canisters list
         queryClient.invalidateQueries({ queryKey: ['canisters'] })
         // Also invalidate cycles data as creating a canister consumes cycles
         queryClient.invalidateQueries({ queryKey: ['cycles'] })
+      } else {
+        setCreationStatus('error')
+        setCreationMessage(response[1].error || 'Failed to create canister')
       }
     },
+    onError: (err: any) => {
+      setCreationStatus('error')
+      setCreationMessage(err instanceof Error ? err.message : 'Failed to create canister')
+    },
+    onSettled: () => {
+      // Leave last message for UI; caller can reset explicitly
+    }
   })
 
   // Mutation for deleting canisters
@@ -277,6 +299,12 @@ export function useCanisters() {
     deleteCanister,
     addController,
     getCanister,
-    refreshCanisters
+    refreshCanisters,
+    creationStatus,
+    creationMessage,
+    resetCreationStatus: () => {
+      setCreationStatus('idle')
+      setCreationMessage('')
+    }
   }
 }
