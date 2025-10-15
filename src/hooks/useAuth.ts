@@ -14,7 +14,7 @@ interface AuthState {
 export function useAuth() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { principal: iiPrincipal, isAuthenticated: isIIAuthed, isLoading: isIILoading, login: loginII, logout: logoutII } = useInternetIdentity()
+  const { login: loginII, logout: logoutII } = useInternetIdentity()
   
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -47,46 +47,6 @@ export function useAuth() {
 
     checkStoredAuth()
   }, [])
-
-  // Sync with II authentication state
-  useEffect(() => {
-    if (isIILoading) return
-    
-    // If II is authenticated but we don't have backend tokens, authenticate with backend
-    if (isIIAuthed && iiPrincipal && !getStoredAccessToken()) {
-      console.log('🔐 [useAuth] II authenticated, calling backend auth with challenge...')
-      
-      // Execute challenge-response flow
-      ;(async () => {
-        try {
-          // 1. Generate random secret
-          const secret = crypto.randomUUID() + crypto.randomUUID()
-          
-          // 2. Compute SHA-256 digest
-          const secretBytes = new TextEncoder().encode(secret)
-          const digestBuffer = await crypto.subtle.digest('SHA-256', secretBytes)
-          const digest = new Uint8Array(digestBuffer)
-          
-          // 3. Submit digest to auth canister (requires II signature)
-          const authCanister = await getAuthCanisterActor()
-          await authCanister.submitChallenge(Array.from(digest))
-          
-          // 4. Authenticate with backend using principal and secret
-          const result = await authApi.authWithII(iiPrincipal, secret)
-          
-          if (result.success) {
-            setAuthState({
-              isAuthenticated: true,
-              isLoading: false,
-              principal: iiPrincipal
-            })
-          }
-        } catch (error) {
-          console.error('❌ [useAuth] Challenge-response auth failed:', error)
-        }
-      })()
-    }
-  }, [isIIAuthed, iiPrincipal, isIILoading])
 
   const login = async () => {
     setAuthState(prev => ({ ...prev, isLoading: true }))
