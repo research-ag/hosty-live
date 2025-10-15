@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { deploymentsApi } from '../services/api'
 import type { ApiDeployment } from '../types'
@@ -153,8 +152,6 @@ export function useDeployments() {
 
 // Hook for single deployment
 export function useDeployment(deploymentId?: string) {
-  const queryClient = useQueryClient()
-
   // Query for fetching single deployment
   const {
     data: deploymentData,
