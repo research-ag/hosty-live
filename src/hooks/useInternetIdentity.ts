@@ -160,7 +160,7 @@ export function useInternetIdentity(): IIState {
       const delegation = identity.getDelegation()?.delegations?.[0]?.delegation;
       if (delegation) {
         // Check actual expiry
-        return Date.now() > Number(delegation.expiration / BigInt(1_000_000)) - 5 * 60_000;
+        return Date.now() > Number(delegation.expiration / BigInt(1_000_000)) - 60_000;
       }
     }
     return false;

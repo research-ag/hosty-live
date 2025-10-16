@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useInternetIdentity, getAuthClientSync } from './useInternetIdentity'
+import { useInternetIdentity, getAuthClientSync, getAuthClient } from './useInternetIdentity'
 import { authApi, getStoredAccessToken, getStoredPrincipal, clearAuthTokens } from '../services/api'
 import { getAuthCanisterActor } from '../api/auth-canister/index.js'
 
@@ -24,13 +24,13 @@ export function useAuth() {
 
   useEffect(() => {
     // Check if we have stored tokens on mount
-    const checkStoredAuth = () => {
+    const checkStoredAuth = async () => {
       const accessToken = getStoredAccessToken()
       const principal = getStoredPrincipal()
       
       console.log('🔍 [useAuth] Checking stored auth:', { hasToken: !!accessToken, principal })
       
-      if (accessToken && principal) {
+      if (accessToken && principal && (await getAuthClient() && !isIISessionAboutToExpire())) {
         setAuthState({
           isAuthenticated: true,
           isLoading: false,
@@ -45,7 +45,7 @@ export function useAuth() {
       }
     }
 
-    checkStoredAuth()
+    checkStoredAuth().then()
   }, [])
 
   const login = async () => {
