@@ -30,8 +30,11 @@ function notifyII(state: { principal?: string; isAuthenticated: boolean }) {
   });
 }
 
+const host = 'https://ic0.app';
+let agent: HttpAgent = new HttpAgent({ host });
+
 export function getAgent(): HttpAgent {
-  return new HttpAgent({ host: 'https://ic0.app', identity: authClient?.getIdentity() });
+  return agent;
 }
 
 let authClient: AuthClient | null = null;
@@ -85,6 +88,7 @@ export function useInternetIdentity(): IIState {
         setIsAuthenticated(authed);
         if (authed) {
           const identity = client.getIdentity();
+          agent = new HttpAgent({ host, identity });
           const p = identity?.getPrincipal?.().toText?.();
           if (p) setPrincipal(p);
         }
@@ -116,6 +120,7 @@ export function useInternetIdentity(): IIState {
                 const authed = await client.isAuthenticated();
                 setIsAuthenticated(authed);
                 const identity = client.getIdentity();
+                agent = new HttpAgent({ host, identity });
                 const p = identity?.getPrincipal?.().toText?.();
                 setPrincipal(p);
                 notifyII({ principal: p, isAuthenticated: authed });
@@ -136,6 +141,7 @@ export function useInternetIdentity(): IIState {
       async () => {
         const client = await getAuthClient();
         await client.logout();
+        agent = new HttpAgent({ host });
         setIsAuthenticated(false);
         setPrincipal(undefined);
         notifyII({ principal: undefined, isAuthenticated: false });
