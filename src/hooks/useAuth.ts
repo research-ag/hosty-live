@@ -14,7 +14,7 @@ interface AuthState {
 export function useAuth() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { login: loginII, logout: logoutII } = useInternetIdentity()
+  const { login: loginII, logout: logoutII, isSessionAboutToExpire: isIISessionAboutToExpire } = useInternetIdentity()
   
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -124,6 +124,13 @@ export function useAuth() {
       console.error('Logout error:', error)
     }
   }
+
+  setInterval(() => {
+    if (authState.isAuthenticated && isIISessionAboutToExpire()) {
+      console.log('II session about to expire, logging out...');
+      logout().then();
+    }
+  }, 30000);
 
   return {
     ...authState,
