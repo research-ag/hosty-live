@@ -1,10 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { canistersApi, CreateCanisterResponse } from '../services/api'
-import type { ApiCanister } from '../types'
+import { ApiCanister, Response } from '../types'
 import { createCanisterOnLedger } from "./useTCycles.ts";
+import { getManagementActor } from "../api/management";
+import { Principal } from "@dfinity/principal";
+import { getAssetStorageActor } from "../api/asset-storage";
+import { getAgent, getAuthClientSync } from "./useInternetIdentity.ts";
+
+export type CanisterInfo = {
+  id: string;
+  icCanisterId: string;
+  name: string;
+  cycles: number;
+  lastDeployment: string;
+  status: 'active' | 'inactive';
+  frontendUrl: string;
+  createdAt: string;
+  updatedAt: string;
+  deleted: boolean;
+  deletedAt: string | undefined;
+  userId: string;
+  cyclesBalance: string | undefined;
+  cyclesBalanceRaw: string | undefined;
+  wasmBinarySize: string | undefined;
+  moduleHash: string | undefined;
+  controllers: string[] | undefined;
+  isAssetCanister: boolean | undefined;
+  isSystemController: boolean | undefined;
+  isUserController: boolean | undefined;
+  _apiData: ApiCanister;
+}
 
 // Transform API canister to frontend format
-function transformApiCanisterToFrontend(apiCanister: ApiCanister) {
+function transformApiCanisterToFrontend(apiCanister: ApiCanister): CanisterInfo {
   return {
     id: apiCanister.id, // Use database ID as the main ID for frontend
     icCanisterId: apiCanister.icCanisterId,
@@ -25,6 +54,7 @@ function transformApiCanisterToFrontend(apiCanister: ApiCanister) {
     controllers: apiCanister.controllers,
     isAssetCanister: apiCanister.isAssetCanister,
     isSystemController: apiCanister.isSystemController,
+    isUserController: apiCanister.controllers?.includes(getAuthClientSync()?.getIdentity().getPrincipal().toText()),
     // Store additional API data
     _apiData: apiCanister
   }
@@ -37,6 +67,9 @@ function transformCanister(apiCanister: ApiCanister) {
 
 export function useCanisters() {
   const queryClient = useQueryClient()
+  // State for creation progress UI
+  const [creationStatus, setCreationStatus] = useState<'idle' | 'creating' | 'preparing' | 'success' | 'error'>('idle')
+  const [creationMessage, setCreationMessage] = useState<string>('')
 
   // Query for fetching canisters list
   const {
@@ -78,18 +111,36 @@ export function useCanisters() {
   // Mutation for creating canisters
   const createCanisterMutation = useMutation({
     mutationFn: async () => {
+      // Step 1: creating on ledger
+      setCreationStatus('creating')
+      setCreationMessage('Creating your canister...')
       const { canisterId } = await createCanisterOnLedger()
+      // Step 2: preparing via backend
+      setCreationStatus('preparing')
+      setCreationMessage('Preparing your canister...')
       const registrationResult = await canistersApi.registerCanister(canisterId)
       return [canisterId, registrationResult] as [string, CreateCanisterResponse]
     },
     onSuccess: (response) => {
       if (response[1].success) {
+        setCreationStatus('success')
+        setCreationMessage('Your canister is ready!')
         // Invalidate and refetch canisters list
         queryClient.invalidateQueries({ queryKey: ['canisters'] })
         // Also invalidate cycles data as creating a canister consumes cycles
         queryClient.invalidateQueries({ queryKey: ['cycles'] })
+      } else {
+        setCreationStatus('error')
+        setCreationMessage(response[1].error || 'Failed to create canister')
       }
     },
+    onError: (err) => {
+      setCreationStatus('error')
+      setCreationMessage(err instanceof Error ? err.message : 'Failed to create canister')
+    },
+    onSettled: () => {
+      // Leave last message for UI; caller can reset explicitly
+    }
   })
 
   // Mutation for deleting canisters
@@ -110,9 +161,9 @@ export function useCanisters() {
     },
     onSuccess: ({ canisterDbId }) => {
       // Optimistically remove from cache
-      queryClient.setQueryData(['canisters'], (oldData: any) => {
+      queryClient.setQueryData(['canisters'], (oldData) => {
         if (!oldData) return oldData
-        return oldData.filter((c: any) => c.id !== canisterDbId)
+        return oldData.filter((c) => c.id !== canisterDbId)
       })
       // Also invalidate to get fresh data
       queryClient.invalidateQueries({ queryKey: ['canisters'] })
@@ -120,11 +171,7 @@ export function useCanisters() {
   })
 
   // Get single canister with caching
-  const getCanister = async (icCanisterId: string, skipCache?: boolean): Promise<{
-    success: boolean;
-    error?: string;
-    data?: any
-  }> => {
+  const getCanister = async (icCanisterId: string, skipCache?: boolean): Promise<Response<CanisterInfo>> => {
     try {
       console.log('🔍 [useCanisters.getCanister] Getting canister by IC ID:', icCanisterId)
 
@@ -198,9 +245,55 @@ export function useCanisters() {
         throw new Error('Canister not found')
       }
 
-      const response = await canistersApi.addController(canister.icCanisterId, userPrincipal)
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to add controller')
+      const managementCanister = await getManagementActor();
+
+      // Get current canister status
+      const status = await managementCanister.canister_status
+        .withOptions({
+          effectiveCanisterId: Principal.fromText(canister.icCanisterId)
+        })({
+          canister_id: Principal.fromText(canister.icCanisterId),
+        });
+      if (status.settings.controllers.find(p => p.toText() === userPrincipal)) {
+        return { success: true };
+      }
+
+      // Update canister settings
+      await managementCanister.update_settings.withOptions({
+        effectiveCanisterId: Principal.fromText(canister.icCanisterId),
+        agent: getAgent()
+      })({
+        canister_id: Principal.fromText(canister.icCanisterId),
+        settings: {
+          freezing_threshold: [],
+          controllers: [[...status.settings.controllers, Principal.fromText(userPrincipal)]],
+          reserved_cycles_limit: [],
+          log_visibility: [],
+          wasm_memory_limit: [],
+          memory_allocation: [],
+          compute_allocation: [],
+          wasm_memory_threshold: [],
+        },
+        sender_canister_version: [],
+      });
+
+      // If asset canister, grant all permissions: Prepare, ManagePermissions, Commit
+      try {
+        const assetCanister = await getAssetStorageActor(canister.icCanisterId);
+        await assetCanister.grant_permission({
+          permission: { Prepare: null },
+          to_principal: Principal.fromText(userPrincipal),
+        });
+        await assetCanister.grant_permission({
+          permission: { ManagePermissions: null },
+          to_principal: Principal.fromText(userPrincipal),
+        });
+        await assetCanister.grant_permission({
+          permission: { Commit: null },
+          to_principal: Principal.fromText(userPrincipal),
+        });
+      } catch {
+        // not an asset canister, pass
       }
 
       // Invalidate all canister-related cache after adding controller
@@ -227,6 +320,12 @@ export function useCanisters() {
     deleteCanister,
     addController,
     getCanister,
-    refreshCanisters
+    refreshCanisters,
+    creationStatus,
+    creationMessage,
+    resetCreationStatus: () => {
+      setCreationStatus('idle')
+      setCreationMessage('')
+    }
   }
 }

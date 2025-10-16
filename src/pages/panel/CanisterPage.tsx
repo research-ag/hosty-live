@@ -20,7 +20,7 @@ import { DeployModal } from "../../components/panel/DeployModal";
 import { TransferOwnershipModal } from "../../components/panel/TransferOwnershipModal";
 import { CustomDomainModal } from "../../components/panel/CustomDomainModal";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
-import { useCanisters } from "../../hooks/useCanisters";
+import { CanisterInfo, useCanisters } from "../../hooks/useCanisters";
 import { useDeployments } from "../../hooks/useDeployments";
 import { useToast } from "../../hooks/useToast";
 import { customDomainApi } from "../../api";
@@ -71,7 +71,7 @@ export function CanisterPage() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
   const [_, setCopied] = useState(false);
-  const [canister, setCanister] = useState(null);
+  const [canister, setCanister] = useState<CanisterInfo>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [deployError, setDeployError] = useState<string>("");
@@ -204,7 +204,6 @@ export function CanisterPage() {
       );
       setIsTransferModalOpen(false);
       // Refresh canister data to get updated controller info and system flags
-      console.log("=== Hello world");
       fetchCanister();
     } else {
       toast.error(
@@ -375,12 +374,13 @@ export function CanisterPage() {
             Custom Domain
           </Button>
           <Button
-            variant="outline"
-            onClick={() => setIsTransferModalOpen(true)}
-            className="w-full sm:w-auto"
+              variant="outline"
+              onClick={() => setIsTransferModalOpen(true)}
+              disabled={!canister?.isUserController}
+              className="w-full sm:w-auto"
           >
-            <UserCheck className="mr-2 h-4 w-4"/>
-            Ownership
+              <UserCheck className="mr-2 h-4 w-4"/>
+              Ownership
           </Button>
           <TooltipWrapper content={deployTooltip} disabled={!deployTooltip}>
             <Button
@@ -480,7 +480,7 @@ export function CanisterPage() {
                   ))}
                 </div>
                 <div style={{ height: "0.5rem" }}/>
-                {canister.controllers.length > 1 && (
+                {canister.isUserController && canister.controllers.length > 1 && (
                   <Button
                     variant="outline"
                     onClick={() => setShowMakeImmutableModal(true)}

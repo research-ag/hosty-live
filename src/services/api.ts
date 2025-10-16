@@ -322,34 +322,6 @@ export const canistersApi = {
         error: err instanceof Error ? err.message : 'Failed to delete canister'
       }
     }
-  },
-
-  // Add controller to canister
-  async addController(canisterId: string, userPrincipal: string) {
-    try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/canister-add-controller`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ canisterId, userPrincipal }),
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      return data // Return the edge function response directly
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to add controller'
-      }
-    }
   }
 }
 

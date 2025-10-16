@@ -56,6 +56,8 @@ export function CanistersPage() {
     createCanister,
     deleteCanister,
     refreshCanisters,
+    creationMessage,
+    resetCreationStatus,
   } = useCanisters();
   const { toast } = useToast();
 
@@ -409,21 +411,19 @@ export function CanistersPage() {
                     <p className="font-semibold text-primary">
                       <CyclesCell canisterId={canister.icCanisterId}/>
                     </p>
-                    {canister.isSystemController && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTopUpCanisterId(canister.icCanisterId);
-                          setIsTopUpModalOpen(true);
-                        }}
-                        title="Top up"
-                        className="h-6 w-6 p-0"
-                      >
-                        <Zap className="h-3.5 w-3.5"/>
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTopUpCanisterId(canister.icCanisterId);
+                        setIsTopUpModalOpen(true);
+                      }}
+                      title="Top up"
+                      className="h-6 w-6 p-0"
+                    >
+                      <Zap className="h-3.5 w-3.5"/>
+                    </Button>
                   </div>
                 </div>
                 <div>
@@ -564,9 +564,13 @@ export function CanistersPage() {
 
       <CreateCanisterModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          resetCreationStatus()
+        }}
         onCreateCanister={handleCreateCanister}
         isLoading={isCreating}
+        statusMessage={creationMessage}
         error={actionError}
       />
 
