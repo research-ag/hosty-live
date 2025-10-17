@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AuthClient } from "@dfinity/auth-client";
 import { HttpAgent } from "@dfinity/agent";
+import { DelegationIdentity } from "@dfinity/identity";
 
 export type IIState = {
   principal?: string;
@@ -8,6 +9,7 @@ export type IIState = {
   isLoading: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  isSessionAboutToExpire: () => boolean;
 };
 
 type IIListener = (state: { principal?: string; isAuthenticated: boolean }) => void;
@@ -28,10 +30,11 @@ function notifyII(state: { principal?: string; isAuthenticated: boolean }) {
   });
 }
 
-const agent: HttpAgent = new HttpAgent({ host: 'https://ic0.app' })
+const host = 'https://ic0.app';
+let agent: HttpAgent = new HttpAgent({ host });
 
 export function getAgent(): HttpAgent {
-  return agent
+  return agent;
 }
 
 let authClient: AuthClient | null = null;
@@ -40,6 +43,9 @@ let authClientPromise: Promise<void> | null = AuthClient.create({
     disableIdle: true,
     disableDefaultIdleCallback: true
   },
+  loginOptions: {
+    maxTimeToLive: 8n * 60n * 60n * 1_000_000_000n, // 8 hours
+  }
 }).then(c => {
   authClient = c;
   authClientPromise = null;
@@ -82,6 +88,7 @@ export function useInternetIdentity(): IIState {
         setIsAuthenticated(authed);
         if (authed) {
           const identity = client.getIdentity();
+          agent = new HttpAgent({ host, identity });
           const p = identity?.getPrincipal?.().toText?.();
           if (p) setPrincipal(p);
         }
@@ -107,12 +114,13 @@ export function useInternetIdentity(): IIState {
           const identityProvider = "https://id.ai";
           client.login({
             identityProvider,
+            maxTimeToLive: 8n * 60n * 60n * 1_000_000_000n, // 8 hours
             onSuccess: async () => {
               try {
                 const authed = await client.isAuthenticated();
                 setIsAuthenticated(authed);
                 const identity = client.getIdentity();
-                agent.replaceIdentity(identity);
+                agent = new HttpAgent({ host, identity });
                 const p = identity?.getPrincipal?.().toText?.();
                 setPrincipal(p);
                 notifyII({ principal: p, isAuthenticated: authed });
@@ -133,7 +141,7 @@ export function useInternetIdentity(): IIState {
       async () => {
         const client = await getAuthClient();
         await client.logout();
-        agent.invalidateIdentity();
+        agent = new HttpAgent({ host });
         setIsAuthenticated(false);
         setPrincipal(undefined);
         notifyII({ principal: undefined, isAuthenticated: false });
@@ -146,5 +154,17 @@ export function useInternetIdentity(): IIState {
     []
   );
 
-  return { principal, isAuthenticated, isLoading, login, logout };
+  const isSessionAboutToExpire = () => {
+    const identity = authClient?.getIdentity();
+    if (identity instanceof DelegationIdentity) {
+      const delegation = identity.getDelegation()?.delegations?.[0]?.delegation;
+      if (delegation) {
+        // Check actual expiry
+        return Date.now() > Number(delegation.expiration / BigInt(1_000_000)) - 60_000;
+      }
+    }
+    return false;
+  };
+
+  return { principal, isAuthenticated, isLoading, login, logout, isSessionAboutToExpire };
 }

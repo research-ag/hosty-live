@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useInternetIdentity, getAuthClientSync } from './useInternetIdentity'
+import { useInternetIdentity, getAuthClientSync, getAuthClient } from './useInternetIdentity'
 import { authApi, getStoredAccessToken, getStoredPrincipal, clearAuthTokens } from '../services/api'
 import { getAuthCanisterActor } from '../api/auth-canister/index.js'
 
@@ -14,7 +14,7 @@ interface AuthState {
 export function useAuth() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { login: loginII, logout: logoutII } = useInternetIdentity()
+  const { login: loginII, logout: logoutII, isSessionAboutToExpire: isIISessionAboutToExpire } = useInternetIdentity()
   
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -24,13 +24,13 @@ export function useAuth() {
 
   useEffect(() => {
     // Check if we have stored tokens on mount
-    const checkStoredAuth = () => {
+    const checkStoredAuth = async () => {
       const accessToken = getStoredAccessToken()
       const principal = getStoredPrincipal()
       
       console.log('🔍 [useAuth] Checking stored auth:', { hasToken: !!accessToken, principal })
       
-      if (accessToken && principal) {
+      if (accessToken && principal && (await getAuthClient() && !isIISessionAboutToExpire())) {
         setAuthState({
           isAuthenticated: true,
           isLoading: false,
@@ -45,7 +45,7 @@ export function useAuth() {
       }
     }
 
-    checkStoredAuth()
+    checkStoredAuth().then()
   }, [])
 
   const login = async () => {
@@ -124,6 +124,13 @@ export function useAuth() {
       console.error('Logout error:', error)
     }
   }
+
+  setInterval(() => {
+    if (authState.isAuthenticated && isIISessionAboutToExpire()) {
+      console.log('II session about to expire, logging out...');
+      logout().then();
+    }
+  }, 30000);
 
   return {
     ...authState,
