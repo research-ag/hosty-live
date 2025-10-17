@@ -93,7 +93,7 @@ shared persistent actor class StatusProxy() = self {
       throw Error.reject("Already immutable");
     };
     let state = try {
-      await ic.canister_status({ canister_id = canisterId });
+      await? ic.canister_status({ canister_id = canisterId });
     } catch (err) {
       throw Error.reject("Error while fetching canister status: " # Error.message(err));
     };
@@ -107,7 +107,7 @@ shared persistent actor class StatusProxy() = self {
 
     let selfP = Principal.fromActor(self);
     try {
-      await ic.update_settings({
+      await? ic.update_settings({
         canister_id = canisterId;
         settings = { controllers = ?[selfP] };
       });
@@ -131,7 +131,7 @@ shared persistent actor class StatusProxy() = self {
           take_ownership : shared () -> async ();
         }
       ) = actor (Principal.toText(canisterId));
-      await assetActor.take_ownership();
+      ignore assetActor.take_ownership();
     } catch (_) {
       //pass
     };
@@ -142,7 +142,7 @@ shared persistent actor class StatusProxy() = self {
       case (null) throw Error.reject("Not immutable in debug mode");
       case (?{ controllers }) {
         try {
-          await ic.update_settings({
+          await? ic.update_settings({
             canister_id = canisterId;
             settings = {
               controllers = ?Array.flatten([controllers, [Principal.fromActor(self)]]);
