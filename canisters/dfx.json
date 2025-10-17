@@ -1,0 +1,20 @@
+{
+  "canisters": {
+    "auth": {
+      "type": "motoko",
+      "main": "./src/auth_main.mo",
+      "init_arg": "(principal \"i2qrn-wou4z-zo3z2-g6vlg-dma7w-siosb-tfkdt-gw2ut-s2tmr-66dzg-fae\")"
+    },
+    "status-proxy": {
+      "main": "./src/status_proxy_main.mo",
+      "type": "motoko"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": "mops sources"
+    }
+  },
+  "version": 1
+}
