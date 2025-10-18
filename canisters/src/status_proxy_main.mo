@@ -152,6 +152,25 @@ shared persistent actor class StatusProxy() = self {
           throw Error.reject("Error while updating canister status: " # Error.message(err));
         };
         debugImmutables := Map.remove(debugImmutables, Principal.compare, canisterId);
+        // try to add commit permissions in the asset canister
+        try {
+          let assetActor : (
+            actor {
+              grant_permission : shared ({
+                permission : { #Prepare; #ManagePermissions; #Commit };
+                to_principal : Principal;
+              }) -> async ();
+            }
+          ) = actor (Principal.toText(canisterId));
+          for (p in controllers.vals()) {
+            ignore assetActor.grant_permission({
+              permission = #Commit;
+              to_principal = p;
+            });
+          };
+        } catch (_) {
+          //pass
+        };
       };
     };
   };
