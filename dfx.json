@@ -6,6 +6,20 @@
         "dist/"
       ],
       "build": "npm run build"
+    },
+    "status-proxy": {
+      "main": "./canisters/src/status_proxy_main.mo",
+      "type": "motoko"
+    },
+    "auth": {
+      "main": "./canisters/src/auth_main.mo",
+      "type": "motoko"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": "mops sources"
     }
   },
   "version": 1
