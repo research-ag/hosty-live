@@ -61,7 +61,7 @@ Note: hosty.live backend will be removed as controller in the near future.
 
 ### Gifted canister
 
-The hosty.live backend also provides one canister for free as a gift to each user principal. 
+The hosty.live backend provides one canister for free as a gift to each user principal. 
 This is done so that users can start the experience even before they obain any cycles.
 
 ### Deployment
@@ -71,23 +71,23 @@ The source can be provided as a branch in a GitHub repo or as a zip file.
 To build the backend accepts a build command.
 The default is `npm run build` but the user can provide a different one.
 
-To deploy the assets the backend accepts the relative path to where the assets are after building.
+To deploy the assets the backend accepts the relative path pointing to where the assets are after building.
 The default path is `dist` but the user can provide a different one.
 
 It is also possible to supply already built assets and to skip the build step entirely.
 To do this, `true` should be entered as the build command.
-If the already build are in the root directory then `./` can be entered as the path.
+If the already built assets are in the root directory then `./` can be entered as the path.
 
 ### Web2 login
 
 The web2 backend authenticates users by their II principal.
 This works as follows.
 After II login is complete, 
-the frontend creates an ephermal secret and uploads a hash of it to the auth canister.  
+the frontend creates an ephermal secret and uploads a hash of it to the auth canister.
 For this, the auth canister has one slot to store a blob for each calling principal.
 The frontend establishes a connection to the web2 backend and requests login by providing its principal and the ephemeral secret.
-The web2 backend then hashes the secret and queries that principal's data slot in the auth canister.
-If they match then login is created and the web2 backend issues a JWT and returns it to the frontend.
+The web2 backend then hashes the secret and queries the principal's data slot in the auth canister.
+If they match then login is granted and the web2 backend issues a JWT and returns it to the frontend.
 
 This process has the advantage that login is performed in a single request from the frontend, just like if email/password were used.
 A challenge-response protocol with a server-generated challenge would be more complicated.
@@ -107,8 +107,8 @@ Hosty.live will perform the necessary call in the background.
 ### Changing ownership and sole custody
 
 Additional controllers can be added to the individual hosting canisters. 
-For example, after an initial phase under hosty.live an advanced user may decide to take sole custody of a hosting canister.
-The user can add a dfx principal and use dfx to remove all other controllers.
+For example, after an initial phase of operating under hosty.live an advanced user may decide to take sole custody of a hosting canister.
+The user can add a dfx principal through the frontend and then use dfx to remove all other controllers.
 
 ### Immutable canisters
 
@@ -120,6 +120,8 @@ The status proxy then removes all other controllers except itself
 and also removes all other permissions inside the asset canister.
 The status proxy remains a controller so that the hosting canister's cycle balance remains publicly visible.
 
+With the immutability feature, sole custody is no longer needed. Instead, a hosting canister can transition directly from being on hosty.live to being immutable. 
+
 Note: In order to allow experimentation with this feature without wasting canisters, the immutability feature of the status proxy can be called in debug mode.
 In this case, the status proxy will save the previous controller list and will allow to revert the action.
 
@@ -129,6 +131,7 @@ This is because we are at the hackathon stage and intend to still add more featu
 ## Example repos
 
 Here is a list of GitHub repo URLs that can be used to try out deploment.
+Note that you can deploy the hosty.live frontend itself through hosty.live into your own canister.
 
 |URL|branch|build command|output directory|comment|
 |---|---|---|---|---|
