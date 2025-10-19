@@ -12,6 +12,7 @@ import {
   Settings,
   Upload,
   UserCheck,
+  Share2,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
@@ -364,6 +365,18 @@ export function CanisterPage() {
           </div>
         </div>
         <div className="flex flex-col md:flex-row gap-3 md:flex-shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const sharedUrl = `${window.location.origin}/shared/${canister.id}`;
+              copyToClipboard(sharedUrl);
+              toast.success("Shared URL copied to clipboard");
+            }}
+            className="w-full sm:w-auto"
+          >
+            <Share2 className="mr-2 h-4 w-4"/>
+            Share
+          </Button>
           <Button
             variant="outline"
             onClick={() => setIsCustomDomainModalOpen(true)}

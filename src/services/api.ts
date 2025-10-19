@@ -296,6 +296,38 @@ export const canistersApi = {
     }
   },
 
+  // Get public canister info (no auth required)
+  async getPublicCanister(canisterId: string) {
+    try {
+      console.log('🔍 [canistersApi.getPublicCanister] Starting API call for canister:', canisterId)
+
+      const response = await fetch(`${API_BASE}/canister-get-public?canisterId=${encodeURIComponent(canisterId)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      console.log('📡 [canistersApi.getPublicCanister] Response status:', response.status)
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Network error' }))
+        console.error('❌ [canistersApi.getPublicCanister] Error response:', error)
+        return { success: false, error: error.error || `HTTP ${response.status}` }
+      }
+
+      const data = await response.json()
+      console.log('✅ [canistersApi.getPublicCanister] Success response:', data)
+      return data
+    } catch (err) {
+      console.error('💥 [canistersApi.getPublicCanister] Exception:', err)
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to get public canister'
+      }
+    }
+  },
+
   // Delete a canister
   async deleteCanister(canisterId: string) {
     try {

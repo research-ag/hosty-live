@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/shared/ErrorBoundary'
 import { LoadingPage } from './components/shared/LoadingPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PanelLayout } from './components/panel/PanelLayout'
+import { SharedLayout } from './components/shared/SharedLayout'
 import { HomePage } from './pages/marketing/HomePage'
 import { SignInPage } from './pages/panel/SignInPage'
 import { CanistersPage } from './pages/panel/CanistersPage'
@@ -14,6 +15,7 @@ import { DeploymentsPage } from './pages/panel/DeploymentsPage'
 import { DeploymentPage } from './pages/panel/DeploymentPage'
 import { TCyclesPage } from './pages/panel/TCyclesPage'
 import { SettingsPage } from './pages/panel/SettingsPage'
+import { SharedCanisterPage } from './pages/shared/SharedCanisterPage'
 import { Navigate } from 'react-router-dom'
 import { ProtectedRoute } from './components/shared/ProtectedRoute'
 import { RouteChangeHandler } from './components/shared/RouteChangeHandler'
@@ -41,6 +43,11 @@ function App() {
                   {/* Public Routes */}
                   <Route path="/" element={<HomePage />} />
                   <Route path="/panel/sign-in" element={<SignInPage />} />
+                  
+                  {/* Shared Public Routes */}
+                  <Route path="/shared" element={<SharedLayout />}>
+                    <Route path=":id" element={<SharedCanisterPage />} />
+                  </Route>
                   
                   {/* Protected Panel Routes */}
                   <Route path="/panel" element={
