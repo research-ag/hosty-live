@@ -4,7 +4,7 @@ import Principal "mo:core/Principal";
 
 import Scheduler "./scheduler";
 
-persistent actor class Auth(backendPrincipal : Principal) {
+persistent actor class Auth() {
 
   system func inspect({
     arg : Blob;
@@ -29,8 +29,7 @@ persistent actor class Auth(backendPrincipal : Principal) {
     storage := Map.add(storage, Principal.compare, caller, (Prim.time() / 1_000_000, payload));
   };
 
-  public shared query ({ caller }) func checkChallenge(principal : Principal) : async ?(Nat64, Blob) {
-    assert caller == backendPrincipal;
+  public shared query func checkChallenge(principal : Principal) : async ?(Nat64, Blob) {
     Map.get(storage, Principal.compare, principal);
   };
 

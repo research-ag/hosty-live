@@ -53,4 +53,6 @@ coverage/
 !public/.well-known/
 !public/.well-known/**
 
-.dfx
+.dfx/
+.idea/
+.mops/
