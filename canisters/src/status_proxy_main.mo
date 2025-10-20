@@ -82,6 +82,20 @@ shared persistent actor class StatusProxy() = self {
     (now, statusResponse);
   };
 
+  public shared ({ caller }) func invalidateCache(canisterId : Principal) : async Bool {
+    switch (Map.get(cache, Principal.compare, canisterId)) {
+      case (?(_, data)) switch (Array.indexOf(data.settings.controllers, Principal.equal, caller)) {
+        case (?_) {
+          let (upd, _) = Map.delete<Principal, (Nat64, CanisterStatus)>(cache, Principal.compare, canisterId);
+          cache := upd;
+          true;
+        };
+        case (null) false;
+      };
+      case (null) false;
+    };
+  };
+
   var debugImmutables : Map.Map<Principal, { controllers : [Principal] }> = Map.empty();
 
   public shared query func isImmutableInDebugMode(canisterId : Principal) : async Bool {
@@ -137,10 +151,14 @@ shared persistent actor class StatusProxy() = self {
     };
   };
 
-  public shared func undoImmutability(canisterId : Principal) : async () {
+  public shared ({ caller }) func undoImmutability(canisterId : Principal) : async () {
     switch (Map.get(debugImmutables, Principal.compare, canisterId)) {
       case (null) throw Error.reject("Not immutable in debug mode");
       case (?{ controllers }) {
+        switch (Array.indexOf(controllers, Principal.equal, caller)) {
+          case (null) throw Error.reject("Caller is not in the controllers list");
+          case (_) {};
+        };
         try {
           await? ic.update_settings({
             canister_id = canisterId;
