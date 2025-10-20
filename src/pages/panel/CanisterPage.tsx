@@ -13,6 +13,7 @@ import {
   Upload,
   UserCheck,
   Share2,
+  Zap,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
@@ -30,6 +31,8 @@ import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { useAuth } from "../../hooks/useAuth";
 import { Principal } from "@dfinity/principal";
 import { getStatusProxyActor, statusProxyCanisterId } from "../../api/status-proxy";
+import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
+import { useTCycles } from "../../hooks/useTCycles";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isLoading } = useCanisterStatus(canisterId)
@@ -37,7 +40,7 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
   if (!cyclesRaw) return <>unknown</>
   try {
     const tc = Number(BigInt(cyclesRaw)) / 1_000_000_000_000
-    return <>{tc.toFixed(1)} TC</>
+    return <>{tc.toFixed(2)} TC</>
   } catch {
     return <>unknown</>
   }
@@ -83,6 +86,8 @@ export function CanisterPage() {
   const [debugModeChecked, setDebugModeChecked] = useState(true);
   const [isImmutabilityActionLoading, setIsImmutabilityActionLoading] = useState(false);
   const [isImmutableInDebugMode, setIsImmutableInDebugMode] = useState<boolean | null>(null);
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+  const { withdrawToCanister, balanceRaw, formatTC, refresh } = useTCycles(principal);
 
   const fetchImmutability = async () => {
     try {
@@ -439,9 +444,20 @@ export function CanisterPage() {
                 Cycles
               </label>
               <div className="space-y-1">
-                <p className="text-sm">
-                  <CyclesValue canisterId={canister.icCanisterId}/>
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm">
+                    <CyclesValue canisterId={canister.icCanisterId}/>
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsTopUpModalOpen(true)}
+                    title="Top up"
+                    className="h-6 w-6 p-0"
+                  >
+                    <Zap className="h-3.5 w-3.5"/>
+                  </Button>
+                </div>
               </div>
             </div>
             <div>
@@ -718,6 +734,26 @@ export function CanisterPage() {
         onClose={() => setIsCustomDomainModalOpen(false)}
         canister={canister}
       />
+
+      {icCanisterId && (
+        <TopUpCanisterModal
+          isOpen={isTopUpModalOpen}
+          onClose={() => setIsTopUpModalOpen(false)}
+          canisterId={icCanisterId}
+          userBalanceRaw={balanceRaw}
+          formatTC={formatTC}
+          onWithdraw={async (cid, amt) => {
+            const res = await withdrawToCanister(cid, amt);
+            toast.success(
+              "Top up successful",
+              `Deposit submitted. Block index: ${res.toString()}`
+            );
+            await refresh();
+            return res;
+          }}
+          onRefreshBalance={refresh}
+        />
+      )}
 
       {showMakeImmutableModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

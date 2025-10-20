@@ -27,7 +27,7 @@ function CyclesCell({
   if (!cyclesRaw) return <>unknown</>;
   try {
     const tc = Number(BigInt(cyclesRaw)) / 1_000_000_000_000;
-    return <>{tc.toFixed(1)} TC</>;
+    return <>{tc.toFixed(2)} TC</>;
   } catch {
     return <>unknown</>;
   }
