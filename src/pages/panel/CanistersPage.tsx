@@ -211,12 +211,12 @@ export function CanistersPage() {
           setProfile(profileResult.data);
         }
       } else {
-        toast.error("Error", result.error || "Failed to claim free canister");
+        toast.error("Error", "Gift canisters pool is out of cycles");
       }
     } catch (error) {
       toast.error(
         "Error",
-        error instanceof Error ? error.message : "Failed to claim free canister"
+        "Gift canisters pool is out of cycles"
       );
     } finally {
       setIsClaimingFree(false);
