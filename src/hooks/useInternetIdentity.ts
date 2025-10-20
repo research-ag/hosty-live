@@ -9,7 +9,7 @@ export type IIState = {
   isLoading: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  isSessionAboutToExpire: () => boolean;
+  isSessionExpires: () => boolean;
 };
 
 type IIListener = (state: { principal?: string; isAuthenticated: boolean }) => void;
@@ -154,17 +154,23 @@ export function useInternetIdentity(): IIState {
     []
   );
 
-  const isSessionAboutToExpire = () => {
-    const identity = authClient?.getIdentity();
-    if (identity instanceof DelegationIdentity) {
-      const delegation = identity.getDelegation()?.delegations?.[0]?.delegation;
-      if (delegation) {
-        // Check actual expiry
-        return Date.now() > Number(delegation.expiration / BigInt(1_000_000)) - 60_000;
-      }
+  const isSessionExpires = () => {
+    if (!authClient) return true;
+    const identity = authClient.getIdentity();
+    if (!(identity instanceof DelegationIdentity)) {
+      return true;
     }
-    return false;
+    const chain = identity.getDelegation?.();
+    const delegations = chain?.delegations || [];
+    if (delegations.length === 0) return true;
+    const expirationsMs = delegations
+      .map((d) => Number(d.delegation.expiration / BigInt(1_000_000)))
+      .filter((n) => Number.isFinite(n));
+    if (expirationsMs.length === 0) return true;
+    const maxExpirationMs = Math.max(...expirationsMs);
+    // Consider session "about to expire" 60s before actual expiry
+    return Date.now() > (maxExpirationMs - 60_000);
   };
 
-  return { principal, isAuthenticated, isLoading, login, logout, isSessionAboutToExpire };
+  return { principal, isAuthenticated, isLoading, login, logout, isSessionExpires };
 }
