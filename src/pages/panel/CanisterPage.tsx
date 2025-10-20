@@ -10,9 +10,9 @@ import {
   LockKeyhole,
   LockKeyholeOpen,
   Settings,
+  Share2,
   Upload,
   UserCheck,
-  Share2,
   Zap,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
@@ -44,6 +44,22 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
   } catch {
     return <>unknown</>
   }
+}
+
+function BurnInfo({ canisterId }: { canisterId: string }) {
+  const { isLoading, burnTcPerYear, yearsLeft } = useCanisterStatus(canisterId)
+  if (isLoading) return <p className="text-xs text-muted-foreground">…</p>
+  const formatNum = (n: number | undefined, precision: number) => {
+    if (n === undefined) return 'unknown'
+    if (!isFinite(n)) return '∞'
+    return n.toFixed(precision)
+  }
+  return (
+    <div className="text-xs text-muted-foreground">
+      <div>Burn rate: {burnTcPerYear !== undefined ? `${formatNum(burnTcPerYear, 4)} TC/year` : 'unknown'}</div>
+      <div>Years left: {yearsLeft !== undefined ? formatNum(yearsLeft, 2) : 'unknown'}</div>
+    </div>
+  )
 }
 
 export function CanisterPage() {
@@ -392,13 +408,13 @@ export function CanisterPage() {
             Custom Domain
           </Button>
           <Button
-              variant="outline"
-              onClick={() => setIsTransferModalOpen(true)}
-              disabled={!canister?.isUserController}
-              className="w-full sm:w-auto"
+            variant="outline"
+            onClick={() => setIsTransferModalOpen(true)}
+            disabled={!canister?.isUserController}
+            className="w-full sm:w-auto"
           >
-              <UserCheck className="mr-2 h-4 w-4"/>
-              Ownership
+            <UserCheck className="mr-2 h-4 w-4"/>
+            Ownership
           </Button>
           <TooltipWrapper content={deployTooltip} disabled={!deployTooltip}>
             <Button
@@ -458,6 +474,7 @@ export function CanisterPage() {
                     <Zap className="h-3.5 w-3.5"/>
                   </Button>
                 </div>
+                <BurnInfo canisterId={canister.icCanisterId}/>
               </div>
             </div>
             <div>

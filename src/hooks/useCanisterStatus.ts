@@ -52,8 +52,39 @@ export function useCanisterStatus(canisterId?: string) {
     }
   })()
 
+  const idleBurnPerDayRaw = (() => {
+    try {
+      return String(query.data?.status.idle_cycles_burned_per_day) || undefined
+    } catch {
+      return undefined
+    }
+  })()
+
+  const burnTcPerYear = (() => {
+    if (!idleBurnPerDayRaw) return undefined
+    try {
+      const perDay = Number(BigInt(idleBurnPerDayRaw))
+      const perYearCycles = perDay * 365
+      const tc = perYearCycles / 1_000_000_000_000
+      return tc
+    } catch {
+      return undefined
+    }
+  })()
+
+  const yearsLeft = (() => {
+    try {
+      return Number(cycles) / (1_000_000_000_000 * burnTcPerYear!)
+    } catch {
+      return undefined
+    }
+  })()
+
   return {
     ...query,
     cyclesRaw: cycles,
+    idleBurnPerDayRaw,
+    burnTcPerYear,
+    yearsLeft,
   }
 }
