@@ -43,10 +43,11 @@ import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
+  const { principal } = useAuth();
   const canisterStatusFromProxy = useCanisterStatus(canisterId, false);
   const { cyclesRaw, isLoading } = useCanisterStatus(
     canisterId,
-    canisterStatusFromProxy.isSystemController
+    canisterStatusFromProxy.controllers?.includes(principal ?? "")
   );
   if (isLoading) return <>…</>;
   if (!cyclesRaw) return <>unknown</>;
@@ -59,10 +60,11 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
 }
 
 function BurnInfo({ canisterId }: { canisterId: string }) {
+  const { principal } = useAuth();
   const canisterStatusFromProxy = useCanisterStatus(canisterId, false);
   const { isLoading, burnTcPerYear, yearsLeft } = useCanisterStatus(
     canisterId,
-    canisterStatusFromProxy.isSystemController
+    canisterStatusFromProxy.controllers?.includes(principal ?? "")
   );
   if (isLoading) return <p className="text-xs text-muted-foreground">…</p>;
   const formatNum = (n: number | undefined, precision: number) => {
@@ -114,7 +116,7 @@ export function CanisterPage() {
   const canisterStatusFromProxy = useCanisterStatus(icCanisterId, false);
   const canisterStatus = useCanisterStatus(
     icCanisterId,
-    canisterStatusFromProxy.isSystemController
+    canisterStatusFromProxy.controllers?.includes(principal ?? "")
   );
   console.log("=== canisterStatus", canisterStatus);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
