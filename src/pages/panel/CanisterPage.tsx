@@ -118,7 +118,6 @@ export function CanisterPage() {
     icCanisterId,
     canisterStatusFromProxy.controllers?.includes(principal ?? "")
   );
-  console.log("=== canisterStatus", canisterStatus);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);

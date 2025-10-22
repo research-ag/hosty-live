@@ -34,9 +34,8 @@ function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
 
 export function SharedCanisterPage() {
   const { id: canisterId } = useParams<{ id: string }>();
-  const canisterStatus = useCanisterStatus(canisterId, false);
-  console.log("=== canisterStatus", { canisterId, canisterStatus });
   const [canister, setCanister] = useState<PublicCanisterData | null>(null);
+  const canisterStatus = useCanisterStatus(canister?.icCanisterId, false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [copied, setCopied] = useState(false);
