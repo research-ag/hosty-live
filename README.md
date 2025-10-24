@@ -29,9 +29,7 @@ The frontend requires login with Internet Identity. The principal from II contro
 
 The web2 backend is a build system that can take frontend source code from a zip file or a GitHub URL, build the assets, and upload them into an asset canister.
 
-The web2 backend also performs canister management actions, reads cycle balances, registers custom domains and queries DNS records for the user.
-
-Note: Some of these actions will be moved to the frontend over time.
+The web2 backend also registers custom domains and queries DNS records for the user.
 
 #### Status proxy canister
 
@@ -55,9 +53,7 @@ Note: There is currently no withdrawal from the cycle wallet.
 
 ### Canister creation
 
-Canisters are created directly from the frontend and are given three controllers: the frontend (II principal), the web2 backend, and the status proxy.
-
-Note: hosty.live backend will be removed as controller in the near future.
+Canisters are created directly from the frontend and are given two controllers: the frontend (II principal) and the status proxy.
 
 ### Gifted canister
 
@@ -127,6 +123,12 @@ In this case, the status proxy will save the previous controller list and will a
 
 Note: Currently, the status proxy is not actually blackholed.
 This is because we are at the hackathon stage and intend to still add more features to the status proxy.
+
+### Public page
+
+Each canister created by hosty.live also has a public page. Its URL can be obtained by the owner by clicking on the "Share" button.
+If this URL is published then anyone can see information about the canister such as, for example, the cycle balance.
+This is mainly done so that immutable canisters can be monitored and topped-up by the public.
 
 ## Example repos
 
