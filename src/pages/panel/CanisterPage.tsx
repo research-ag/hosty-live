@@ -43,13 +43,8 @@ import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
-  const { principal } = useAuth();
-  const canisterStatusFromProxy = useCanisterStatus(canisterId, false);
-  const { cyclesRaw, isLoading } = useCanisterStatus(
-    canisterId,
-    canisterStatusFromProxy.controllers?.includes(principal ?? "")
-  );
-  if (isLoading) return <>…</>;
+  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
+  if (isCanisterStatusLoading) return <>…</>;
   if (!cyclesRaw) return <>unknown</>;
   try {
     const tc = Number(BigInt(cyclesRaw)) / 1_000_000_000_000;
@@ -61,12 +56,10 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
 
 function BurnInfo({ canisterId }: { canisterId: string }) {
   const { principal } = useAuth();
-  const canisterStatusFromProxy = useCanisterStatus(canisterId, false);
-  const { isLoading, burnTcPerYear, yearsLeft } = useCanisterStatus(
-    canisterId,
-    canisterStatusFromProxy.controllers?.includes(principal ?? "")
-  );
-  if (isLoading) return <p className="text-xs text-muted-foreground">…</p>;
+  const { isCanisterStatusLoading, burnTcPerYear, yearsLeft } =
+    useCanisterStatus(canisterId);
+  if (isCanisterStatusLoading)
+    return <p className="text-xs text-muted-foreground">…</p>;
   const formatNum = (n: number | undefined, precision: number) => {
     if (n === undefined) return "unknown";
     if (!isFinite(n)) return "∞";
@@ -113,11 +106,7 @@ export function CanisterPage() {
       { enabled: !!icCanisterId && !!domainFromIcDomains }
     );
 
-  const canisterStatusFromProxy = useCanisterStatus(icCanisterId, false);
-  const canisterStatus = useCanisterStatus(
-    icCanisterId,
-    canisterStatusFromProxy.controllers?.includes(principal ?? "")
-  );
+  const canisterStatus = useCanisterStatus(icCanisterId);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
@@ -319,7 +308,7 @@ export function CanisterPage() {
   };
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || canisterStatus.isCanisterStatusLoading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-12">
@@ -333,12 +322,14 @@ export function CanisterPage() {
   }
 
   // Error state
-  if (error || !canister) {
+  if (error || !canister || canisterStatus.canisterStatusError) {
     return (
       <div className="p-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4">
-            {error || "Canister Not Found"}
+            {error ||
+              canisterStatus.canisterStatusError?.message ||
+              "Canister Not Found"}
           </h1>
           <Link to="/panel/canisters">
             <Button>Back to Canisters</Button>

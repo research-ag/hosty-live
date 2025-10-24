@@ -35,7 +35,7 @@ function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
 export function SharedCanisterPage() {
   const { id: canisterId } = useParams<{ id: string }>();
   const [canister, setCanister] = useState<PublicCanisterData | null>(null);
-  const canisterStatus = useCanisterStatus(canister?.icCanisterId, false);
+  const canisterStatus = useCanisterStatus(canister?.icCanisterId);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -96,7 +96,7 @@ export function SharedCanisterPage() {
   };
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || canisterStatus.isCanisterStatusLoading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-12">
@@ -110,12 +110,14 @@ export function SharedCanisterPage() {
   }
 
   // Error state
-  if (error || !canister) {
+  if (error || canisterStatus.canisterStatusError || !canister) {
     return (
       <div className="p-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4">
-            {error || "Canister Not Found"}
+            {error ||
+              canisterStatus.canisterStatusError?.message ||
+              "Canister Not Found"}
           </h1>
           <Link to="/">
             <Button>Go to Home</Button>

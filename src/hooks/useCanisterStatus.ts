@@ -51,11 +51,11 @@ function formatBytes(bytes: bigint): string {
   return `${bytes.toString()} bytes`;
 }
 
-export function useCanisterStatus(canisterId?: string, directly?: boolean) {
+export function useCanisterStatus(canisterId?: string) {
   const query = useQuery<CanisterStatus, Error>({
     queryKey: ["canister", "status", canisterId ?? "unknown"],
     queryFn: async () => {
-      if (directly) {
+      try {
         const managementCanister = await getManagementActor();
         const status = await managementCanister.canister_status.withOptions({
           effectiveCanisterId: Principal.fromText(canisterId!),
@@ -63,14 +63,20 @@ export function useCanisterStatus(canisterId?: string, directly?: boolean) {
           canister_id: Principal.fromText(canisterId!),
         });
         return status;
-      }
+      } catch (error) {
+        const notControllerError = String(error).includes(
+          "Reject text: Only controllers of canister"
+        );
 
-      try {
-        const res = await fetchCanisterStatus(canisterId!);
-        return res.status;
-      } catch (e) {
-        console.error("fetchCanisterStatus error", e);
-        throw e;
+        if (!notControllerError) throw error;
+
+        try {
+          const res = await fetchCanisterStatus(canisterId!);
+          return res.status;
+        } catch (e) {
+          console.error("fetchCanisterStatus error", e);
+          throw e;
+        }
       }
     },
     enabled: !!canisterId,
@@ -159,6 +165,8 @@ export function useCanisterStatus(canisterId?: string, directly?: boolean) {
   );
 
   return {
+    isCanisterStatusLoading: query.isLoading,
+    canisterStatusError: query.error,
     cyclesRaw: cycles,
     idleBurnPerDayRaw,
     burnTcPerYear,

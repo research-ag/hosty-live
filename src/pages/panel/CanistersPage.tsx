@@ -33,8 +33,8 @@ import { freeCanisterApi, profileApi } from "../../services/api";
 import type { Canister, Profile } from "../../types";
 
 function CyclesCell({ canisterId }: { canisterId: string }) {
-  const { cyclesRaw, isLoading } = useCanisterStatus(canisterId, false);
-  if (isLoading) return <>…</>;
+  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
+  if (isCanisterStatusLoading) return <>…</>;
   if (!cyclesRaw) return <>unknown</>;
   try {
     const tc = Number(BigInt(cyclesRaw)) / 1_000_000_000_000;
@@ -45,13 +45,19 @@ function CyclesCell({ canisterId }: { canisterId: string }) {
 }
 
 function NotControlledIndicator({ canisterId }: { canisterId: string }) {
-  const canisterStatus = useCanisterStatus(canisterId, false);
+  const canisterStatus = useCanisterStatus(canisterId);
+
+  if (canisterStatus.isCanisterStatusLoading) {
+    return null;
+  }
 
   return (
     canisterStatus.isSystemController === false && (
       <div className="absolute top-0 left-0 right-0 h-3 bg-red-500/10 flex items-center justify-center z-10">
         <span className="text-[8px] font-medium text-red-600 tracking-[4px]">
-          not controlled by hosty.live
+          {canisterStatus.canisterStatusError
+            ? "unexpected error occured"
+            : "not controlled by hosty.live"}
         </span>
       </div>
     )
