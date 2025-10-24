@@ -16,12 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { DeployModal } from "../../components/panel/DeployModal";
 import { TransferOwnershipModal } from "../../components/panel/TransferOwnershipModal";
@@ -35,10 +30,7 @@ import { CustomDomain } from "../../components/ui/CustomDomain";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { useAuth } from "../../hooks/useAuth";
 import { Principal } from "@dfinity/principal";
-import {
-  getStatusProxyActor,
-  statusProxyCanisterId,
-} from "../../api/status-proxy";
+import { getStatusProxyActor, statusProxyCanisterId, } from "../../api/status-proxy";
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
 
@@ -280,8 +272,7 @@ export function CanisterPage() {
           : "Canister made immutable. This cannot be undone."
       );
       setShowMakeImmutableModal(false);
-      await fetchImmutability();
-      await fetchCanister();
+      await Promise.all([fetchCanister(), fetchImmutability()]);
     } catch (e: any) {
       console.error(e);
       toast.error("Failed to make immutable", e?.message || String(e));
@@ -313,7 +304,7 @@ export function CanisterPage() {
       <div className="p-6">
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"/>
             <span className="text-lg">Loading canister...</span>
           </div>
         </div>
@@ -382,9 +373,9 @@ export function CanisterPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return <CheckCircle className="h-5 w-5 text-green-500"/>;
       case "inactive":
-        return <AlertCircle className="h-5 w-5 text-gray-500" />;
+        return <AlertCircle className="h-5 w-5 text-gray-500"/>;
       default:
         return null;
     }
@@ -402,7 +393,7 @@ export function CanisterPage() {
         <Link to="/panel/canisters" className="hover:text-foreground">
           Canisters
         </Link>
-        <ChevronRight className="h-4 w-4" />
+        <ChevronRight className="h-4 w-4"/>
         <span className="text-foreground">{canister.name}</span>
       </nav>
 
@@ -431,7 +422,7 @@ export function CanisterPage() {
             }}
             className="w-full sm:w-auto"
           >
-            <Share2 className="mr-2 h-4 w-4" />
+            <Share2 className="mr-2 h-4 w-4"/>
             Share
           </Button>
           <Button
@@ -439,18 +430,17 @@ export function CanisterPage() {
             onClick={() => setIsCustomDomainModalOpen(true)}
             className="w-full sm:w-auto"
           >
-            <Settings className="mr-2 h-4 w-4" />
+            <Settings className="mr-2 h-4 w-4"/>
             Custom Domain
           </Button>
-          {/* <Button
+          <Button
             variant="outline"
             onClick={() => setIsTransferModalOpen(true)}
-            disabled={!canister?.isUserController}
             className="w-full sm:w-auto"
           >
-            <UserCheck className="mr-2 h-4 w-4" />
+            <UserCheck className="mr-2 h-4 w-4"/>
             Ownership
-          </Button> */}
+          </Button>
           <TooltipWrapper content={deployTooltip}>
             <Button
               variant="default"
@@ -458,7 +448,7 @@ export function CanisterPage() {
               disabled={!canDeploy}
               className="w-full sm:w-auto"
             >
-              <Upload className="mr-2 h-4 w-4" />
+              <Upload className="mr-2 h-4 w-4"/>
               Deploy
             </Button>
           </TooltipWrapper>
@@ -497,7 +487,7 @@ export function CanisterPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm">
-                    <CyclesValue canisterId={canister.icCanisterId} />
+                    <CyclesValue canisterId={canister.icCanisterId}/>
                   </p>
                   <Button
                     variant="ghost"
@@ -506,10 +496,10 @@ export function CanisterPage() {
                     title="Top up"
                     className="h-6 w-6 p-0"
                   >
-                    <Zap className="h-3.5 w-3.5" />
+                    <Zap className="h-3.5 w-3.5"/>
                   </Button>
                 </div>
-                <BurnInfo canisterId={canister.icCanisterId} />
+                <BurnInfo canisterId={canister.icCanisterId}/>
               </div>
             </div>
             <div>
@@ -550,8 +540,8 @@ export function CanisterPage() {
                       >
                         {controller ===
                           import.meta.env.VITE_BACKEND_PRINCIPAL && (
-                          <span className="text-primary">(hosty.live)</span>
-                        )}
+                            <span className="text-primary">(hosty.live)</span>
+                          )}
                         {controller === principal && (
                           <span className="text-primary">(you)</span>
                         )}
@@ -564,18 +554,17 @@ export function CanisterPage() {
                       </p>
                     ))}
                   </div>
-                  <div style={{ height: "0.5rem" }} />
-                  {canister.isUserController &&
-                    canisterStatus.controllers.length > 1 && (
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowMakeImmutableModal(true)}
-                        className="w-full sm:w-auto"
-                      >
-                        <LockKeyhole className="mr-2 h-4 w-4" />
-                        Make immutable
-                      </Button>
-                    )}
+                  <div style={{ height: "0.5rem" }}/>
+                  {canisterStatus.controllers.length > 1 && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowMakeImmutableModal(true)}
+                      className="w-full sm:w-auto"
+                    >
+                      <LockKeyhole className="mr-2 h-4 w-4"/>
+                      Make immutable
+                    </Button>
+                  )}
                   {isImmutableInDebugMode === true && (
                     <Button
                       variant="outline"
@@ -591,12 +580,13 @@ export function CanisterPage() {
                     >
                       {isImmutabilityActionLoading ? (
                         <>
-                          <div className="mr-2 h-4 w-4 border-2 border-b-transparent border-current rounded-full animate-spin" />
+                          <div
+                            className="mr-2 h-4 w-4 border-2 border-b-transparent border-current rounded-full animate-spin"/>
                           Undoing…
                         </>
                       ) : (
                         <>
-                          <LockKeyholeOpen className="mr-2 h-4 w-4" />
+                          <LockKeyholeOpen className="mr-2 h-4 w-4"/>
                           Undo immutability
                         </>
                       )}
@@ -631,7 +621,7 @@ export function CanisterPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
+              <Globe className="h-5 w-5"/>
               Frontend
             </CardTitle>
           </CardHeader>
@@ -656,7 +646,7 @@ export function CanisterPage() {
                         }
                         className="h-7 px-2 text-xs"
                       >
-                        <ExternalLink className="h-3 w-3 mr-1" />
+                        <ExternalLink className="h-3 w-3 mr-1"/>
                         Open
                       </Button>
                       <Button
@@ -668,7 +658,7 @@ export function CanisterPage() {
                         }}
                         className="h-7 px-2 text-xs"
                       >
-                        <Copy className="h-3 w-3 mr-1" />
+                        <Copy className="h-3 w-3 mr-1"/>
                         Copy
                       </Button>
                     </div>
@@ -731,7 +721,7 @@ export function CanisterPage() {
                       }
                       className="h-7 px-2 text-xs"
                     >
-                      <ExternalLink className="h-3 w-3 mr-1" />
+                      <ExternalLink className="h-3 w-3 mr-1"/>
                       Open full size
                     </Button>
                   </div>
@@ -741,7 +731,7 @@ export function CanisterPage() {
               /* Empty State */
               <div className="text-center py-12">
                 <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Globe className="h-8 w-8 text-muted-foreground" />
+                  <Globe className="h-8 w-8 text-muted-foreground"/>
                 </div>
                 <h3 className="text-lg font-semibold mb-2">
                   No Frontend Deployed
@@ -757,7 +747,7 @@ export function CanisterPage() {
                     onClick={() => setIsDeployModalOpen(true)}
                     disabled={!canDeploy}
                   >
-                    <Upload className="mr-2 h-4 w-4" />
+                    <Upload className="mr-2 h-4 w-4"/>
                     Deploy Now
                   </Button>
                 </TooltipWrapper>

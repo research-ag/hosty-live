@@ -6,7 +6,7 @@ import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
 import { Principal } from "@dfinity/principal";
 import { getAssetStorageActor } from "../api/asset-storage";
-import { getAgent, getAuthClientSync } from "./useInternetIdentity.ts";
+import { getAgent } from "./useInternetIdentity.ts";
 
 export type CanisterInfo = {
   id: string;
@@ -28,7 +28,6 @@ export type CanisterInfo = {
   controllers: string[] | undefined;
   isAssetCanister: boolean | undefined;
   isSystemController: boolean | undefined;
-  isUserController: boolean | undefined;
   _apiData: ApiCanister;
 }
 
@@ -54,7 +53,6 @@ function transformApiCanisterToFrontend(apiCanister: ApiCanister): CanisterInfo 
     controllers: apiCanister.controllers,
     isAssetCanister: apiCanister.isAssetCanister,
     isSystemController: apiCanister.isSystemController,
-    isUserController: apiCanister.controllers?.includes(getAuthClientSync()?.getIdentity().getPrincipal().toText()),
     // Store additional API data
     _apiData: apiCanister
   }
@@ -194,6 +192,7 @@ export function useCanisters() {
 
         // Update cache with the new data
         queryClient.setQueryData(['canister', icCanisterId], transformedCanister)
+        await queryClient.invalidateQueries({ queryKey: ["canister", "status", icCanisterId] });
 
         return { success: true, data: transformedCanister }
       } else {
