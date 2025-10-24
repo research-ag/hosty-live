@@ -51,17 +51,19 @@ function NotControlledIndicator({ canisterId }: { canisterId: string }) {
     return null;
   }
 
-  return (
-    canisterStatus.isSystemController === false && (
-      <div className="absolute top-0 left-0 right-0 h-3 bg-red-500/10 flex items-center justify-center z-10">
-        <span className="text-[8px] font-medium text-red-600 tracking-[4px]">
-          {canisterStatus.canisterStatusError
-            ? "unexpected error occured"
-            : "not controlled by hosty.live"}
-        </span>
-      </div>
-    )
-  );
+  return null;
+
+  // return (
+  //   canisterStatus.isSystemController === false && (
+  //     <div className="absolute top-0 left-0 right-0 h-3 bg-red-500/10 flex items-center justify-center z-10">
+  //       <span className="text-[8px] font-medium text-red-600 tracking-[4px]">
+  //         {canisterStatus.canisterStatusError
+  //           ? "unexpected error occured"
+  //           : "not controlled by hosty.live"}
+  //       </span>
+  //     </div>
+  //   )
+  // );
 }
 
 export function CanistersPage() {

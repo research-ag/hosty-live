@@ -390,10 +390,9 @@ export function CanisterPage() {
     }
   };
 
-  const canDeploy =
-    canisterStatus.isAssetCanister && canisterStatus.isSystemController;
+  const canDeploy = canisterStatus.isAssetCanister;
   const deployTooltip = !canDeploy
-    ? "Deployment disabled: System is no longer controller or canister is not an asset canister"
+    ? "Deployment disabled: Canister is not an asset canister"
     : undefined;
 
   return (
@@ -438,13 +437,12 @@ export function CanisterPage() {
           <Button
             variant="outline"
             onClick={() => setIsCustomDomainModalOpen(true)}
-            disabled={!canisterStatus.isSystemController}
             className="w-full sm:w-auto"
           >
             <Settings className="mr-2 h-4 w-4" />
             Custom Domain
           </Button>
-          <Button
+          {/* <Button
             variant="outline"
             onClick={() => setIsTransferModalOpen(true)}
             disabled={!canister?.isUserController}
@@ -452,8 +450,8 @@ export function CanisterPage() {
           >
             <UserCheck className="mr-2 h-4 w-4" />
             Ownership
-          </Button>
-          <TooltipWrapper content={deployTooltip} disabled={!deployTooltip}>
+          </Button> */}
+          <TooltipWrapper content={deployTooltip}>
             <Button
               variant="default"
               onClick={() => setIsDeployModalOpen(true)}
@@ -616,7 +614,7 @@ export function CanisterPage() {
                 </p>
               </div>
             )}
-            {canisterStatus.isSystemController !== undefined && (
+            {/* {canisterStatus.isSystemController !== undefined && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Controlled by hosty.live
@@ -625,7 +623,7 @@ export function CanisterPage() {
                   {canisterStatus.isSystemController ? "Yes" : "No"}
                 </p>
               </div>
-            )}
+            )} */}
           </CardContent>
         </Card>
 

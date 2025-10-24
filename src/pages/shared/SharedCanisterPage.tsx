@@ -201,7 +201,7 @@ export function SharedCanisterPage() {
                 </p>
               </div>
             )}
-            {canisterStatus.isSystemController !== undefined && (
+            {/* {canisterStatus.isSystemController !== undefined && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Controlled by hosty.live
@@ -210,7 +210,7 @@ export function SharedCanisterPage() {
                   {canisterStatus.isSystemController ? "Yes" : "No"}
                 </p>
               </div>
-            )}
+            )} */}
           </CardContent>
         </Card>
 
