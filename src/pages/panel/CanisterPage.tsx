@@ -16,7 +16,12 @@ import {
   Zap,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { DeployModal } from "../../components/panel/DeployModal";
 import { TransferOwnershipModal } from "../../components/panel/TransferOwnershipModal";
@@ -30,36 +35,50 @@ import { CustomDomain } from "../../components/ui/CustomDomain";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { useAuth } from "../../hooks/useAuth";
 import { Principal } from "@dfinity/principal";
-import { getStatusProxyActor, statusProxyCanisterId } from "../../api/status-proxy";
+import {
+  getStatusProxyActor,
+  statusProxyCanisterId,
+} from "../../api/status-proxy";
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
-  const { cyclesRaw, isLoading } = useCanisterStatus(canisterId)
-  if (isLoading) return <>…</>
-  if (!cyclesRaw) return <>unknown</>
+  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
+  if (isCanisterStatusLoading) return <>…</>;
+  if (!cyclesRaw) return <>unknown</>;
   try {
-    const tc = Number(BigInt(cyclesRaw)) / 1_000_000_000_000
-    return <>{tc.toFixed(2)} TC</>
+    const tc = Number(BigInt(cyclesRaw)) / 1_000_000_000_000;
+    return <>{tc.toFixed(2)} TC</>;
   } catch {
-    return <>unknown</>
+    return <>unknown</>;
   }
 }
 
 function BurnInfo({ canisterId }: { canisterId: string }) {
-  const { isLoading, burnTcPerYear, yearsLeft } = useCanisterStatus(canisterId)
-  if (isLoading) return <p className="text-xs text-muted-foreground">…</p>
+  const { principal } = useAuth();
+  const { isCanisterStatusLoading, burnTcPerYear, yearsLeft } =
+    useCanisterStatus(canisterId);
+  if (isCanisterStatusLoading)
+    return <p className="text-xs text-muted-foreground">…</p>;
   const formatNum = (n: number | undefined, precision: number) => {
-    if (n === undefined) return 'unknown'
-    if (!isFinite(n)) return '∞'
-    return n.toFixed(precision)
-  }
+    if (n === undefined) return "unknown";
+    if (!isFinite(n)) return "∞";
+    return n.toFixed(precision);
+  };
   return (
     <div className="text-xs text-muted-foreground">
-      <div>Burn rate: {burnTcPerYear !== undefined ? `${formatNum(burnTcPerYear, 4)} TC/year` : 'unknown'}</div>
-      <div>Years left: {yearsLeft !== undefined ? formatNum(yearsLeft, 2) : 'unknown'}</div>
+      <div>
+        Burn rate:{" "}
+        {burnTcPerYear !== undefined
+          ? `${formatNum(burnTcPerYear, 4)} TC/year`
+          : "unknown"}
+      </div>
+      <div>
+        Years left:{" "}
+        {yearsLeft !== undefined ? formatNum(yearsLeft, 2) : "unknown"}
+      </div>
     </div>
-  )
+  );
 }
 
 export function CanisterPage() {
@@ -87,6 +106,7 @@ export function CanisterPage() {
       { enabled: !!icCanisterId && !!domainFromIcDomains }
     );
 
+  const canisterStatus = useCanisterStatus(icCanisterId);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
@@ -100,19 +120,25 @@ export function CanisterPage() {
   const [isPreviewInteractive, setIsPreviewInteractive] = useState(false);
   const [showMakeImmutableModal, setShowMakeImmutableModal] = useState(false);
   const [debugModeChecked, setDebugModeChecked] = useState(true);
-  const [isImmutabilityActionLoading, setIsImmutabilityActionLoading] = useState(false);
-  const [isImmutableInDebugMode, setIsImmutableInDebugMode] = useState<boolean | null>(null);
+  const [isImmutabilityActionLoading, setIsImmutabilityActionLoading] =
+    useState(false);
+  const [isImmutableInDebugMode, setIsImmutableInDebugMode] = useState<
+    boolean | null
+  >(null);
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
-  const { withdrawToCanister, balanceRaw, formatTC, refresh } = useTCycles(principal);
+  const { withdrawToCanister, balanceRaw, formatTC, refresh } =
+    useTCycles(principal);
 
   const fetchImmutability = async () => {
     try {
       if (!icCanisterId) return;
       const actor = await getStatusProxyActor();
-      const res = await actor.isImmutableInDebugMode(Principal.fromText(icCanisterId));
+      const res = await actor.isImmutableInDebugMode(
+        Principal.fromText(icCanisterId)
+      );
       setIsImmutableInDebugMode(res);
     } catch (e) {
-      console.error('Failed to check immutability:', e);
+      console.error("Failed to check immutability:", e);
       setIsImmutableInDebugMode(null);
     }
   };
@@ -243,12 +269,20 @@ export function CanisterPage() {
     try {
       setIsImmutabilityActionLoading(true);
       const actor = await getStatusProxyActor();
-      await actor.makeImmutable(Principal.fromText(icCanisterId), debugModeChecked);
-      toast.success("Immutability set", debugModeChecked ? "Canister made immutable in debug mode." : "Canister made immutable. This cannot be undone.");
+      await actor.makeImmutable(
+        Principal.fromText(icCanisterId),
+        debugModeChecked
+      );
+      toast.success(
+        "Immutability set",
+        debugModeChecked
+          ? "Canister made immutable in debug mode."
+          : "Canister made immutable. This cannot be undone."
+      );
       setShowMakeImmutableModal(false);
       await fetchImmutability();
       await fetchCanister();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       toast.error("Failed to make immutable", e?.message || String(e));
     } finally {
@@ -274,12 +308,12 @@ export function CanisterPage() {
   };
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || canisterStatus.isCanisterStatusLoading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"/>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
             <span className="text-lg">Loading canister...</span>
           </div>
         </div>
@@ -288,12 +322,14 @@ export function CanisterPage() {
   }
 
   // Error state
-  if (error || !canister) {
+  if (error || !canister || canisterStatus.canisterStatusError) {
     return (
       <div className="p-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4">
-            {error || "Canister Not Found"}
+            {error ||
+              canisterStatus.canisterStatusError?.message ||
+              "Canister Not Found"}
           </h1>
           <Link to="/panel/canisters">
             <Button>Back to Canisters</Button>
@@ -346,17 +382,17 @@ export function CanisterPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
-        return <CheckCircle className="h-5 w-5 text-green-500"/>;
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
       case "inactive":
-        return <AlertCircle className="h-5 w-5 text-gray-500"/>;
+        return <AlertCircle className="h-5 w-5 text-gray-500" />;
       default:
         return null;
     }
   };
 
-  const canDeploy = canister?.isAssetCanister && canister?.isSystemController;
+  const canDeploy = canisterStatus.isAssetCanister;
   const deployTooltip = !canDeploy
-    ? "Deployment disabled: System is no longer controller or canister is not an asset canister"
+    ? "Deployment disabled: Canister is not an asset canister"
     : undefined;
 
   return (
@@ -366,7 +402,7 @@ export function CanisterPage() {
         <Link to="/panel/canisters" className="hover:text-foreground">
           Canisters
         </Link>
-        <ChevronRight className="h-4 w-4"/>
+        <ChevronRight className="h-4 w-4" />
         <span className="text-foreground">{canister.name}</span>
       </nav>
 
@@ -395,35 +431,34 @@ export function CanisterPage() {
             }}
             className="w-full sm:w-auto"
           >
-            <Share2 className="mr-2 h-4 w-4"/>
+            <Share2 className="mr-2 h-4 w-4" />
             Share
           </Button>
           <Button
             variant="outline"
             onClick={() => setIsCustomDomainModalOpen(true)}
-            disabled={!canister?.isSystemController}
             className="w-full sm:w-auto"
           >
-            <Settings className="mr-2 h-4 w-4"/>
+            <Settings className="mr-2 h-4 w-4" />
             Custom Domain
           </Button>
-          <Button
+          {/* <Button
             variant="outline"
             onClick={() => setIsTransferModalOpen(true)}
             disabled={!canister?.isUserController}
             className="w-full sm:w-auto"
           >
-            <UserCheck className="mr-2 h-4 w-4"/>
+            <UserCheck className="mr-2 h-4 w-4" />
             Ownership
-          </Button>
-          <TooltipWrapper content={deployTooltip} disabled={!deployTooltip}>
+          </Button> */}
+          <TooltipWrapper content={deployTooltip}>
             <Button
               variant="default"
               onClick={() => setIsDeployModalOpen(true)}
               disabled={!canDeploy}
               className="w-full sm:w-auto"
             >
-              <Upload className="mr-2 h-4 w-4"/>
+              <Upload className="mr-2 h-4 w-4" />
               Deploy
             </Button>
           </TooltipWrapper>
@@ -462,7 +497,7 @@ export function CanisterPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm">
-                    <CyclesValue canisterId={canister.icCanisterId}/>
+                    <CyclesValue canisterId={canister.icCanisterId} />
                   </p>
                   <Button
                     variant="ghost"
@@ -471,10 +506,10 @@ export function CanisterPage() {
                     title="Top up"
                     className="h-6 w-6 p-0"
                   >
-                    <Zap className="h-3.5 w-3.5"/>
+                    <Zap className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                <BurnInfo canisterId={canister.icCanisterId}/>
+                <BurnInfo canisterId={canister.icCanisterId} />
               </div>
             </div>
             <div>
@@ -493,7 +528,7 @@ export function CanisterPage() {
                 {new Date(canister.updatedAt).toLocaleString()}
               </p>
             </div>
-            {canister.wasmBinarySize && (
+            {canisterStatus.wasmBinarySize && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   WASM Size
@@ -501,90 +536,94 @@ export function CanisterPage() {
                 <p className="text-sm">{canister.wasmBinarySize}</p>
               </div>
             )}
-            {canister.controllers && canister.controllers.length > 0 && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Controllers
-                </label>
-                <div className="space-y-1">
-                  {canister.controllers.map((controller, index) => (
-                    <p
-                      key={index}
-                      className="text-xs font-mono bg-muted px-2 py-1 rounded"
-                    >
-                      {controller ===
-                        import.meta.env.VITE_BACKEND_PRINCIPAL && (
+            {canisterStatus.controllers &&
+              canisterStatus.controllers.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Controllers
+                  </label>
+                  <div className="space-y-1">
+                    {canisterStatus.controllers.map((controller, index) => (
+                      <p
+                        key={index}
+                        className="text-xs font-mono bg-muted px-2 py-1 rounded"
+                      >
+                        {controller ===
+                          import.meta.env.VITE_BACKEND_PRINCIPAL && (
                           <span className="text-primary">(hosty.live)</span>
                         )}
-                      {controller === principal && <span className="text-primary">(you)</span>}
-                      {controller === statusProxyCanisterId && (
-                        <span className="text-primary">(status proxy canister)</span>
-                      )}
-                      {' '}
-                      {controller}
-                    </p>
-                  ))}
-                </div>
-                <div style={{ height: "0.5rem" }}/>
-                {canister.isUserController && canister.controllers.length > 1 && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowMakeImmutableModal(true)}
-                    className="w-full sm:w-auto"
-                  >
-                    <LockKeyhole className="mr-2 h-4 w-4"/>
-                    Make immutable
-                  </Button>
-                )}
-                {isImmutableInDebugMode === true && (
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        await handleUndoImmutability();
-                      } catch {
-                        // pass
-                      }
-                    }}
-                    className="w-full sm:w-auto"
-                    disabled={isImmutabilityActionLoading}
-                  >
-                    {isImmutabilityActionLoading ? (
-                      <>
-                        <div
-                          className="mr-2 h-4 w-4 border-2 border-b-transparent border-current rounded-full animate-spin"/>
-                        Undoing…
-                      </>
-                    ) : (
-                      <>
-                        <LockKeyholeOpen className="mr-2 h-4 w-4"/>
-                        Undo immutability
-                      </>
+                        {controller === principal && (
+                          <span className="text-primary">(you)</span>
+                        )}
+                        {controller === statusProxyCanisterId && (
+                          <span className="text-primary">
+                            (status proxy canister)
+                          </span>
+                        )}{" "}
+                        {controller}
+                      </p>
+                    ))}
+                  </div>
+                  <div style={{ height: "0.5rem" }} />
+                  {canister.isUserController &&
+                    canisterStatus.controllers.length > 1 && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowMakeImmutableModal(true)}
+                        className="w-full sm:w-auto"
+                      >
+                        <LockKeyhole className="mr-2 h-4 w-4" />
+                        Make immutable
+                      </Button>
                     )}
-                  </Button>
-                )}
-              </div>
-            )}
-            {canister.isAssetCanister !== undefined && (
+                  {isImmutableInDebugMode === true && (
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          await handleUndoImmutability();
+                        } catch {
+                          // pass
+                        }
+                      }}
+                      className="w-full sm:w-auto"
+                      disabled={isImmutabilityActionLoading}
+                    >
+                      {isImmutabilityActionLoading ? (
+                        <>
+                          <div className="mr-2 h-4 w-4 border-2 border-b-transparent border-current rounded-full animate-spin" />
+                          Undoing…
+                        </>
+                      ) : (
+                        <>
+                          <LockKeyholeOpen className="mr-2 h-4 w-4" />
+                          Undo immutability
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
+            {canisterStatus.isAssetCanister !== undefined && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Asset Canister
                 </label>
                 <p className="text-sm">
-                  {canister.isAssetCanister ? "Yes" : "No"}
+                  {canisterStatus.isAssetCanister ? "Yes" : "No"}
                 </p>
               </div>
             )}
-            {canister.isSystemController !== undefined && (
+            {/* {canisterStatus.isSystemController !== undefined && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Controlled by hosty.live
                 </label>
                 <p className="text-sm">
-                  {canister.isSystemController ? "Yes" : "No"}
+                  {canisterStatus.isSystemController ? "Yes" : "No"}
                 </p>
               </div>
-            )}
+            )} */}
           </CardContent>
         </Card>
 
@@ -592,7 +631,7 @@ export function CanisterPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5"/>
+              <Globe className="h-5 w-5" />
               Frontend
             </CardTitle>
           </CardHeader>
@@ -617,7 +656,7 @@ export function CanisterPage() {
                         }
                         className="h-7 px-2 text-xs"
                       >
-                        <ExternalLink className="h-3 w-3 mr-1"/>
+                        <ExternalLink className="h-3 w-3 mr-1" />
                         Open
                       </Button>
                       <Button
@@ -629,7 +668,7 @@ export function CanisterPage() {
                         }}
                         className="h-7 px-2 text-xs"
                       >
-                        <Copy className="h-3 w-3 mr-1"/>
+                        <Copy className="h-3 w-3 mr-1" />
                         Copy
                       </Button>
                     </div>
@@ -692,7 +731,7 @@ export function CanisterPage() {
                       }
                       className="h-7 px-2 text-xs"
                     >
-                      <ExternalLink className="h-3 w-3 mr-1"/>
+                      <ExternalLink className="h-3 w-3 mr-1" />
                       Open full size
                     </Button>
                   </div>
@@ -702,7 +741,7 @@ export function CanisterPage() {
               /* Empty State */
               <div className="text-center py-12">
                 <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Globe className="h-8 w-8 text-muted-foreground"/>
+                  <Globe className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">
                   No Frontend Deployed
@@ -718,7 +757,7 @@ export function CanisterPage() {
                     onClick={() => setIsDeployModalOpen(true)}
                     disabled={!canDeploy}
                   >
-                    <Upload className="mr-2 h-4 w-4"/>
+                    <Upload className="mr-2 h-4 w-4" />
                     Deploy Now
                   </Button>
                 </TooltipWrapper>
@@ -787,21 +826,35 @@ export function CanisterPage() {
                   checked={debugModeChecked}
                   onChange={(e) => setDebugModeChecked(e.target.checked)}
                 />
-                <label htmlFor="debugMode" className="text-sm">Debug mode</label>
+                <label htmlFor="debugMode" className="text-sm">
+                  Debug mode
+                </label>
               </div>
               <div className="text-sm">
-                <p className={`mt-1 ${debugModeChecked ? 'text-muted-foreground' : 'text-red-600 dark:text-red-500'}`}>
+                <p
+                  className={`mt-1 ${
+                    debugModeChecked
+                      ? "text-muted-foreground"
+                      : "text-red-600 dark:text-red-500"
+                  }`}
+                >
                   Immutability without debug mode can never be undone.
                 </p>
               </div>
             </div>
             <div className="px-4 py-3 border-t border-border flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowMakeImmutableModal(false)}
-                      disabled={isImmutabilityActionLoading}>
+              <Button
+                variant="ghost"
+                onClick={() => setShowMakeImmutableModal(false)}
+                disabled={isImmutabilityActionLoading}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleConfirmMakeImmutable} disabled={isImmutabilityActionLoading}>
-                {isImmutabilityActionLoading ? 'Applying…' : 'Confirm'}
+              <Button
+                onClick={handleConfirmMakeImmutable}
+                disabled={isImmutabilityActionLoading}
+              >
+                {isImmutabilityActionLoading ? "Applying…" : "Confirm"}
               </Button>
             </div>
           </div>

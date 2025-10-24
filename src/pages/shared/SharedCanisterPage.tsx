@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-  ChevronRight,
-  Copy,
-  ExternalLink,
-  Globe,
-} from "lucide-react";
+import { Copy, ExternalLink, Globe } from "lucide-react";
 import { Button } from "../../components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/Card";
 import { canistersApi } from "../../services/api";
+import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 
 interface PublicCanisterData {
   icCanisterId: string;
@@ -34,6 +35,7 @@ function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
 export function SharedCanisterPage() {
   const { id: canisterId } = useParams<{ id: string }>();
   const [canister, setCanister] = useState<PublicCanisterData | null>(null);
+  const canisterStatus = useCanisterStatus(canister?.icCanisterId);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -49,7 +51,10 @@ export function SharedCanisterPage() {
     const result = await canistersApi.getPublicCanister(canisterId);
 
     if (result.success && result.data) {
-      console.log("🎯 [SharedCanisterPage] Canister data received:", result.data);
+      console.log(
+        "🎯 [SharedCanisterPage] Canister data received:",
+        result.data
+      );
       setCanister(result.data);
     } else {
       setError(result.error || "Canister not found");
@@ -91,7 +96,7 @@ export function SharedCanisterPage() {
   };
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || canisterStatus.isCanisterStatusLoading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-12">
@@ -105,12 +110,14 @@ export function SharedCanisterPage() {
   }
 
   // Error state
-  if (error || !canister) {
+  if (error || canisterStatus.canisterStatusError || !canister) {
     return (
       <div className="p-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4">
-            {error || "Canister Not Found"}
+            {error ||
+              canisterStatus.canisterStatusError?.message ||
+              "Canister Not Found"}
           </h1>
           <Link to="/">
             <Button>Go to Home</Button>
@@ -150,7 +157,7 @@ export function SharedCanisterPage() {
               </label>
               <div className="space-y-1">
                 <p className="text-sm">
-                  <CyclesValue cyclesBalanceRaw={canister.cyclesBalanceRaw} />
+                  <CyclesValue cyclesBalanceRaw={canisterStatus.cyclesRaw} />
                 </p>
               </div>
             </div>
@@ -162,47 +169,48 @@ export function SharedCanisterPage() {
                 {new Date(canister.createdAt).toLocaleString()}
               </p>
             </div>
-            {canister.controllers && canister.controllers.length > 0 && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Controllers
-                </label>
-                <div className="space-y-1">
-                  {canister.controllers.map((controller, index) => (
-                    <p
-                      key={index}
-                      className="text-xs font-mono bg-muted px-2 py-1 rounded"
-                    >
-                      {controller === import.meta.env.VITE_BACKEND_PRINCIPAL && (
-                        <span className="text-primary">(hosty.live)</span>
-                      )}
-                      {" "}
-                      {controller}
-                    </p>
-                  ))}
+            {canisterStatus.controllers &&
+              canisterStatus.controllers.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Controllers
+                  </label>
+                  <div className="space-y-1">
+                    {canisterStatus.controllers.map((controller, index) => (
+                      <p
+                        key={index}
+                        className="text-xs font-mono bg-muted px-2 py-1 rounded"
+                      >
+                        {controller ===
+                          import.meta.env.VITE_BACKEND_PRINCIPAL && (
+                          <span className="text-primary">(hosty.live)</span>
+                        )}{" "}
+                        {controller}
+                      </p>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-            {canister.isAssetCanister !== undefined && (
+              )}
+            {canisterStatus.isAssetCanister !== undefined && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Asset Canister
                 </label>
                 <p className="text-sm">
-                  {canister.isAssetCanister ? "Yes" : "No"}
+                  {canisterStatus.isAssetCanister ? "Yes" : "No"}
                 </p>
               </div>
             )}
-            {canister.isSystemController !== undefined && (
+            {/* {canisterStatus.isSystemController !== undefined && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Controlled by hosty.live
                 </label>
                 <p className="text-sm">
-                  {canister.isSystemController ? "Yes" : "No"}
+                  {canisterStatus.isSystemController ? "Yes" : "No"}
                 </p>
               </div>
-            )}
+            )} */}
           </CardContent>
         </Card>
 
@@ -335,4 +343,3 @@ export function SharedCanisterPage() {
     </div>
   );
 }
-
