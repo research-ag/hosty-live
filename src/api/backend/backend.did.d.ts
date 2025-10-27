@@ -9,16 +9,9 @@ export interface CanisterInfo {
   'deletedAt' : [] | [bigint],
   'canisterId' : Principal,
 }
-export interface PublicCanisterInfo {
-  'createdAt' : bigint,
-  'frontendUrl' : string,
-  'deletedAt' : [] | [bigint],
-  'canisterId' : Principal,
-}
 export interface _SERVICE {
   'deleteCanister' : ActorMethod<[Principal], undefined>,
   'getCanister' : ActorMethod<[Principal], CanisterInfo>,
-  'getPublicCanister' : ActorMethod<[Principal], PublicCanisterInfo>,
   'listCanisters' : ActorMethod<[], Array<CanisterInfo>>,
   'registerCanister' : ActorMethod<[Principal], CanisterInfo>,
 }

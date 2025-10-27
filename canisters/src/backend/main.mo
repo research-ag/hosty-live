@@ -28,13 +28,6 @@ persistent actor class Backend() {
     frontendUrl : Text;
   };
 
-  type PublicCanisterInfo = {
-    canisterId : Principal;
-    createdAt : Nat64;
-    deletedAt : ?Nat64;
-    frontendUrl : Text;
-  };
-
   let canisters : Map.Map<Principal, Map.Map<Principal, CanisterData>> = Map.empty();
   func _getCanisterData(cid : Principal, owner : Principal) : ?CanisterData {
     let ?userCanisters = Map.get(canisters, Principal.compare, owner) else return null;
@@ -110,16 +103,6 @@ persistent actor class Backend() {
       frontendUrl = data.frontendUrl;
       canisterId = cid;
       userId = caller;
-    };
-  };
-
-  public query ({ caller }) func getPublicCanister(cid : Principal) : async PublicCanisterInfo {
-    let ?data = _getCanisterData(cid, caller) else throw Error.reject("Not found");
-    return {
-      createdAt = data.createdAt;
-      deletedAt = data.deletedAt;
-      frontendUrl = data.frontendUrl;
-      canisterId = cid;
     };
   };
 
