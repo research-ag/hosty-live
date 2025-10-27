@@ -8,7 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/Card";
-import { canistersApi } from "../../services/api";
+import { getBackendActor } from "../../api/backend";
+import { Principal } from "@dfinity/principal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 
 interface PublicCanisterData {
@@ -48,16 +49,19 @@ export function SharedCanisterPage() {
     setIsLoading(true);
     setError("");
 
-    const result = await canistersApi.getPublicCanister(canisterId);
-
-    if (result.success && result.data) {
-      console.log(
-        "🎯 [SharedCanisterPage] Canister data received:",
-        result.data
-      );
-      setCanister(result.data);
-    } else {
-      setError(result.error || "Canister not found");
+    try {
+      const backend = await getBackendActor();
+      const info = await backend.getPublicCanister(Principal.fromText(canisterId));
+      const created = new Date(Number(info.createdAt)).toISOString();
+      const data = {
+        icCanisterId: info.canisterId.toText(),
+        createdAt: created,
+        frontendUrl: info.frontendUrl,
+      } as PublicCanisterData;
+      console.log("🎯 [SharedCanisterPage] Canister data received:", data);
+      setCanister(data);
+    } catch (e: any) {
+      setError(String(e?.message || e) || "Canister not found");
     }
 
     setIsLoading(false);

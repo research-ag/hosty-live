@@ -8,7 +8,6 @@ export interface Canister {
   status: 'active' | 'inactive'
   frontendUrl?: string
   createdAt: string
-  updatedAt: string
   deleted: boolean
   deletedAt?: string
   cyclesBalance?: string

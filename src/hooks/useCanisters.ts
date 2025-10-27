@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { canistersApi, CreateCanisterResponse } from '../services/api'
 import { ApiCanister, Response } from '../types'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
 import { Principal } from "@dfinity/principal";
 import { getAssetStorageActor } from "../api/asset-storage";
 import { getAgent } from "./useInternetIdentity.ts";
+import { getBackendActor } from "../api/backend";
+import type { CanisterInfo as BackendCanisterInfo } from "../api/backend/backend.did";
 
 export type CanisterInfo = {
   id: string;
@@ -17,7 +18,6 @@ export type CanisterInfo = {
   status: 'active' | 'inactive';
   frontendUrl: string;
   createdAt: string;
-  updatedAt: string;
   deleted: boolean;
   deletedAt: string | undefined;
   userId: string;
@@ -28,39 +28,37 @@ export type CanisterInfo = {
   controllers: string[] | undefined;
   isAssetCanister: boolean | undefined;
   isSystemController: boolean | undefined;
-  _apiData: ApiCanister;
+  _apiData?: ApiCanister;
 }
 
-// Transform API canister to frontend format
-function transformApiCanisterToFrontend(apiCanister: ApiCanister): CanisterInfo {
+// Transform Backend canister to frontend format
+function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInfo {
+  const icId = b.canisterId.toText();
+  const createdAt = new Date(Number(b.createdAt / 1_000_000n)).toISOString();
+  const deletedAt = b.deletedAt.length
+    ? new Date(Number(b.deletedAt[0] / 1_000_000n)).toISOString()
+    : undefined;
   return {
-    id: apiCanister.id, // Use database ID as the main ID for frontend
-    icCanisterId: apiCanister.icCanisterId,
-    name: `Canister ${apiCanister.icCanisterId.slice(0, 5)}`,
-    cycles: apiCanister.cyclesBalanceRaw ? Number(apiCanister.cyclesBalanceRaw) / 1_000_000_000_000 : 0,
-    lastDeployment: apiCanister.updatedAt,
-    status: apiCanister.deleted ? 'inactive' : 'active' as const,
-    frontendUrl: apiCanister.frontendUrl,
-    createdAt: apiCanister.createdAt,
-    updatedAt: apiCanister.updatedAt,
-    deleted: apiCanister.deleted,
-    deletedAt: apiCanister.deletedAt,
-    userId: apiCanister.userId,
-    cyclesBalance: apiCanister.cyclesBalance,
-    cyclesBalanceRaw: apiCanister.cyclesBalanceRaw,
-    wasmBinarySize: apiCanister.wasmBinarySize,
-    moduleHash: apiCanister.moduleHash,
-    controllers: apiCanister.controllers,
-    isAssetCanister: apiCanister.isAssetCanister,
-    isSystemController: apiCanister.isSystemController,
-    // Store additional API data
-    _apiData: apiCanister
+    id: icId, // No DB id from backend; use canister id
+    icCanisterId: icId,
+    name: `Canister ${icId.slice(0, 5)}`,
+    cycles: 0,
+    lastDeployment: createdAt,
+    status: 'active',
+    frontendUrl: b.frontendUrl,
+    createdAt: createdAt,
+    deleted: !!deletedAt,
+    deletedAt,
+    userId: b.userId.toText(),
+    cyclesBalance: undefined,
+    cyclesBalanceRaw: undefined,
+    wasmBinarySize: undefined,
+    moduleHash: undefined,
+    controllers: undefined,
+    isAssetCanister: undefined,
+    isSystemController: undefined,
+    _apiData: undefined,
   }
-}
-
-// Legacy transform function for list endpoint compatibility
-function transformCanister(apiCanister: ApiCanister) {
-  return transformApiCanisterToFrontend(apiCanister)
 }
 
 export function useCanisters() {
@@ -78,28 +76,12 @@ export function useCanisters() {
   } = useQuery({
     queryKey: ['canisters'],
     queryFn: async () => {
-      console.log('🚀 [useCanisters.queryFn] Starting fetch...')
-      const response = await canistersApi.listCanisters()
-
-      console.log('📦 [useCanisters.queryFn] API response:', {
-        success: response.success,
-        error: response.error,
-        dataStructure: response.data ? {
-          hasData: !!response.data,
-          hasCanisters: !!response.data.canisters,
-          canistersIsArray: Array.isArray(response.data.canisters),
-          canistersLength: response.data.canisters?.length,
-        } : 'no data'
-      })
-
-      if (response.success && response.data?.canisters && Array.isArray(response.data.canisters)) {
-        console.log('✅ [useCanisters.queryFn] Transforming canisters...')
-        const transformedCanisters = response.data.canisters.map(transformCanister)
-        console.log('✅ [useCanisters.queryFn] Transformed canisters:', transformedCanisters.length)
-        return transformedCanisters
-      } else {
-        throw new Error(response.error || 'Failed to fetch canisters')
-      }
+      console.log('🚀 [useCanisters.queryFn] Starting fetch via backend canister...')
+      const backend = await getBackendActor();
+      const list = await backend.listCanisters();
+      const transformedCanisters = list.map(transformBackendCanisterToFrontend);
+      console.log('✅ [useCanisters.queryFn] Transformed canisters:', transformedCanisters.length)
+      return transformedCanisters
     },
     staleTime: 30 * 1000, // Data considered fresh for 30 seconds
     refetchOnWindowFocus: false,
@@ -116,21 +98,18 @@ export function useCanisters() {
       // Step 2: preparing via backend
       setCreationStatus('preparing')
       setCreationMessage('Preparing your canister...')
-      const registrationResult = await canistersApi.registerCanister(canisterId)
-      return [canisterId, registrationResult] as [string, CreateCanisterResponse]
+      const backend = await getBackendActor();
+      const registered = await backend.registerCanister(Principal.fromText(canisterId));
+      const transformed = transformBackendCanisterToFrontend(registered);
+      return [canisterId, transformed] as [string, CanisterInfo]
     },
     onSuccess: (response) => {
-      if (response[1].success) {
-        setCreationStatus('success')
-        setCreationMessage('Your canister is ready!')
-        // Invalidate and refetch canisters list
-        queryClient.invalidateQueries({ queryKey: ['canisters'] })
-        // Also invalidate cycles data as creating a canister consumes cycles
-        queryClient.invalidateQueries({ queryKey: ['cycles'] })
-      } else {
-        setCreationStatus('error')
-        setCreationMessage(response[1].error || 'Failed to create canister')
-      }
+      setCreationStatus('success')
+      setCreationMessage('Your canister is ready!')
+      // Invalidate and refetch canisters list
+      queryClient.invalidateQueries({ queryKey: ['canisters'] })
+      // Also invalidate cycles data as creating a canister consumes cycles
+      queryClient.invalidateQueries({ queryKey: ['cycles'] })
     },
     onError: (err) => {
       setCreationStatus('error')
@@ -150,12 +129,9 @@ export function useCanisters() {
         throw new Error('Canister not found')
       }
 
-      const response = await canistersApi.deleteCanister(canister.icCanisterId)
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to delete canister')
-      }
-
-      return { canisterDbId, response }
+      const backend = await getBackendActor();
+      await backend.deleteCanister(Principal.fromText(canister.icCanisterId));
+      return { canisterDbId }
     },
     onSuccess: ({ canisterDbId }) => {
       // Optimistically remove from cache
@@ -180,24 +156,18 @@ export function useCanisters() {
         return { success: true, data: cachedCanister }
       }
 
-      // If not in cache, fetch from API
-      const response = await canistersApi.getCanister(icCanisterId)
+      // If not in cache, fetch from backend canister
+      const backend = await getBackendActor();
+      const b = await backend.getCanister(Principal.fromText(icCanisterId));
 
-      console.log('📦 [useCanisters.getCanister] API response:', response)
+      const transformedCanister = transformBackendCanisterToFrontend(b)
+      console.log('✅ [useCanisters.getCanister] Transformed canister:', transformedCanister)
 
-      if (response.success && response.data) {
-        // Transform the single canister data
-        const transformedCanister = transformApiCanisterToFrontend(response.data)
-        console.log('✅ [useCanisters.getCanister] Transformed canister:', transformedCanister)
+      // Update cache with the new data
+      queryClient.setQueryData(['canister', icCanisterId], transformedCanister)
+      await queryClient.invalidateQueries({ queryKey: ["canister", "status", icCanisterId] });
 
-        // Update cache with the new data
-        queryClient.setQueryData(['canister', icCanisterId], transformedCanister)
-        await queryClient.invalidateQueries({ queryKey: ["canister", "status", icCanisterId] });
-
-        return { success: true, data: transformedCanister }
-      } else {
-        return { success: false, error: response.error || 'Canister not found' }
-      }
+      return { success: true, data: transformedCanister }
     } catch (err) {
       console.error('Failed to get canister:', err)
       return {
@@ -211,7 +181,7 @@ export function useCanisters() {
   const createCanister = async (): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const [canisterId, result] = await createCanisterMutation.mutateAsync()
-      return { success: result.success, error: result.error, data: result.success ? result.data : { canisterId } }
+      return { success: true, data: result }
     } catch (err) {
       return {
         success: false,
