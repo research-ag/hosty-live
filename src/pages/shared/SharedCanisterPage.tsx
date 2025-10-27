@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Copy, ExternalLink, Globe } from "lucide-react";
+import { Copy, ExternalLink, Globe, Zap } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import {
   Card,
@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/Card";
+import { Modal } from "../../components/ui/Modal";
 import { canistersApi } from "../../services/api";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 
@@ -40,6 +41,7 @@ export function SharedCanisterPage() {
   const [error, setError] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [isPreviewInteractive, setIsPreviewInteractive] = useState(false);
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
 
   // Fetch canister data
   const fetchCanister = async () => {
@@ -156,9 +158,20 @@ export function SharedCanisterPage() {
                 Cycles
               </label>
               <div className="space-y-1">
-                <p className="text-sm">
-                  <CyclesValue cyclesBalanceRaw={canisterStatus.cyclesRaw} />
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm">
+                    <CyclesValue cyclesBalanceRaw={canisterStatus.cyclesRaw} />
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsTopUpModalOpen(true)}
+                    title="Top up"
+                    className="h-6 w-6 p-0"
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
             </div>
             <div>
@@ -340,6 +353,45 @@ export function SharedCanisterPage() {
           </CardContent>
         </Card>
       </div>
+
+      {canister && (
+        <Modal
+          isOpen={isTopUpModalOpen}
+          onClose={() => setIsTopUpModalOpen(false)}
+          title="Top up cycles"
+          className="max-w-md"
+        >
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <div className="text-xs text-muted-foreground mb-1">Canister</div>
+              <div className="font-mono text-xs break-all">
+                {canister.icCanisterId}
+              </div>
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              Top up this canister with cycles using Cycle Express. You can pay
+              with ICP or credit card.
+            </div>
+
+            <Button
+              variant="default"
+              className="w-full justify-center"
+              onClick={() => {
+                window.open(
+                  `https://cycle.express/?to=${canister.icCanisterId}`,
+                  "_blank",
+                  "noopener,noreferrer"
+                );
+                setIsTopUpModalOpen(false);
+              }}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Go to Cycle Express
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
