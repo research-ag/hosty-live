@@ -416,7 +416,7 @@ export function CanisterPage() {
           <Button
             variant="outline"
             onClick={() => {
-              const sharedUrl = `${window.location.origin}/shared/${canister.id}`;
+              const sharedUrl = `${window.location.origin}/shared/${canister.icCanisterId}`;
               copyToClipboard(sharedUrl);
               toast.success("Shared URL copied to clipboard");
             }}
