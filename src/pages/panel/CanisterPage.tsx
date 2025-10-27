@@ -416,7 +416,7 @@ export function CanisterPage() {
           <Button
             variant="outline"
             onClick={() => {
-              const sharedUrl = `${window.location.origin}/shared/${canister.id}`;
+              const sharedUrl = `${window.location.origin}/shared/${canister.icCanisterId}`;
               copyToClipboard(sharedUrl);
               toast.success("Shared URL copied to clipboard");
             }}
@@ -513,9 +513,9 @@ export function CanisterPage() {
             {canisterStatus.wasmBinarySize && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  WASM Size
+                  Wasm Size
                 </label>
-                <p className="text-sm">{canister.wasmBinarySize}</p>
+                <p className="text-sm">{canisterStatus.wasmBinarySize}</p>
               </div>
             )}
             {canisterStatus.controllers &&

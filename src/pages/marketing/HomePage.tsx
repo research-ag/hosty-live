@@ -34,7 +34,7 @@ export function HomePage() {
               <img className="h-16" src={logoImg} alt="hosty.live logo" />
             </div>
             <div className="flex items-center gap-1 sm:gap-2 lg:gap-4">
-              <Link to="/panel/sign-in" className="hidden sm:block">
+              <Link to="/panel" className="hidden sm:block">
                 <Button
                   size="sm"
                   className="text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6"
@@ -63,7 +63,7 @@ export function HomePage() {
             Simple deployment, maximum reliability, true decentralization.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-            <Link to="/panel/sign-in">
+            <Link to="/panel">
               <Button size="lg" className="text-lg px-8 py-6">
                 Start Free
                 <ArrowRight className="ml-2 h-5 w-5" />
@@ -354,7 +354,7 @@ export function HomePage() {
             the decentralized internet.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link to="/panel/sign-in">
+            <Link to="/panel">
               <Button size="lg" className="text-lg px-8 py-6 shadow-lg">
                 Start Building Free
                 <ArrowRight className="ml-2 h-5 w-5" />

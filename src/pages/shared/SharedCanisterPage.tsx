@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Copy, ExternalLink, Globe } from "lucide-react";
+import { Copy, ExternalLink, Globe, Zap } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import {
   Card,
@@ -8,20 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/Card";
-import { getBackendActor } from "../../api/backend";
-import { Principal } from "@dfinity/principal";
+import { Modal } from "../../components/ui/Modal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
-
-interface PublicCanisterData {
-  icCanisterId: string;
-  createdAt: string;
-  frontendUrl: string;
-  cyclesBalance?: string;
-  cyclesBalanceRaw?: string;
-  controllers?: string[];
-  isAssetCanister?: boolean;
-  isSystemController?: boolean;
-}
 
 function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
   if (!cyclesBalanceRaw) return <>unknown</>;
@@ -34,43 +22,14 @@ function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
 }
 
 export function SharedCanisterPage() {
-  const { id: canisterId } = useParams<{ id: string }>();
-  const [canister, setCanister] = useState<PublicCanisterData | null>(null);
-  const canisterStatus = useCanisterStatus(canister?.icCanisterId);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string>("");
+  const { id: icCanisterId } = useParams<{ id: string }>();
+  const canisterStatus = useCanisterStatus(icCanisterId);
   const [copied, setCopied] = useState(false);
   const [isPreviewInteractive, setIsPreviewInteractive] = useState(false);
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
 
-  // Fetch canister data
-  const fetchCanister = async () => {
-    if (!canisterId) return;
-
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const backend = await getBackendActor();
-      const info = await backend.getPublicCanister(Principal.fromText(canisterId));
-      const created = new Date(Number(info.createdAt)).toISOString();
-      const data = {
-        icCanisterId: info.canisterId.toText(),
-        createdAt: created,
-        frontendUrl: info.frontendUrl,
-      } as PublicCanisterData;
-      console.log("🎯 [SharedCanisterPage] Canister data received:", data);
-      setCanister(data);
-    } catch (e: any) {
-      setError(String(e?.message || e) || "Canister not found");
-    }
-
-    setIsLoading(false);
-  };
-
-  // Load canister on mount
-  useEffect(() => {
-    fetchCanister();
-  }, [canisterId]);
+  // Generate frontend URL from IC canister ID
+  const frontendUrl = icCanisterId ? `https://${icCanisterId}.icp0.io` : null;
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -79,28 +38,11 @@ export function SharedCanisterPage() {
       setTimeout(() => setCopied(false), 3000);
     } catch (err) {
       console.error("Failed to copy:", err);
-      // Fallback for browsers that don't support clipboard API
-      try {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-999999px";
-        textArea.style.top = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand("copy");
-        textArea.remove();
-        setCopied(true);
-        setTimeout(() => setCopied(false), 3000);
-      } catch (fallbackError) {
-        console.error("Fallback copy failed:", fallbackError);
-      }
     }
   };
 
   // Loading state
-  if (isLoading || canisterStatus.isCanisterStatusLoading) {
+  if (canisterStatus.isCanisterStatusLoading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-12">
@@ -114,14 +56,12 @@ export function SharedCanisterPage() {
   }
 
   // Error state
-  if (error || canisterStatus.canisterStatusError || !canister) {
+  if (canisterStatus.canisterStatusError || !icCanisterId) {
     return (
       <div className="p-6">
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4">
-            {error ||
-              canisterStatus.canisterStatusError?.message ||
-              "Canister Not Found"}
+            {canisterStatus.canisterStatusError?.message || "Canister Not Found"}
           </h1>
           <Link to="/">
             <Button>Go to Home</Button>
@@ -137,7 +77,7 @@ export function SharedCanisterPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-6">
         <div className="flex-1">
           <h1 className="text-2xl font-semibold mb-2">
-            Canister {canister.icCanisterId}
+            Canister {icCanisterId}
           </h1>
         </div>
       </div>
@@ -153,25 +93,28 @@ export function SharedCanisterPage() {
               <label className="text-sm font-medium text-muted-foreground">
                 IC Canister ID
               </label>
-              <p className="text-sm font-mono">{canister.icCanisterId}</p>
+              <p className="text-sm font-mono">{icCanisterId}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">
                 Cycles
               </label>
               <div className="space-y-1">
-                <p className="text-sm">
-                  <CyclesValue cyclesBalanceRaw={canisterStatus.cyclesRaw} />
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm">
+                    <CyclesValue cyclesBalanceRaw={canisterStatus.cyclesRaw} />
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsTopUpModalOpen(true)}
+                    title="Top up"
+                    className="h-6 w-6 p-0"
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">
-                Created
-              </label>
-              <p className="text-sm">
-                {new Date(canister.createdAt).toLocaleString()}
-              </p>
             </div>
             {canisterStatus.controllers &&
               canisterStatus.controllers.length > 0 && (
@@ -227,7 +170,7 @@ export function SharedCanisterPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {canister.frontendUrl ? (
+            {canisterStatus.isAssetCanister ? (
               <div className="space-y-6">
                 {/* URL Display with Actions */}
                 <div className="space-y-3">
@@ -236,15 +179,13 @@ export function SharedCanisterPage() {
                   </label>
                   <div className="bg-muted/50 border border-border rounded-lg p-3">
                     <div className="font-mono text-sm text-foreground break-all select-text leading-relaxed mb-3">
-                      {canister.frontendUrl}
+                      {frontendUrl}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() =>
-                          window.open(canister.frontendUrl, "_blank")
-                        }
+                        onClick={() => window.open(frontendUrl!, "_blank")}
                         className="h-7 px-2 text-xs"
                       >
                         <ExternalLink className="h-3 w-3 mr-1" />
@@ -253,9 +194,7 @@ export function SharedCanisterPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          copyToClipboard(canister.frontendUrl!);
-                        }}
+                        onClick={() => copyToClipboard(frontendUrl!)}
                         className="h-7 px-2 text-xs"
                       >
                         <Copy className="h-3 w-3 mr-1" />
@@ -297,7 +236,7 @@ export function SharedCanisterPage() {
                   </div>
                   <div className="border border-border rounded-lg overflow-hidden bg-white dark:bg-gray-950">
                     <iframe
-                      src={canister.frontendUrl}
+                      src={frontendUrl!}
                       className="w-full h-96 md:h-[500px] lg:h-[600px] border-0"
                       title="Frontend Preview"
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
@@ -316,9 +255,7 @@ export function SharedCanisterPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() =>
-                        window.open(canister.frontendUrl, "_blank")
-                      }
+                      onClick={() => window.open(frontendUrl!, "_blank")}
                       className="h-7 px-2 text-xs"
                     >
                       <ExternalLink className="h-3 w-3 mr-1" />
@@ -337,13 +274,48 @@ export function SharedCanisterPage() {
                   No Frontend Deployed
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
-                  No frontend deployed yet
+                  This canister is not an asset canister
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Modal
+        isOpen={isTopUpModalOpen}
+        onClose={() => setIsTopUpModalOpen(false)}
+        title="Top up cycles"
+        className="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="text-xs text-muted-foreground mb-1">Canister</div>
+            <div className="font-mono text-xs break-all">{icCanisterId}</div>
+          </div>
+
+          <div className="text-sm text-muted-foreground">
+            Top up this canister with cycles using Cycle Express. You can pay
+            with ICP or credit card.
+          </div>
+
+          <Button
+            variant="default"
+            className="w-full justify-center"
+            onClick={() => {
+              window.open(
+                `https://cycle.express/?to=${icCanisterId}`,
+                "_blank",
+                "noopener,noreferrer"
+              );
+              setIsTopUpModalOpen(false);
+            }}
+          >
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Go to Cycle Express
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
