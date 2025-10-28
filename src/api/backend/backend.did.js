@@ -2,6 +2,7 @@ export const idlFactory = ({ IDL }) => {
   const CanisterInfo = IDL.Record({
     'userId' : IDL.Principal,
     'createdAt' : IDL.Nat64,
+    'updatedAt' : IDL.Nat64,
     'frontendUrl' : IDL.Text,
     'deletedAt' : IDL.Opt(IDL.Nat64),
     'canisterId' : IDL.Principal,
@@ -11,6 +12,7 @@ export const idlFactory = ({ IDL }) => {
     'getCanister' : IDL.Func([IDL.Principal], [CanisterInfo], ['query']),
     'listCanisters' : IDL.Func([], [IDL.Vec(CanisterInfo)], ['query']),
     'registerCanister' : IDL.Func([IDL.Principal], [CanisterInfo], []),
+    'updateTimestamp' : IDL.Func([IDL.Principal], [], []),
   });
 };
 export const init = ({ IDL }) => { return []; };
