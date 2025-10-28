@@ -510,6 +510,14 @@ export function CanisterPage() {
                 {new Date(canister.createdAt).toLocaleString()}
               </p>
             </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">
+                Last Updated
+              </label>
+              <p className="text-sm">
+                {new Date(canister.updatedAt).toLocaleString()}
+              </p>
+            </div>
             {canisterStatus.wasmBinarySize && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">

@@ -5,9 +5,12 @@ import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
 import { Principal } from "@dfinity/principal";
 import { getAssetStorageActor } from "../api/asset-storage";
-import { getAgent } from "./useInternetIdentity.ts";
+import { getAgent, getAuthClient } from "./useInternetIdentity.ts";
 import { getBackendActor } from "../api/backend";
 import type { CanisterInfo as BackendCanisterInfo } from "../api/backend/backend.did";
+import { init as assetStorageInit } from "../api/asset-storage/asset_storage.did";
+import { IDL } from "@dfinity/candid";
+import defaultPage from "../constants/default-page.ts";
 
 export type CanisterInfo = {
   id: string;
@@ -18,6 +21,7 @@ export type CanisterInfo = {
   status: 'active' | 'inactive';
   frontendUrl: string;
   createdAt: string;
+  updatedAt: string;
   deleted: boolean;
   deletedAt: string | undefined;
   userId: string;
@@ -35,6 +39,7 @@ export type CanisterInfo = {
 function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInfo {
   const icId = b.canisterId.toText();
   const createdAt = new Date(Number(b.createdAt / 1_000_000n)).toISOString();
+  const updatedAt = new Date(Number(b.updatedAt / 1_000_000n)).toISOString();
   const deletedAt = b.deletedAt.length
     ? new Date(Number(b.deletedAt[0] / 1_000_000n)).toISOString()
     : undefined;
@@ -47,6 +52,7 @@ function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInf
     status: 'active',
     frontendUrl: b.frontendUrl,
     createdAt: createdAt,
+    updatedAt: updatedAt,
     deleted: !!deletedAt,
     deletedAt,
     userId: b.userId.toText(),
@@ -64,7 +70,6 @@ function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInf
 export function useCanisters() {
   const queryClient = useQueryClient()
   // State for creation progress UI
-  const [creationStatus, setCreationStatus] = useState<'idle' | 'creating' | 'preparing' | 'success' | 'error'>('idle')
   const [creationMessage, setCreationMessage] = useState<string>('')
 
   // Query for fetching canisters list
@@ -91,20 +96,59 @@ export function useCanisters() {
   // Mutation for creating canisters
   const createCanisterMutation = useMutation({
     mutationFn: async () => {
+      // Step 0: prepare asset canister binary
+      setCreationMessage('Preparing...')
+      const response = await fetch("/assetstorage.wasm.gz");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+      }
+      const wasmBinary = new Uint8Array(await response.arrayBuffer())
+      const management = await getManagementActor()
+      const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
+
       // Step 1: creating on ledger
-      setCreationStatus('creating')
       setCreationMessage('Creating your canister...')
       const { canisterId } = await createCanisterOnLedger()
+
       // Step 2: preparing via backend
-      setCreationStatus('preparing')
       setCreationMessage('Preparing your canister...')
+      // install asset canister
+      await management.install_code.withOptions({
+        effectiveCanisterId: Principal.fromText(canisterId),
+      })({
+        arg: new Uint8Array(IDL.encode(assetStorageInit({ IDL }), [[]])),
+        wasm_module: [...wasmBinary],
+        mode: { reinstall: null },
+        canister_id: Principal.fromText(canisterId),
+        sender_canister_version: [],
+      });
+      const assetCanister = await getAssetStorageActor(canisterId);
+      await Promise.all([
+        assetCanister.grant_permission({
+          permission: { Prepare: null },
+          to_principal: myPrincipal,
+        }),
+        assetCanister.grant_permission({
+          permission: { Commit: null },
+          to_principal: myPrincipal,
+        })
+      ])
+      // upload default page
+      await assetCanister.store({
+        key: "/index.html",
+        content: new TextEncoder().encode(defaultPage(canisterId)),
+        sha256: [],
+        content_type: "text/html",
+        content_encoding: "identity",
+      });
+      // Step 3: register
+      setCreationMessage('Registering your canister...')
       const backend = await getBackendActor();
       const registered = await backend.registerCanister(Principal.fromText(canisterId));
-      const transformed = transformBackendCanisterToFrontend(registered);
-      return [canisterId, transformed] as [string, CanisterInfo]
+
+      return [canisterId, transformBackendCanisterToFrontend(registered)] as [string, CanisterInfo]
     },
     onSuccess: (response) => {
-      setCreationStatus('success')
       setCreationMessage('Your canister is ready!')
       // Invalidate and refetch canisters list
       queryClient.invalidateQueries({ queryKey: ['canisters'] })
@@ -112,7 +156,6 @@ export function useCanisters() {
       queryClient.invalidateQueries({ queryKey: ['cycles'] })
     },
     onError: (err) => {
-      setCreationStatus('error')
       setCreationMessage(err instanceof Error ? err.message : 'Failed to create canister')
     },
     onSettled: () => {
@@ -290,10 +333,8 @@ export function useCanisters() {
     addController,
     getCanister,
     refreshCanisters,
-    creationStatus,
     creationMessage,
     resetCreationStatus: () => {
-      setCreationStatus('idle')
       setCreationMessage('')
     }
   }

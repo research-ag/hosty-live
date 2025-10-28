@@ -9,7 +9,6 @@ import Principal "mo:core/Principal";
 
 import Management "../shared/management";
 
-
 persistent actor class Backend() {
 
   transient let CONSTANTS = {
@@ -65,9 +64,9 @@ persistent actor class Backend() {
   };
 
   public shared ({ caller }) func registerCanister(cid : Principal) : async CanisterInfo {
-
-    if (Option.isSome(getCanisterData_(cid))) {
-      throw Error.reject("Already registered");
+    switch (getCanisterData_(cid)) {
+      case (?existingData) return freezeCanisterData_(existingData);
+      case (null) {};
     };
 
     let statusProxy : (

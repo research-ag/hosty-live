@@ -4,7 +4,6 @@ import { getTCyclesLedgerActor } from '../api/tcycles-ledger'
 import { getAuthClient } from "./useInternetIdentity.ts";
 import { bigIntReplacer } from "../utils/json_bigints.ts";
 import { statusProxyCanisterId } from "../api/status-proxy";
-import { backendCanisterId } from "../api/backend";
 
 export type TCyclesBalance = {
   balance: string
@@ -19,9 +18,6 @@ async function fetchBalance(principalText: string): Promise<TCyclesBalance> {
 
 export async function createCanisterOnLedger() {
   const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal();
-  if (!backendCanisterId) {
-    throw new Error('Backend principal is not configured. Set VITE_BACKEND_CANISTER_ID in your env.');
-  }
   if (!statusProxyCanisterId) {
     throw new Error('Status proxy canister ID is not configured. Set VITE_STATUS_PROXY_CANISTER_ID in your env.');
   }
@@ -37,7 +33,6 @@ export async function createCanisterOnLedger() {
         settings: [
           {
             controllers: [[
-              Principal.fromText(backendCanisterId),
               Principal.fromText(statusProxyCanisterId),
               myPrincipal
             ]],
