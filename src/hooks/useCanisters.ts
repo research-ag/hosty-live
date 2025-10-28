@@ -105,6 +105,7 @@ export function useCanisters() {
       const wasmBinary = new Uint8Array(await response.arrayBuffer())
       const management = await getManagementActor()
       const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
+      const buildSystemPrincipal = Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL)
 
       // Step 1: creating on ledger
       setCreationMessage('Creating your canister...')
@@ -131,6 +132,10 @@ export function useCanisters() {
         assetCanister.grant_permission({
           permission: { Commit: null },
           to_principal: myPrincipal,
+        }),
+        assetCanister.grant_permission({
+          permission: { Commit: null },
+          to_principal: buildSystemPrincipal,
         })
       ])
       // upload default page
