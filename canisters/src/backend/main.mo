@@ -17,6 +17,7 @@ persistent actor class Backend() {
     BUILDER_PRINCIPALS : [Principal] = [
       Principal.fromText("i2qrn-wou4z-zo3z2-g6vlg-dma7w-siosb-tfkdt-gw2ut-s2tmr-66dzg-fae")
     ];
+    BACKEND_PRINCIPAL = Principal.fromText("i2qrn-wou4z-zo3z2-g6vlg-dma7w-siosb-tfkdt-gw2ut-s2tmr-66dzg-fae");
   };
 
   type CanisterData = {
@@ -190,6 +191,16 @@ persistent actor class Backend() {
     canisterData.updatedAt := Prim.time();
   };
 
+  public shared ({ caller }) func updateCanisterFrontendUrl(cid : Principal, frontendUrl : Text) : async CanisterInfo {
+    let ?canisterData = getCanisterData_(cid) else throw Error.reject("Not found");
+    if (not Principal.equal(caller, CONSTANTS.BACKEND_PRINCIPAL) and not Principal.equal(caller, canisterData.userId)) {
+      throw Error.reject("Permission denied");
+    };
+    canisterData.frontendUrl := frontendUrl;
+    canisterData.updatedAt := Prim.time();
+    freezeCanisterData_(canisterData);
+  };
+
   public shared ({ caller }) func deleteCanister(cid : Principal) : async () {
     let ?canisterData = getCanisterData_(cid) else throw Error.reject("Not found");
     if (canisterData.userId != caller) {
@@ -235,7 +246,7 @@ persistent actor class Backend() {
 
   // tmp function
   public shared ({ caller }) func submitRegisteredCanisters(canisters : [CanisterInfo]) : () {
-    assert Principal.toText(caller) == "i2qrn-wou4z-zo3z2-g6vlg-dma7w-siosb-tfkdt-gw2ut-s2tmr-66dzg-fae";
+    assert Principal.equal(caller, CONSTANTS.BACKEND_PRINCIPAL);
     for (ci in canisters.vals()) {
       switch (getCanisterData_(ci.canisterId)) {
         case (?data) {
