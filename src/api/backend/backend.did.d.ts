@@ -17,14 +17,17 @@ export interface ProfileInfo {
   'updatedAt' : bigint,
   'freeCanisterClaimedAt' : [] | [bigint],
 }
+export type Result = { 'ok' : CanisterInfo } |
+  { 'err' : string };
 export interface _SERVICE {
+  'claimFreeCanister' : ActorMethod<[], Result>,
   'deleteCanister' : ActorMethod<[Principal], undefined>,
   'getCanister' : ActorMethod<[Principal], CanisterInfo>,
   'getProfile' : ActorMethod<[], [] | [ProfileInfo]>,
   'listCanisters' : ActorMethod<[], Array<CanisterInfo>>,
+  'onCanisterDeployed' : ActorMethod<[Principal], undefined>,
   'registerCanister' : ActorMethod<[Principal], CanisterInfo>,
   'updateProfile' : ActorMethod<[{ 'username' : [] | [string] }], ProfileInfo>,
-  'updateTimestamp' : ActorMethod<[Principal], undefined>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

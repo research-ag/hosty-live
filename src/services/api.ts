@@ -114,35 +114,6 @@ export const authApi = {
 }
 
 
-// Free Canister API
-export const freeCanisterApi = {
-  // Claim free canister
-  async claimFreeCanister() {
-    try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/canister-claim-free`, {
-        method: 'POST',
-        headers,
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      return data
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to claim free canister'
-      }
-    }
-  }
-}
 
 // Custom domain API
 export const customDomainApi = {

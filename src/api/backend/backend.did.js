@@ -7,6 +7,7 @@ export const idlFactory = ({ IDL }) => {
     'deletedAt' : IDL.Opt(IDL.Nat64),
     'canisterId' : IDL.Principal,
   });
+  const Result = IDL.Variant({ 'ok' : CanisterInfo, 'err' : IDL.Text });
   const ProfileInfo = IDL.Record({
     'username' : IDL.Opt(IDL.Text),
     'userId' : IDL.Principal,
@@ -15,17 +16,18 @@ export const idlFactory = ({ IDL }) => {
     'freeCanisterClaimedAt' : IDL.Opt(IDL.Nat64),
   });
   return IDL.Service({
+    'claimFreeCanister' : IDL.Func([], [Result], []),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'getCanister' : IDL.Func([IDL.Principal], [CanisterInfo], ['query']),
     'getProfile' : IDL.Func([], [IDL.Opt(ProfileInfo)], ['query']),
     'listCanisters' : IDL.Func([], [IDL.Vec(CanisterInfo)], ['query']),
+    'onCanisterDeployed' : IDL.Func([IDL.Principal], [], []),
     'registerCanister' : IDL.Func([IDL.Principal], [CanisterInfo], []),
     'updateProfile' : IDL.Func(
         [IDL.Record({ 'username' : IDL.Opt(IDL.Text) })],
         [ProfileInfo],
         [],
     ),
-    'updateTimestamp' : IDL.Func([IDL.Principal], [], []),
   });
 };
 export const init = ({ IDL }) => { return []; };

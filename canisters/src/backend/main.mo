@@ -6,6 +6,7 @@ import Map "mo:core/Map";
 import Option "mo:core/Option";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
+import R "mo:core/Result";
 
 import Management "../shared/management";
 
@@ -79,26 +80,30 @@ persistent actor class Backend() {
   };
 
   // profile api
+  func getOrCreateProfile_(p : Principal) : Profile {
+    switch (Map.get(profiles, Principal.compare, p)) {
+      case (?profile) profile;
+      case (null) {
+        let profile = {
+          userId = p;
+          var username : ?Text = null;
+          var freeCanisterClaimedAt : ?Nat64 = null;
+          createdAt = Prim.time();
+          var updatedAt = Prim.time();
+        };
+        Map.add<Principal, Profile>(profiles, Principal.compare, p, profile);
+        profile;
+      };
+    };
+  };
+
   public query ({ caller }) func getProfile() : async ?ProfileInfo {
     let ?p = Map.get(profiles, Principal.compare, caller) else return null;
     ?freezeProfile_(p);
   };
 
   public shared ({ caller }) func updateProfile(arg : { username : ?Text }) : async ProfileInfo {
-    let profile = switch (Map.get(profiles, Principal.compare, caller)) {
-      case (?profile) profile;
-      case (null) {
-        let profile = {
-          userId = caller;
-          var username : ?Text = null;
-          var freeCanisterClaimedAt : ?Nat64 = null;
-          createdAt = Prim.time();
-          var updatedAt = Prim.time();
-        };
-        Map.add<Principal, Profile>(profiles, Principal.compare, caller, profile);
-        profile;
-      };
-    };
+    let profile = getOrCreateProfile_(caller);
     let updated = switch (arg.username) {
       case (?un) {
         profile.username := ?un;
@@ -113,6 +118,23 @@ persistent actor class Backend() {
   };
 
   // canisters api
+  func addCanisterToStorage_(c : CanisterData) {
+    let index = List.size(canisters);
+    List.add(canisters, c);
+
+    Map.add(canisterIdMap, Principal.compare, c.canisterId, index);
+
+    let userCanisters = switch (Map.get(userCanistersMap, Principal.compare, c.userId)) {
+      case (?list) list;
+      case (null) {
+        let list : List.List<Nat> = List.empty();
+        Map.add(userCanistersMap, Principal.compare, c.userId, list);
+        list;
+      };
+    };
+    List.add(userCanisters, index);
+  };
+
   public query ({ caller }) func listCanisters() : async [CanisterInfo] {
     let ?userCanisterIndices = Map.get(userCanistersMap, Principal.compare, caller) else return [];
     userCanisterIndices
@@ -151,20 +173,7 @@ persistent actor class Backend() {
       var deletedAt = null;
       var frontendUrl = "https://" # Principal.toText(cid) # ".icp0.io/";
     };
-    let index = List.size(canisters);
-    List.add(canisters, canisterData);
-
-    Map.add(canisterIdMap, Principal.compare, cid, index);
-
-    let userCanisters = switch (Map.get(userCanistersMap, Principal.compare, caller)) {
-      case (?list) list;
-      case (null) {
-        let list : List.List<Nat> = List.empty();
-        Map.add(userCanistersMap, Principal.compare, caller, list);
-        list;
-      };
-    };
-    List.add(userCanisters, index);
+    addCanisterToStorage_(canisterData);
     freezeCanisterData_(canisterData);
   };
 
@@ -173,7 +182,7 @@ persistent actor class Backend() {
     return freezeCanisterData_(data);
   };
 
-  public shared ({ caller }) func updateTimestamp(cid : Principal) : async () {
+  public shared ({ caller }) func onCanisterDeployed(cid : Principal) : async () {
     if (Option.isNull(Array.indexOf(CONSTANTS.BUILDER_PRINCIPALS, Principal.equal, caller))) {
       throw Error.reject("Permission denied");
     };
@@ -187,6 +196,65 @@ persistent actor class Backend() {
       throw Error.reject("Permission denied");
     };
     canisterData.deletedAt := ?Prim.time();
+  };
+
+  public shared ({ caller }) func claimFreeCanister() : async R.Result<CanisterInfo, Text> {
+    let profile = getOrCreateProfile_(caller);
+    switch (profile.freeCanisterClaimedAt) {
+      case (?_) return #err("Free canister already claimed");
+      case (null) {};
+    };
+    try {
+      let { canister_id } = await (with cycles = 840_000_000_000) Management.getActor().create_canister({
+        settings = ?{
+          compute_allocation = null;
+          freezing_threshold = null;
+          log_visibility = null;
+          memory_allocation = null;
+          controllers = ?[CONSTANTS.STATUS_PROXY_CID, caller];
+          reserved_cycles_limit = null;
+          wasm_memory_limit = null;
+        };
+        sender_canister_version = null;
+      });
+      profile.freeCanisterClaimedAt := ?Prim.time();
+      let canisterData : CanisterData = {
+        userId = caller;
+        canisterId = canister_id;
+        createdAt = Prim.time();
+        var updatedAt = Prim.time();
+        var deletedAt = null;
+        var frontendUrl = "https://" # Principal.toText(canister_id) # ".icp0.io/";
+      };
+      addCanisterToStorage_(canisterData);
+      #ok(freezeCanisterData_(canisterData));
+    } catch (err) {
+      #err(Error.message(err));
+    };
+  };
+
+  // tmp function
+  public shared ({ caller }) func submitRegisteredCanisters(canisters : [CanisterInfo]) : () {
+    assert Principal.toText(caller) == "i2qrn-wou4z-zo3z2-g6vlg-dma7w-siosb-tfkdt-gw2ut-s2tmr-66dzg-fae";
+    for (ci in canisters.vals()) {
+      switch (getCanisterData_(ci.canisterId)) {
+        case (?data) {
+          data.frontendUrl := ci.frontendUrl;
+          data.updatedAt := ci.updatedAt;
+          data.deletedAt := ci.deletedAt;
+        };
+        case (null) {
+          addCanisterToStorage_({
+            userId = ci.userId;
+            canisterId = ci.canisterId;
+            var frontendUrl = ci.frontendUrl;
+            createdAt = ci.createdAt;
+            var updatedAt = ci.updatedAt;
+            var deletedAt = ci.deletedAt;
+          });
+        };
+      };
+    };
   };
 
 };

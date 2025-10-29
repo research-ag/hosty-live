@@ -93,6 +93,48 @@ export function useCanisters() {
     retry: 2
   })
 
+  const performInitialCanisterSetup = async (
+    canisterId: string,
+    management: Awaited<ReturnType<typeof getManagementActor>>,
+    wasmBinary: Uint8Array,
+    myPrincipal: Principal,
+    buildSystemPrincipal: Principal
+  ) => {
+    // install asset canister
+    await management.install_code.withOptions({
+      effectiveCanisterId: Principal.fromText(canisterId),
+    })({
+      arg: new Uint8Array(IDL.encode(assetStorageInit({ IDL }), [[]])),
+      wasm_module: [...wasmBinary],
+      mode: { reinstall: null },
+      canister_id: Principal.fromText(canisterId),
+      sender_canister_version: [],
+    });
+    const assetCanister = await getAssetStorageActor(canisterId);
+    await Promise.all([
+      assetCanister.grant_permission({
+        permission: { Prepare: null },
+        to_principal: myPrincipal,
+      }),
+      assetCanister.grant_permission({
+        permission: { Commit: null },
+        to_principal: myPrincipal,
+      }),
+      assetCanister.grant_permission({
+        permission: { Commit: null },
+        to_principal: buildSystemPrincipal,
+      })
+    ])
+    // upload default page
+    await assetCanister.store({
+      key: "/index.html",
+      content: new TextEncoder().encode(defaultPage(canisterId)),
+      sha256: [],
+      content_type: "text/html",
+      content_encoding: "identity",
+    });
+  }
+
   // Mutation for creating canisters
   const createCanisterMutation = useMutation({
     mutationFn: async () => {
@@ -106,54 +148,20 @@ export function useCanisters() {
       const management = await getManagementActor()
       const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
       const buildSystemPrincipal = Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL)
-
       // Step 1: creating on ledger
       setCreationMessage('Creating your canister...')
       const { canisterId } = await createCanisterOnLedger()
-
       // Step 2: preparing via backend
       setCreationMessage('Preparing your canister...')
-      // install asset canister
-      await management.install_code.withOptions({
-        effectiveCanisterId: Principal.fromText(canisterId),
-      })({
-        arg: new Uint8Array(IDL.encode(assetStorageInit({ IDL }), [[]])),
-        wasm_module: [...wasmBinary],
-        mode: { reinstall: null },
-        canister_id: Principal.fromText(canisterId),
-        sender_canister_version: [],
-      });
-      const assetCanister = await getAssetStorageActor(canisterId);
-      await Promise.all([
-        assetCanister.grant_permission({
-          permission: { Prepare: null },
-          to_principal: myPrincipal,
-        }),
-        assetCanister.grant_permission({
-          permission: { Commit: null },
-          to_principal: myPrincipal,
-        }),
-        assetCanister.grant_permission({
-          permission: { Commit: null },
-          to_principal: buildSystemPrincipal,
-        })
-      ])
-      // upload default page
-      await assetCanister.store({
-        key: "/index.html",
-        content: new TextEncoder().encode(defaultPage(canisterId)),
-        sha256: [],
-        content_type: "text/html",
-        content_encoding: "identity",
-      });
+      await performInitialCanisterSetup(canisterId, management, wasmBinary, myPrincipal, buildSystemPrincipal);
       // Step 3: register
       setCreationMessage('Registering your canister...')
       const backend = await getBackendActor();
       const registered = await backend.registerCanister(Principal.fromText(canisterId));
 
-      return [canisterId, transformBackendCanisterToFrontend(registered)] as [string, CanisterInfo]
+      return transformBackendCanisterToFrontend(registered)
     },
-    onSuccess: (response) => {
+    onSuccess: (_) => {
       setCreationMessage('Your canister is ready!')
       // Invalidate and refetch canisters list
       queryClient.invalidateQueries({ queryKey: ['canisters'] })
@@ -164,7 +172,42 @@ export function useCanisters() {
       setCreationMessage(err instanceof Error ? err.message : 'Failed to create canister')
     },
     onSettled: () => {
-      // Leave last message for UI; caller can reset explicitly
+      // Leave the last message for UI; caller can reset explicitly
+    }
+  })
+
+  // Mutation for claiming free canister
+  const claimFreeCanisterMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/assetstorage.wasm.gz");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+      }
+      const wasmBinary = new Uint8Array(await response.arrayBuffer())
+      const management = await getManagementActor()
+      const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
+      const buildSystemPrincipal = Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL)
+
+      const backend = await getBackendActor()
+      const result = await backend.claimFreeCanister()
+      if ("ok" in result) {
+        const canisterInfo = result['ok'];
+        await performInitialCanisterSetup(canisterInfo.canisterId.toText(), management, wasmBinary, myPrincipal, buildSystemPrincipal);
+        return transformBackendCanisterToFrontend(canisterInfo);
+      } else {
+        throw new Error(result['err']);
+      }
+    },
+    onSuccess: (_) => {
+      // Invalidate and refetch canisters list
+      queryClient.invalidateQueries({ queryKey: ['canisters'] })
+      // Also invalidate cycles data as creating a canister consumes cycles
+      queryClient.invalidateQueries({ queryKey: ['cycles'] })
+    },
+    onError: (err) => {
+      setCreationMessage(err instanceof Error ? err.message : 'Failed to claim free canister canister')
+    },
+    onSettled: () => {
     }
   })
 
@@ -226,14 +269,27 @@ export function useCanisters() {
   }
 
   // Wrapper functions to maintain the same interface
-  const createCanister = async (): Promise<{ success: boolean; error?: string; data?: any }> => {
+  const createCanister = async (): Promise<{ success: boolean; error?: string; data?: CanisterInfo }> => {
     try {
-      const [canisterId, result] = await createCanisterMutation.mutateAsync()
+      const result = await createCanisterMutation.mutateAsync()
       return { success: true, data: result }
     } catch (err) {
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Failed to create canister'
+      }
+    }
+  }
+
+  // Wrapper functions to maintain the same interface
+  const claimFreeCanister = async (): Promise<{ success: boolean; error?: string; data?: CanisterInfo }> => {
+    try {
+      const result = await claimFreeCanisterMutation.mutateAsync()
+      return { success: true, data: result }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to claim free canister'
       }
     }
   }
@@ -334,6 +390,7 @@ export function useCanisters() {
     isLoading,
     error,
     createCanister,
+    claimFreeCanister,
     deleteCanister,
     addController,
     getCanister,

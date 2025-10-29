@@ -14,7 +14,6 @@ import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
-import { freeCanisterApi } from "../../services/api";
 import { getBackendActor } from "../../api/backend";
 import type { Canister, Profile } from "../../types";
 
@@ -73,6 +72,7 @@ export function CanistersPage() {
     isLoading: canistersLoading,
     error: canistersError,
     createCanister,
+    claimFreeCanister,
     deleteCanister,
     refreshCanisters,
     creationMessage,
@@ -240,15 +240,10 @@ export function CanistersPage() {
 
   const handleClaimFreeCanister = async () => {
     setIsClaimingFree(true);
-
     try {
-      const result = await freeCanisterApi.claimFreeCanister();
-
-      if (result.success && result.data) {
-        toast.success(
-          "Success!",
-          `Free canister created: ${result.data.canisterId}`
-        );
+      const result = await claimFreeCanister();
+      if (result.success) {
+        toast.success("Success!", `Free canister created: ${result.data?.icCanisterId}`);
         // Refresh canisters list and profile
         await refreshCanisters();
         try {
@@ -257,7 +252,7 @@ export function CanistersPage() {
           // pass
         }
       } else {
-        toast.error("Error", "Gift canisters pool is out of cycles");
+        toast.error("Error", result.error || "Gift canisters pool is out of cycles");
       }
     } catch (_) {
       toast.error("Error", "Gift canisters pool is out of cycles");

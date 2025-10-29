@@ -1,12 +1,16 @@
 module {
 
   public type ManagementCanisterActor = actor {
+    canister_status : shared ({ canister_id : Principal }) -> async CanisterStatus;
+    create_canister : shared ({
+      settings : ?CanisterSettings;
+      sender_canister_version : ?Nat64;
+    }) -> async ({ canister_id : Principal });
     update_settings : shared ({
       canister_id : Principal;
       settings : { controllers : ?[Principal] };
     }) -> async ();
     install_code : (InstallCodeArgs) -> async ();
-    canister_status : shared ({ canister_id : Principal }) -> async CanisterStatus;
   };
 
   public type CanisterStatus = {
@@ -40,6 +44,16 @@ module {
     reserved_cycles_limit : Nat;
     log_visibility : { #controllers; #allowed_viewers : [Principal]; #public_ };
     wasm_memory_limit : Nat;
+  };
+
+  public type CanisterSettings = {
+    freezing_threshold : ?Nat;
+    controllers : ?[Principal];
+    reserved_cycles_limit : ?Nat;
+    log_visibility : ?{ #controllers; #public_ };
+    wasm_memory_limit : ?Nat;
+    memory_allocation : ?Nat;
+    compute_allocation : ?Nat;
   };
 
   public type QueryStats = {
