@@ -113,35 +113,6 @@ export const authApi = {
   }
 }
 
-// Profile API
-export const profileApi = {
-  // Get user profile
-  async getProfile() {
-    try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/profile`, {
-        method: 'GET',
-        headers,
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      return { success: true, data }
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to get profile'
-      }
-    }
-  }
-}
 
 // Free Canister API
 export const freeCanisterApi = {

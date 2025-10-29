@@ -13,16 +13,47 @@ persistent actor class Backend() {
 
   transient let CONSTANTS = {
     STATUS_PROXY_CID = Principal.fromText("3jolg-2yaaa-aaaao-a4p3a-cai");
-    BACKEND_PRINCIPAL = Principal.fromText("i2qrn-wou4z-zo3z2-g6vlg-dma7w-siosb-tfkdt-gw2ut-s2tmr-66dzg-fae");
+    BUILDER_PRINCIPALS : [Principal] = [
+      Principal.fromText("i2qrn-wou4z-zo3z2-g6vlg-dma7w-siosb-tfkdt-gw2ut-s2tmr-66dzg-fae")
+    ];
   };
 
   type CanisterData = {
     userId : Principal;
     canisterId : Principal;
+    var frontendUrl : Text;
     createdAt : Nat64;
     var updatedAt : Nat64;
     var deletedAt : ?Nat64;
-    var frontendUrl : Text;
+  };
+
+  type Profile = {
+    userId : Principal;
+    var username : ?Text;
+    var freeCanisterClaimedAt : ?Nat64;
+    createdAt : Nat64;
+    var updatedAt : Nat64;
+  };
+
+  let profiles : Map.Map<Principal, Profile> = Map.empty();
+
+  let canisters : List.List<CanisterData> = List.empty();
+  let userCanistersMap : Map.Map<Principal, List.List<Nat>> = Map.empty();
+  let canisterIdMap : Map.Map<Principal, Nat> = Map.empty();
+
+  type ProfileInfo = {
+    userId : Principal;
+    username : ?Text;
+    freeCanisterClaimedAt : ?Nat64;
+    createdAt : Nat64;
+    updatedAt : Nat64;
+  };
+  func freezeProfile_(cd : Profile) : ProfileInfo = {
+    userId = cd.userId;
+    username = cd.username;
+    freeCanisterClaimedAt = cd.freeCanisterClaimedAt;
+    createdAt = cd.createdAt;
+    updatedAt = cd.updatedAt;
   };
 
   type CanisterInfo = {
@@ -33,11 +64,6 @@ persistent actor class Backend() {
     deletedAt : ?Nat64;
     frontendUrl : Text;
   };
-
-  let canisters : List.List<CanisterData> = List.empty();
-  let userCanistersMap : Map.Map<Principal, List.List<Nat>> = Map.empty();
-  let canisterIdMap : Map.Map<Principal, Nat> = Map.empty();
-
   func freezeCanisterData_(cd : CanisterData) : CanisterInfo = {
     userId = cd.userId;
     canisterId = cd.canisterId;
@@ -50,6 +76,40 @@ persistent actor class Backend() {
   func getCanisterData_(cid : Principal) : ?CanisterData {
     let ?index = Map.get(canisterIdMap, Principal.compare, cid) else return null;
     ?List.at<CanisterData>(canisters, index);
+  };
+
+  // profile api
+  public query ({ caller }) func getProfile() : async ?ProfileInfo {
+    let ?p = Map.get(profiles, Principal.compare, caller) else return null;
+    ?freezeProfile_(p);
+  };
+
+  public shared ({ caller }) func updateProfile(arg : { username : ?Text }) : async ProfileInfo {
+    let profile = switch (Map.get(profiles, Principal.compare, caller)) {
+      case (?profile) profile;
+      case (null) {
+        let profile = {
+          userId = caller;
+          var username : ?Text = null;
+          var freeCanisterClaimedAt : ?Nat64 = null;
+          createdAt = Prim.time();
+          var updatedAt = Prim.time();
+        };
+        Map.add<Principal, Profile>(profiles, Principal.compare, caller, profile);
+        profile;
+      };
+    };
+    let updated = switch (arg.username) {
+      case (?un) {
+        profile.username := ?un;
+        true;
+      };
+      case (null) false;
+    };
+    if (updated) {
+      profile.updatedAt := Prim.time();
+    };
+    freezeProfile_(profile);
   };
 
   // canisters api
@@ -114,7 +174,7 @@ persistent actor class Backend() {
   };
 
   public shared ({ caller }) func updateTimestamp(cid : Principal) : async () {
-    if (caller != CONSTANTS.BACKEND_PRINCIPAL) {
+    if (Option.isNull(Array.indexOf(CONSTANTS.BUILDER_PRINCIPALS, Principal.equal, caller))) {
       throw Error.reject("Permission denied");
     };
     let ?canisterData = getCanisterData_(cid) else throw Error.reject("Not found");
