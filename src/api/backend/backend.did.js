@@ -23,11 +23,16 @@ export const idlFactory = ({ IDL }) => {
     'listCanisters' : IDL.Func([], [IDL.Vec(CanisterInfo)], ['query']),
     'onCanisterDeployed' : IDL.Func([IDL.Principal], [], []),
     'registerCanister' : IDL.Func([IDL.Principal], [CanisterInfo], []),
+    'updateCanisterFrontendUrl' : IDL.Func(
+        [IDL.Principal, IDL.Text],
+        [CanisterInfo],
+        [],
+      ),
     'updateProfile' : IDL.Func(
         [IDL.Record({ 'username' : IDL.Opt(IDL.Text) })],
         [ProfileInfo],
         [],
-    ),
+      ),
   });
 };
 export const init = ({ IDL }) => { return []; };

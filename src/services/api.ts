@@ -1,4 +1,10 @@
 // Base API configuration
+import { AssetManager } from "@dfinity/assets";
+import { Principal } from "@dfinity/principal";
+import { getAgent } from "../hooks/useInternetIdentity.ts";
+import { getBackendActor } from "../api/backend";
+import { isValidDomain } from "../utils/domains.ts";
+
 const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
 
 // Token storage keys
@@ -114,29 +120,51 @@ export const authApi = {
 }
 
 
-
 // Custom domain API
 export const customDomainApi = {
   // Add custom domain to canister
   async addDomain(canisterId: string, domain: string, skipUpload: boolean) {
+    if (!isValidDomain(domain)) {
+      return {
+        success: false,
+        error: "Invalid domain format",
+      }
+    }
     try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/canister-add-domain`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ canisterId, domain, skipUpload }),
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
+      // Upload .well-known/ic-domains file (unless skipped)
+      if (!skipUpload) {
+        const assetManager = new AssetManager({
+          canisterId: Principal.fromText(canisterId),
+          agent: getAgent(),
+        });
+        await assetManager.delete("/.well-known/ic-domains");
+        await assetManager.store(new TextEncoder().encode(domain), {
+          fileName: ".well-known/ic-domains",
+          contentType: "text/plain",
+          contentEncoding: "identity",
+        });
       }
 
-      const data = await response.json()
-      return data // Return the edge function response directly
+      // Register domain with IC gateways
+      const response = await fetch("https://icp0.io/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: domain }),
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        return {
+          success: false,
+          error: `Domain registration failed: ${error}`
+        }
+      }
+      const result = await response.json();
+      const backend = await getBackendActor();
+      await backend.updateCanisterFrontendUrl(Principal.fromText(canisterId), domain);
+      return {
+        success: true,
+        requestId: result.id,
+      };
     } catch (err) {
       return {
         success: false,
@@ -154,8 +182,11 @@ export const customDomainApi = {
         return null
       }
 
-      const text = await response.text()
-      return text.trim() || null
+      const text = (await response.text()).trim()
+      if (text?.startsWith('<!DOCTYPE html>')) {
+        return null
+      }
+      return text
     } catch (_err) {
       return null
     }

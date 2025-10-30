@@ -27,6 +27,7 @@ export interface _SERVICE {
   'listCanisters' : ActorMethod<[], Array<CanisterInfo>>,
   'onCanisterDeployed' : ActorMethod<[Principal], undefined>,
   'registerCanister' : ActorMethod<[Principal], CanisterInfo>,
+  'updateCanisterFrontendUrl' : ActorMethod<[Principal, string], CanisterInfo>,
   'updateProfile' : ActorMethod<[{ 'username' : [] | [string] }], ProfileInfo>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
