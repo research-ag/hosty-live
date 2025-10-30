@@ -4,55 +4,12 @@ import Map "mo:core/pure/Map";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
-// import Scheduler "./scheduler";
+import Management "../shared/management";
+// import Scheduler "../shared/scheduler";
 
 shared persistent actor class StatusProxy() = self {
 
-  type ManagementCanisterActor = actor {
-    update_settings : shared ({
-      canister_id : Principal;
-      settings : { controllers : ?[Principal] };
-    }) -> async ();
-    canister_status : shared ({ canister_id : Principal }) -> async CanisterStatus;
-  };
-  type CanisterStatus = {
-    status : { #stopped; #stopping; #running };
-    settings : DefiniteCanisterSettings;
-    module_hash : ?Blob;
-    memory_size : Nat;
-    memory_metrics : MemoryMetrics;
-    cycles : Nat;
-    idle_cycles_burned_per_day : Nat;
-    reserved_cycles : Nat;
-    query_stats : QueryStats;
-  };
-  type MemoryMetrics = {
-    wasm_memory_size : Nat;
-    stable_memory_size : Nat;
-    global_memory_size : Nat;
-    wasm_binary_size : Nat;
-    custom_sections_size : Nat;
-    canister_history_size : Nat;
-    wasm_chunk_store_size : Nat;
-    snapshots_size : Nat;
-  };
-  type DefiniteCanisterSettings = {
-    controllers : [Principal];
-    compute_allocation : Nat;
-    memory_allocation : Nat;
-    freezing_threshold : Nat;
-    reserved_cycles_limit : Nat;
-    log_visibility : { #controllers; #allowed_viewers : [Principal]; #public_ };
-    wasm_memory_limit : Nat;
-  };
-  type QueryStats = {
-    num_calls_total : Nat;
-    num_instructions_total : Nat;
-    request_payload_bytes_total : Nat;
-    response_payload_bytes_total : Nat;
-  };
-
-  transient let ic : ManagementCanisterActor = actor ("aaaaa-aa");
+  transient let ic = Management.getActor();
 
   transient let CONSTANTS = {
     CACHE_TTL = 60 : Nat64; // temporarily use 1 minute cache TTL
@@ -63,13 +20,13 @@ shared persistent actor class StatusProxy() = self {
     // CLEANUP_INTERVAL_BIAS = 0 : Nat64; // bias 0 for 24h interval means "at UTC midnight"
   };
 
-  var cache : Map.Map<Principal, (Nat64, CanisterStatus)> = Map.empty();
+  var cache : Map.Map<Principal, (Nat64, Management.CanisterStatus)> = Map.empty();
 
-  public shared query func queryState(canisterId : Principal) : async ?(Nat64, CanisterStatus) {
+  public shared query func queryState(canisterId : Principal) : async ?(Nat64, Management.CanisterStatus) {
     Map.get(cache, Principal.compare, canisterId);
   };
 
-  public shared func loadState(canisterId : Principal) : async (Nat64, CanisterStatus) {
+  public shared func loadState(canisterId : Principal) : async (Nat64, Management.CanisterStatus) {
     let now = Prim.time() / 1_000_000_000;
     switch (Map.get(cache, Principal.compare, canisterId)) {
       case (?(cacheTS, data)) if (cacheTS + CONSTANTS.CACHE_TTL > now) {
@@ -86,7 +43,7 @@ shared persistent actor class StatusProxy() = self {
     switch (Map.get(cache, Principal.compare, canisterId)) {
       case (?(_, data)) switch (Array.indexOf(data.settings.controllers, Principal.equal, caller)) {
         case (?_) {
-          let (upd, _) = Map.delete<Principal, (Nat64, CanisterStatus)>(cache, Principal.compare, canisterId);
+          let (upd, _) = Map.delete<Principal, (Nat64, Management.CanisterStatus)>(cache, Principal.compare, canisterId);
           cache := upd;
           true;
         };

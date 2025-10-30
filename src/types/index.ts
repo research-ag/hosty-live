@@ -48,12 +48,11 @@ export interface User {
 
 // Profile from backend
 export interface Profile {
-  id: string
-  username?: string
-  principal: string
+  userId: string
+  username: string | null
   freeCanisterClaimedAt: string | null
-  createdAt: string
-  updatedAt: string
+  createdAt: string | null
+  updatedAt: string | null
 }
 
 // Free Canister Claim Result

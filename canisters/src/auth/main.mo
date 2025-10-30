@@ -2,7 +2,7 @@ import Map "mo:core/pure/Map";
 import Prim "mo:prim";
 import Principal "mo:core/Principal";
 
-import Scheduler "./scheduler";
+import Scheduler "../shared/scheduler";
 
 persistent actor class Auth() {
 
