@@ -106,7 +106,7 @@ export function useCanisters() {
     })({
       arg: new Uint8Array(IDL.encode(assetStorageInit({ IDL }), [[]])),
       wasm_module: [...wasmBinary],
-      mode: { reinstall: null },
+      mode: { install: null },
       canister_id: Principal.fromText(canisterId),
       sender_canister_version: [],
     });
