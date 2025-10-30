@@ -153,7 +153,12 @@ export function useCanisters() {
       const { canisterId } = await createCanisterOnLedger()
       // Step 2: preparing via backend
       setCreationMessage('Preparing your canister...')
-      await performInitialCanisterSetup(canisterId, management, wasmBinary, myPrincipal, buildSystemPrincipal);
+      try {
+        await performInitialCanisterSetup(canisterId, management, wasmBinary, myPrincipal, buildSystemPrincipal);
+      } catch (err) {
+        // TODO implement a way to setup canister again later. We need to register it anyway
+        console.error(err);
+      }
       // Step 3: register
       setCreationMessage('Registering your canister...')
       const backend = await getBackendActor();
@@ -192,7 +197,12 @@ export function useCanisters() {
       const result = await backend.claimFreeCanister()
       if ("ok" in result) {
         const canisterInfo = result['ok'];
-        await performInitialCanisterSetup(canisterInfo.canisterId.toText(), management, wasmBinary, myPrincipal, buildSystemPrincipal);
+        try {
+          await performInitialCanisterSetup(canisterInfo.canisterId.toText(), management, wasmBinary, myPrincipal, buildSystemPrincipal);
+        } catch (err) {
+          // TODO implement a way to setup canister again later
+          console.error(err);
+        }
         return transformBackendCanisterToFrontend(canisterInfo);
       } else {
         throw new Error(result['err']);
