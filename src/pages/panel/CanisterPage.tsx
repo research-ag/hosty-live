@@ -528,14 +528,6 @@ export function CanisterPage() {
               Deploy
             </Button>
           </TooltipWrapper>
-          <Button
-            variant="destructive"
-            onClick={() => setIsResetOpen(true)}
-            className="w-full sm:w-auto"
-          >
-            <AlertCircle className="mr-2 h-4 w-4" />
-            Reset canister
-          </Button>
         </div>
       </div>
 
@@ -718,6 +710,15 @@ export function CanisterPage() {
                 </p>
               </div>
             )} */}
+            <div className="pt-2">
+              <Button
+                variant="destructive"
+                onClick={() => setIsResetOpen(true)}
+              >
+                <AlertCircle className="mr-2 h-4 w-4" />
+                Reset canister
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
