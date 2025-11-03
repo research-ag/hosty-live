@@ -78,7 +78,7 @@ function BurnInfo({ canisterId }: { canisterId: string }) {
 export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getCanister, addController, removeController } = useCanisters();
+  const { getCanister, addController, removeController, resetCanister } = useCanisters();
   const { deployToCanister, deployFromGit } = useDeployments();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -127,6 +127,10 @@ export function CanisterPage() {
   const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [isRemovingController, setIsRemovingController] = useState(false);
+  // Reset canister dialog state
+  const [isResetOpen, setIsResetOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState<string>("");
 
   const fetchImmutability = async () => {
     try {
@@ -273,6 +277,31 @@ export function CanisterPage() {
       }
     } finally {
       setIsRemovingController(false);
+    }
+  };
+
+  const confirmResetCanister = async () => {
+    if (!canister) return;
+    try {
+      setIsResetting(true);
+      setResetError("");
+      const res = await resetCanister(canister.id);
+      if (res.success) {
+        toast.success("Canister reset", "The canister was reset to defaults.");
+        setIsResetOpen(false);
+        await fetchCanister();
+        await queryClient.invalidateQueries({
+          queryKey: ["canister", "status", icCanisterId ?? "unknown"],
+        });
+      } else {
+        toast.error("Failed to reset canister", res.error || "Unknown error");
+        setResetError(res.error || "Unknown error");
+      }
+    } catch (e: any) {
+      toast.error("Failed to reset canister", e?.message || String(e));
+      setResetError(e?.message || String(e));
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -499,6 +528,14 @@ export function CanisterPage() {
               Deploy
             </Button>
           </TooltipWrapper>
+          <Button
+            variant="destructive"
+            onClick={() => setIsResetOpen(true)}
+            className="w-full sm:w-auto"
+          >
+            <AlertCircle className="mr-2 h-4 w-4" />
+            Reset canister
+          </Button>
         </div>
       </div>
 
@@ -891,6 +928,39 @@ export function CanisterPage() {
             setRemoveTarget(null);
           }
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={isResetOpen}
+        title="Reset this canister?"
+        description={(
+          <>
+            <p className="text-sm">
+              This will restore the canister to post-creation defaults:
+            </p>
+            <ul className="list-disc pl-5 text-sm mt-2 space-y-1">
+              <li>Controllers set to you and the status-proxy canister</li>
+              <li>Asset permissions cleared and default grants reapplied</li>
+              <li>Default index.html deployed to the asset canister</li>
+            </ul>
+            {!!resetError && (
+              <div className="mt-3 p-2 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 rounded text-xs">
+                {resetError}
+              </div>
+            )}
+          </>
+        )}
+        confirmLabel="Reset"
+        cancelLabel="Cancel"
+        isLoading={isResetting}
+        onConfirm={confirmResetCanister}
+        onCancel={() => {
+          if (!isResetting) {
+            setIsResetOpen(false);
+            setResetError("");
+          }
+        }}
+        className="[&_.btn-confirm]:bg-destructive"
       />
 
       {showMakeImmutableModal && (

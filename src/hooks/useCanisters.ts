@@ -502,6 +502,89 @@ export function useCanisters() {
     }
   };
 
+  const resetCanister = async (
+    canisterDbId: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const canister = canisters.find((c) => c.id === canisterDbId);
+      if (!canister) {
+        throw new Error('Canister not found');
+      }
+
+      const managementCanister = await getManagementActor();
+      const auth = await getAuthClient();
+      const myPrincipal = auth.getIdentity().getPrincipal();
+      const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
+      const buildSystemPrincipal = Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL);
+
+      // 1) Reset controllers to defaults: current user + status-proxy canister
+      await managementCanister.update_settings.withOptions({
+        effectiveCanisterId: Principal.fromText(canister.icCanisterId),
+      })({
+        canister_id: Principal.fromText(canister.icCanisterId),
+        settings: {
+          freezing_threshold: [],
+          controllers: [[myPrincipal, Principal.fromText(statusProxyCanisterId)]],
+          reserved_cycles_limit: [],
+          log_visibility: [],
+          wasm_memory_limit: [],
+          memory_allocation: [],
+          compute_allocation: [],
+          wasm_memory_threshold: [],
+        },
+        sender_canister_version: [],
+      });
+
+      // 2) Reset asset canister permissions to defaults
+      try {
+        const assetCanister = await getAssetStorageActor(canister.icCanisterId);
+
+        // Reset permissions by taking ownership: removes all permissions except for the caller
+        await assetCanister.take_ownership();
+
+        // Then grant the default ones (idempotent)
+        await Promise.all([
+          assetCanister.grant_permission({
+            permission: { Prepare: null },
+            to_principal: myPrincipal,
+          }),
+          assetCanister.grant_permission({
+            permission: { Commit: null },
+            to_principal: myPrincipal,
+          }),
+          assetCanister.grant_permission({
+            permission: { Commit: null },
+            to_principal: buildSystemPrincipal,
+          }),
+        ]);
+
+        // 3) Deploy default page to the canister
+        await assetCanister.store({
+          key: '/index.html',
+          content: new TextEncoder().encode(defaultPage(canister.icCanisterId)),
+          sha256: [],
+          content_type: 'text/html',
+          content_encoding: 'identity',
+        });
+      } catch (e) {
+        // Not an asset canister or permissions API unavailable; continue
+        console.warn('[resetCanister] Asset canister step skipped:', e);
+      }
+
+      // Invalidate caches related to canisters
+      queryClient.invalidateQueries({ queryKey: ['canisters'] });
+      queryClient.invalidateQueries({ queryKey: ['canister', canister.icCanisterId] });
+      await queryClient.invalidateQueries({ queryKey: ['canister', 'status', canister.icCanisterId] });
+
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to reset canister',
+      };
+    }
+  };
+
   return {
     canisters,
     isLoading,
@@ -516,6 +599,7 @@ export function useCanisters() {
     creationMessage,
     resetCreationStatus: () => {
       setCreationMessage('')
-    }
+    },
+    resetCanister,
   }
 }
