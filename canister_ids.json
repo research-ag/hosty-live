@@ -1,9 +1,12 @@
 {
-  "fe-app": {
-    "ic": "vvvxt-qiaaa-aaaam-aej3a-cai"
-  },
   "auth": {
     "ic": "2eapi-vqaaa-aaaao-a4p4q-cai"
+  },
+  "backend": {
+    "ic": "6aeum-wyaaa-aaaao-a4qcq-cai"
+  },
+  "fe-app": {
+    "ic": "vvvxt-qiaaa-aaaam-aej3a-cai"
   },
   "status-proxy": {
     "ic": "3jolg-2yaaa-aaaao-a4p3a-cai"

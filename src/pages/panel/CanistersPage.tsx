@@ -1,24 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Gift,
-  Loader2,
-  Plus,
-  Server,
-  Trash2,
-  Zap,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Gift, Loader2, Plus, Server, Trash2, Zap, } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { SortButton } from "../../components/ui/SortButton";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { CreateCanisterModal } from "../../components/panel/CreateCanisterModal";
 import { DeleteCanisterModal } from "../../components/panel/DeleteCanisterModal";
@@ -29,7 +14,7 @@ import { useInternetIdentity } from "../../hooks/useInternetIdentity";
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
-import { freeCanisterApi, profileApi } from "../../services/api";
+import { getBackendActor } from "../../api/backend";
 import type { Canister, Profile } from "../../types";
 
 function CyclesCell({ canisterId }: { canisterId: string }) {
@@ -87,6 +72,7 @@ export function CanistersPage() {
     isLoading: canistersLoading,
     error: canistersError,
     createCanister,
+    claimFreeCanister,
     deleteCanister,
     refreshCanisters,
     creationMessage,
@@ -116,18 +102,44 @@ export function CanistersPage() {
   const itemsPerPage = 9;
   const totalPages = Math.ceil(canisters.length / itemsPerPage);
 
+  const loadProfile = async () => {
+    const backend = await getBackendActor();
+    const opt = await backend.getProfile();
+    if (opt.length) {
+      const p = opt[0];
+      const toIso = (ns: bigint) => new Date(Number(ns / 1_000_000n)).toISOString();
+      const mapped: Profile = {
+        userId: p.userId.toText(),
+        username: p.username.length ? p.username[0] : null,
+        freeCanisterClaimedAt: p.freeCanisterClaimedAt.length ? toIso(p.freeCanisterClaimedAt[0]) : null,
+        createdAt: toIso(p.createdAt),
+        updatedAt: toIso(p.updatedAt),
+      };
+      setProfile(mapped);
+    } else {
+      setProfile({
+        userId: principal || "2vxsx-fae",
+        username: null,
+        freeCanisterClaimedAt: null,
+        createdAt: null,
+        updatedAt: null,
+      });
+    }
+  };
+
   // Fetch user profile to check if free canister is available
   useEffect(() => {
-    const fetchProfile = async () => {
+    (async () => {
       setIsLoadingProfile(true);
-      const result = await profileApi.getProfile();
-      if (result.success && result.data) {
-        setProfile(result.data);
+      try {
+        await loadProfile();
+      } catch (_) {
+        setProfile(null);
+      } finally {
+        setIsLoadingProfile(false);
       }
-      setIsLoadingProfile(false);
-    };
-    fetchProfile();
-  }, []);
+    })().then();
+  }, [principal]);
 
   // Update URL when state changes
   const updateURL = (
@@ -164,8 +176,8 @@ export function CanistersPage() {
   };
 
   const sortedCanisters = [...canisters].sort((a, b) => {
-    const aValue = a[sortField as keyof Canister];
-    const bValue = b[sortField as keyof Canister];
+    const aValue = a[sortField as keyof Canister] as unknown as string | number;
+    const bValue = b[sortField as keyof Canister] as unknown as string | number;
 
     if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
     if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
@@ -228,23 +240,19 @@ export function CanistersPage() {
 
   const handleClaimFreeCanister = async () => {
     setIsClaimingFree(true);
-
     try {
-      const result = await freeCanisterApi.claimFreeCanister();
-
-      if (result.success && result.data) {
-        toast.success(
-          "Success!",
-          `Free canister created: ${result.data.canisterId}`
-        );
+      const result = await claimFreeCanister();
+      if (result.success) {
+        toast.success("Success!", `Free canister created: ${result.data?.icCanisterId}`);
         // Refresh canisters list and profile
         await refreshCanisters();
-        const profileResult = await profileApi.getProfile();
-        if (profileResult.success && profileResult.data) {
-          setProfile(profileResult.data);
+        try {
+          await loadProfile();
+        } catch (_) {
+          // pass
         }
       } else {
-        toast.error("Error", "Gift canisters pool is out of cycles");
+        toast.error("Error", result.error || "Gift canisters pool is out of cycles");
       }
     } catch (_) {
       toast.error("Error", "Gift canisters pool is out of cycles");
@@ -278,7 +286,7 @@ export function CanistersPage() {
 
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"/>
             <span className="text-lg">Loading canisters...</span>
           </div>
         </div>
@@ -308,7 +316,7 @@ export function CanistersPage() {
                   refreshCanisters();
                 }}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-2 h-4 w-4"/>
                 Retry
               </Button>
             </div>
@@ -321,11 +329,11 @@ export function CanistersPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
-        return <Zap className="h-4 w-4 text-green-500" />;
+        return <Zap className="h-4 w-4 text-green-500"/>;
       case "inactive":
-        return <Server className="h-4 w-4 text-gray-500" />;
+        return <Server className="h-4 w-4 text-gray-500"/>;
       default:
-        return <Server className="h-4 w-4" />;
+        return <Server className="h-4 w-4"/>;
     }
   };
 
@@ -355,12 +363,12 @@ export function CanistersPage() {
               >
                 {isClaimingFree ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
                     Claiming...
                   </>
                 ) : (
                   <>
-                    <Gift className="mr-2 h-4 w-4" />
+                    <Gift className="mr-2 h-4 w-4"/>
                     Free Canister
                   </>
                 )}
@@ -371,7 +379,7 @@ export function CanistersPage() {
             onClick={() => setIsCreateModalOpen(true)}
             className="w-full sm:w-auto"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 h-4 w-4"/>
             Create Canister
           </Button>
         </div>
@@ -411,7 +419,7 @@ export function CanistersPage() {
             onClick={() => navigate(`/panel/canister/${canister.icCanisterId}`)}
           >
             {/* Control Status Indicator */}
-            <NotControlledIndicator canisterId={canister.icCanisterId} />
+            <NotControlledIndicator canisterId={canister.icCanisterId}/>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -436,7 +444,7 @@ export function CanistersPage() {
                   </p>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-primary">
-                      <CyclesCell canisterId={canister.icCanisterId} />
+                      <CyclesCell canisterId={canister.icCanisterId}/>
                     </p>
                     <Button
                       variant="ghost"
@@ -449,7 +457,7 @@ export function CanistersPage() {
                       title="Top up"
                       className="h-6 w-6 p-0"
                     >
-                      <Zap className="h-3.5 w-3.5" />
+                      <Zap className="h-3.5 w-3.5"/>
                     </Button>
                   </div>
                 </div>
@@ -499,7 +507,7 @@ export function CanistersPage() {
                     }}
                     className="flex items-center gap-1 text-xs hover:bg-primary/10"
                   >
-                    <Eye className="h-3 w-3" />
+                    <Eye className="h-3 w-3"/>
                     View
                   </Button>
                   <Button
@@ -512,7 +520,7 @@ export function CanistersPage() {
                     }}
                     className="flex items-center gap-1 text-xs hover:bg-destructive/10 hover:text-destructive"
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-3 w-3"/>
                     Delete
                   </Button>
                 </div>
@@ -539,14 +547,14 @@ export function CanistersPage() {
       {canisters.length === 0 && (
         <Card className="text-center py-12">
           <CardContent>
-            <Server className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <Server className="h-12 w-12 text-muted-foreground mx-auto mb-4"/>
             <h3 className="text-lg font-semibold mb-2">No canisters yet</h3>
             <p className="text-muted-foreground mb-4">
               Create your first canister to get started with deploying
               applications.
             </p>
             <Button onClick={() => setIsCreateModalOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-2 h-4 w-4"/>
               Create Canister
             </Button>
           </CardContent>
@@ -569,7 +577,7 @@ export function CanistersPage() {
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4"/>
                 Previous
               </Button>
               <span className="text-sm px-3 py-1 bg-muted rounded-md">
@@ -582,7 +590,7 @@ export function CanistersPage() {
                 disabled={currentPage === totalPages}
               >
                 Next
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4"/>
               </Button>
             </div>
           </div>

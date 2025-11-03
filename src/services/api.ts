@@ -1,4 +1,10 @@
 // Base API configuration
+import { AssetManager } from "@dfinity/assets";
+import { Principal } from "@dfinity/principal";
+import { getAgent } from "../hooks/useInternetIdentity.ts";
+import { getBackendActor } from "../api/backend";
+import { isValidDomain } from "../utils/domains.ts";
+
 const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
 
 // Token storage keys
@@ -113,272 +119,52 @@ export const authApi = {
   }
 }
 
-// Profile API
-export const profileApi = {
-  // Get user profile
-  async getProfile() {
-    try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/profile`, {
-        method: 'GET',
-        headers,
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      return { success: true, data }
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to get profile'
-      }
-    }
-  }
-}
-
-// Free Canister API
-export const freeCanisterApi = {
-  // Claim free canister
-  async claimFreeCanister() {
-    try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/canister-claim-free`, {
-        method: 'POST',
-        headers,
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      return data
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to claim free canister'
-      }
-    }
-  }
-}
-
-export interface CreateCanisterResponse {
-  success: boolean;
-  data?: {
-    canisterNumber: number;
-    canisterId: string;
-    frontendUrl: string;
-  };
-  error?: string;
-};
-
-// Canisters API
-export const canistersApi = {
-  // List all canisters
-  async listCanisters() {
-    try {
-      console.log('🔍 [canistersApi.listCanisters] Starting API call...')
-
-      const headers = await getAuthHeaders()
-      console.log('🔑 [canistersApi.listCanisters] Headers:', {
-        ...headers,
-        Authorization: headers.Authorization ? `Bearer ${headers.Authorization.substring(7, 20)}...` : 'missing'
-      })
-
-      const url = `${API_BASE}/canisters-list`
-      console.log('🌐 [canistersApi.listCanisters] URL:', url)
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-      })
-
-      console.log('📡 [canistersApi.listCanisters] Response status:', response.status, response.statusText)
-      console.log('📡 [canistersApi.listCanisters] Response headers:', Object.fromEntries(response.headers.entries()))
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        console.error('❌ [canistersApi.listCanisters] Error response:', error)
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      console.log('✅ [canistersApi.listCanisters] Success response:', {
-        success: data.success,
-        dataType: typeof data.data,
-        canistersCount: data.data?.canisters?.length,
-        totalCount: data.data?.totalCount,
-        fullResponse: data
-      })
-
-      return data // Return the edge function response directly (already has success/data structure)
-    } catch (err) {
-      console.error('💥 [canistersApi.listCanisters] Exception:', err)
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to fetch canisters'
-      }
-    }
-  },
-
-  // Register a newly created canister in backend
-  async registerCanister(canisterId: string): Promise<CreateCanisterResponse> {
-    try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/canister-create`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ canisterId }),
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      return data as CreateCanisterResponse
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to create canister'
-      }
-    }
-  },
-
-  // Get a single canister
-  async getCanister(icCanisterId: string) {
-    try {
-      console.log('🔍 [canistersApi.getCanister] Starting API call for IC canister:', icCanisterId)
-
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/canister-get?canisterId=${encodeURIComponent(icCanisterId)}`, {
-        method: 'GET',
-        headers,
-      })
-
-      console.log('📡 [canistersApi.getCanister] Response status:', response.status)
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        console.error('❌ [canistersApi.getCanister] Error response:', error)
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      console.log('✅ [canistersApi.getCanister] Success response:', data)
-      return data // Return the edge function response directly
-    } catch (err) {
-      console.error('💥 [canistersApi.getCanister] Exception:', err)
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to get canister'
-      }
-    }
-  },
-
-  // Get public canister info (no auth required)
-  async getPublicCanister(canisterId: string) {
-    try {
-      console.log('🔍 [canistersApi.getPublicCanister] Starting API call for canister:', canisterId)
-
-      const response = await fetch(`${API_BASE}/canister-get-public?canisterId=${encodeURIComponent(canisterId)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      console.log('📡 [canistersApi.getPublicCanister] Response status:', response.status)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        console.error('❌ [canistersApi.getPublicCanister] Error response:', error)
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      console.log('✅ [canistersApi.getPublicCanister] Success response:', data)
-      return data
-    } catch (err) {
-      console.error('💥 [canistersApi.getPublicCanister] Exception:', err)
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to get public canister'
-      }
-    }
-  },
-
-  // Delete a canister
-  async deleteCanister(canisterId: string) {
-    try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/canister-delete`, {
-        method: 'DELETE',
-        headers,
-        body: JSON.stringify({ canisterId }),
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
-      }
-
-      const data = await response.json()
-      return data // Return the edge function response directly
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to delete canister'
-      }
-    }
-  }
-}
 
 // Custom domain API
 export const customDomainApi = {
   // Add custom domain to canister
   async addDomain(canisterId: string, domain: string, skipUpload: boolean) {
+    if (!isValidDomain(domain)) {
+      return {
+        success: false,
+        error: "Invalid domain format",
+      }
+    }
     try {
-      const headers = await getAuthHeaders()
-
-      const response = await fetch(`${API_BASE}/canister-add-domain`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ canisterId, domain, skipUpload }),
-      })
-
-      checkUnauthorized(response)
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
+      // Upload .well-known/ic-domains file (unless skipped)
+      if (!skipUpload) {
+        const assetManager = new AssetManager({
+          canisterId: Principal.fromText(canisterId),
+          agent: getAgent(),
+        });
+        await assetManager.delete("/.well-known/ic-domains");
+        await assetManager.store(new TextEncoder().encode(domain), {
+          fileName: ".well-known/ic-domains",
+          contentType: "text/plain",
+          contentEncoding: "identity",
+        });
       }
 
-      const data = await response.json()
-      return data // Return the edge function response directly
+      // Register domain with IC gateways
+      const response = await fetch("https://icp0.io/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: domain }),
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        return {
+          success: false,
+          error: `Domain registration failed: ${error}`
+        }
+      }
+      const result = await response.json();
+      const backend = await getBackendActor();
+      await backend.updateCanisterFrontendUrl(Principal.fromText(canisterId), domain);
+      return {
+        success: true,
+        requestId: result.id,
+      };
     } catch (err) {
       return {
         success: false,
@@ -396,8 +182,11 @@ export const customDomainApi = {
         return null
       }
 
-      const text = await response.text()
-      return text.trim() || null
+      const text = (await response.text()).trim()
+      if (text?.startsWith('<!DOCTYPE html>')) {
+        return null
+      }
+      return text
     } catch (_err) {
       return null
     }
