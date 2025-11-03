@@ -55,8 +55,11 @@ shared persistent actor class StatusProxy() = self {
 
   var debugImmutables : Map.Map<Principal, { controllers : [Principal] }> = Map.empty();
 
-  public shared query func isImmutableInDebugMode(canisterId : Principal) : async Bool {
-    Map.containsKey(debugImmutables, Principal.compare, canisterId);
+  public shared query func isImmutableInDebugMode(canisterId : Principal) : async ?[Principal] {
+    switch (Map.get(debugImmutables, Principal.compare, canisterId)) {
+      case (?{ controllers }) ?controllers;
+      case (null) null;
+    };
   };
 
   public shared ({ caller }) func makeImmutable(canisterId : Principal, debugMode : Bool) : async () {

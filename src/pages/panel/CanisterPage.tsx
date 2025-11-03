@@ -128,7 +128,7 @@ export function CanisterPage() {
       const res = await actor.isImmutableInDebugMode(
         Principal.fromText(icCanisterId)
       );
-      setIsImmutableInDebugMode(res);
+      setIsImmutableInDebugMode(res.length > 0);
     } catch (e) {
       console.error("Failed to check immutability:", e);
       setIsImmutableInDebugMode(null);

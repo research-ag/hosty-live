@@ -43,7 +43,8 @@ export interface QueryStats {
   'request_payload_bytes_total' : bigint,
 }
 export interface _SERVICE {
-  'isImmutableInDebugMode' : ActorMethod<[Principal], boolean>,
+  'invalidateCache' : ActorMethod<[Principal], boolean>,
+  'isImmutableInDebugMode' : ActorMethod<[Principal], [] | [Array<Principal>]>,
   'loadState' : ActorMethod<[Principal], [bigint, CanisterStatus]>,
   'makeImmutable' : ActorMethod<[Principal, boolean], undefined>,
   'queryState' : ActorMethod<[Principal], [] | [[bigint, CanisterStatus]]>,

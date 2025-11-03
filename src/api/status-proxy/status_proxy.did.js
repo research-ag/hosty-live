@@ -44,7 +44,12 @@ export const idlFactory = ({ IDL }) => {
     'reserved_cycles' : IDL.Nat,
   });
   return IDL.Service({
-    'isImmutableInDebugMode' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
+    'invalidateCache' : IDL.Func([IDL.Principal], [IDL.Bool], []),
+    'isImmutableInDebugMode' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Vec(IDL.Principal))],
+        ['query'],
+    ),
     'loadState' : IDL.Func([IDL.Principal], [IDL.Nat64, CanisterStatus], []),
     'makeImmutable' : IDL.Func([IDL.Principal, IDL.Bool], [], []),
     'queryState' : IDL.Func(
