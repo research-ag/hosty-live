@@ -9,6 +9,10 @@ import Management "../shared/management";
 
 shared persistent actor class StatusProxy() = self {
 
+  var cache : Map.Map<Principal, (Nat64, Management.CanisterStatus)> = Map.empty();
+  var debugImmutables : Map.Map<Principal, { controllers : [Principal] }> = Map.empty();
+  var immutableCanistersAmount : Nat = 0;
+
   transient let ic = Management.getActor();
 
   transient let CONSTANTS = {
@@ -19,8 +23,6 @@ shared persistent actor class StatusProxy() = self {
     // CLEANUP_INTERVAL = 86_400 : Nat64; // cleanup each 24 hours
     // CLEANUP_INTERVAL_BIAS = 0 : Nat64; // bias 0 for 24h interval means "at UTC midnight"
   };
-
-  var cache : Map.Map<Principal, (Nat64, Management.CanisterStatus)> = Map.empty();
 
   public shared query func queryState(canisterId : Principal) : async ?(Nat64, Management.CanisterStatus) {
     Map.get(cache, Principal.compare, canisterId);
@@ -53,14 +55,20 @@ shared persistent actor class StatusProxy() = self {
     };
   };
 
-  var debugImmutables : Map.Map<Principal, { controllers : [Principal] }> = Map.empty();
-
   public shared query func isImmutableInDebugMode(canisterId : Principal) : async ?[Principal] {
     switch (Map.get(debugImmutables, Principal.compare, canisterId)) {
       case (?{ controllers }) ?controllers;
       case (null) null;
     };
   };
+
+  public shared query func stats() : async ({
+    immutable : Nat;
+    immutableInDebugMode : Nat;
+  }) = async ({
+    immutable = immutableCanistersAmount;
+    immutableInDebugMode = Map.size(debugImmutables);
+  });
 
   public shared ({ caller }) func makeImmutable(canisterId : Principal, debugMode : Bool) : async () {
     if (Map.containsKey(debugImmutables, Principal.compare, canisterId)) {
@@ -97,6 +105,8 @@ shared persistent actor class StatusProxy() = self {
           controllers = Array.filter<Principal>(state.settings.controllers, func(p) = not Principal.equal(p, selfP));
         },
       );
+    } else {
+      immutableCanistersAmount += 1;
     };
     // try to remove all permissions in the asset canister
     try {
