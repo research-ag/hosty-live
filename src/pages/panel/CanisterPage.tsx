@@ -17,12 +17,14 @@ import {
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { Badge } from "../../components/ui/Badge";
 import { DeployModal } from "../../components/panel/DeployModal";
 import { TransferOwnershipModal } from "../../components/panel/TransferOwnershipModal";
 import { CustomDomainModal } from "../../components/panel/CustomDomainModal";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
 import { CanisterInfo, useCanisters } from "../../hooks/useCanisters";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDeployments } from "../../hooks/useDeployments";
 import { useToast } from "../../hooks/useToast";
 import { customDomainApi } from "../../api";
@@ -76,9 +78,10 @@ function BurnInfo({ canisterId }: { canisterId: string }) {
 export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getCanister, addController } = useCanisters();
+  const { getCanister, addController, removeController } = useCanisters();
   const { deployToCanister, deployFromGit } = useDeployments();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { principal } = useAuth();
 
@@ -120,6 +123,10 @@ export function CanisterPage() {
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const { withdrawToCanister, balanceRaw, formatTC, refresh } =
     useTCycles(principal);
+  // Remove controller confirm dialog state
+  const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+  const [isRemovingController, setIsRemovingController] = useState(false);
 
   const fetchImmutability = async () => {
     try {
@@ -226,6 +233,46 @@ export function CanisterPage() {
         result.error || "Failed to start deployment from GitHub"
       );
       setDeployError(result.error || "Failed to start deployment from GitHub");
+    }
+  };
+
+  const handleRemoveController = (userPrincipal: string) => {
+    if (!canister) return;
+
+    if (userPrincipal === principal) {
+      toast.error("Forbidden", "You can't remove yourself from controllers.");
+      return;
+    }
+    if (userPrincipal === statusProxyCanisterId) {
+      toast.error(
+        "Forbidden",
+        "You can't remove the status-proxy canister from controllers."
+      );
+      return;
+    }
+
+    setRemoveTarget(userPrincipal);
+    setIsRemoveConfirmOpen(true);
+  };
+
+  const confirmRemoveController = async () => {
+    if (!canister || !removeTarget) return;
+    try {
+      setIsRemovingController(true);
+      const res = await removeController(canister.id, removeTarget);
+      if (res.success) {
+        toast.success("Controller removed", "The controller was removed.");
+        setIsRemoveConfirmOpen(false);
+        setRemoveTarget(null);
+        await fetchCanister();
+        await queryClient.invalidateQueries({
+          queryKey: ["canister", "status", icCanisterId ?? "unknown"],
+        });
+      } else {
+        toast.error("Failed to remove controller", res.error || "Unknown error");
+      }
+    } finally {
+      setIsRemovingController(false);
     }
   };
 
@@ -533,26 +580,46 @@ export function CanisterPage() {
                     Controllers
                   </label>
                   <div className="space-y-1">
-                    {canisterStatus.controllers.map((controller, index) => (
-                      <p
-                        key={index}
-                        className="text-xs font-mono bg-muted px-2 py-1 rounded"
-                      >
-                        {controller ===
-                          import.meta.env.VITE_BACKEND_PRINCIPAL && (
-                            <span className="text-primary">(hosty.live)</span>
-                          )}
-                        {controller === principal && (
-                          <span className="text-primary">(you)</span>
-                        )}
-                        {controller === statusProxyCanisterId && (
-                          <span className="text-primary">
-                            (status proxy canister)
-                          </span>
-                        )}{" "}
-                        {controller}
-                      </p>
-                    ))}
+                    {canisterStatus.controllers.map((controller, index) => {
+                      const isSelf = controller === principal;
+                      const isProxy = controller === statusProxyCanisterId;
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between gap-2 bg-muted px-2 py-1 rounded"
+                        >
+                          <div className="text-xs font-mono">
+                            {controller === import.meta.env.VITE_BACKEND_PRINCIPAL && (
+                              <span className="text-primary">(hosty.live) </span>
+                            )}
+                            {isSelf && (
+                              <span className="text-primary">(you) </span>
+                            )}
+                            {isProxy && (
+                              <span className="text-primary">(status proxy canister) </span>
+                            )}
+                            {controller}
+                          </div>
+                          <div>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              disabled={isSelf || isProxy || isRemovingController}
+                              onClick={() => handleRemoveController(controller)}
+                              title={
+                                isSelf
+                                  ? "You can't remove yourself"
+                                  : isProxy
+                                  ? "You can't remove the status-proxy canister"
+                                  : "Remove controller"
+                              }
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                   <div style={{ height: "0.5rem" }}/>
                   {canisterStatus.controllers.length > 1 && (
@@ -800,6 +867,31 @@ export function CanisterPage() {
           onRefreshBalance={refresh}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={isRemoveConfirmOpen}
+        title="Remove this controller?"
+        description={(
+          <>
+            <p>They will lose the ability to manage this canister.</p>
+            {removeTarget && (
+              <div className="mt-3 p-2 bg-muted rounded font-mono text-xs break-all">
+                {removeTarget}
+              </div>
+            )}
+          </>
+        )}
+        confirmLabel="Yes"
+        cancelLabel="Cancel"
+        isLoading={isRemovingController}
+        onConfirm={confirmRemoveController}
+        onCancel={() => {
+          if (!isRemovingController) {
+            setIsRemoveConfirmOpen(false);
+            setRemoveTarget(null);
+          }
+        }}
+      />
 
       {showMakeImmutableModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

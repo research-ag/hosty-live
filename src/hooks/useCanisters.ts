@@ -5,7 +5,7 @@ import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
 import { Principal } from "@dfinity/principal";
 import { getAssetStorageActor } from "../api/asset-storage";
-import { getAgent, getAuthClient } from "./useInternetIdentity.ts";
+import { getAuthClient } from "./useInternetIdentity.ts";
 import { getBackendActor } from "../api/backend";
 import type { CanisterInfo as BackendCanisterInfo } from "../api/backend/backend.did";
 import { init as assetStorageInit } from "../api/asset-storage/asset_storage.did";
@@ -343,8 +343,7 @@ export function useCanisters() {
 
       // Update canister settings
       await managementCanister.update_settings.withOptions({
-        effectiveCanisterId: Principal.fromText(canister.icCanisterId),
-        agent: getAgent()
+        effectiveCanisterId: Principal.fromText(canister.icCanisterId)
       })({
         canister_id: Principal.fromText(canister.icCanisterId),
         settings: {
@@ -363,18 +362,20 @@ export function useCanisters() {
       // If asset canister, grant all permissions: Prepare, ManagePermissions, Commit
       try {
         const assetCanister = await getAssetStorageActor(canister.icCanisterId);
-        await assetCanister.grant_permission({
-          permission: { Prepare: null },
-          to_principal: Principal.fromText(userPrincipal),
-        });
-        await assetCanister.grant_permission({
-          permission: { ManagePermissions: null },
-          to_principal: Principal.fromText(userPrincipal),
-        });
-        await assetCanister.grant_permission({
-          permission: { Commit: null },
-          to_principal: Principal.fromText(userPrincipal),
-        });
+        await Promise.all([
+          assetCanister.grant_permission({
+            permission: { Prepare: null },
+            to_principal: Principal.fromText(userPrincipal),
+          }),
+          assetCanister.grant_permission({
+            permission: { ManagePermissions: null },
+            to_principal: Principal.fromText(userPrincipal),
+          }),
+          assetCanister.grant_permission({
+            permission: { Commit: null },
+            to_principal: Principal.fromText(userPrincipal),
+          })
+        ]);
       } catch {
         // not an asset canister, pass
       }
@@ -395,6 +396,112 @@ export function useCanisters() {
   const canisters = canistersData || []
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to fetch canisters') : ''
 
+  // Remove controller from canister
+  const removeController = async (
+    canisterDbId: string,
+    userPrincipal: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Find the IC canister ID from the database ID
+      const canister = canisters.find((c) => c.id === canisterDbId);
+      if (!canister) {
+        throw new Error('Canister not found');
+      }
+
+      // Resolve current authenticated principal to prevent self-removal
+      const auth = await getAuthClient();
+      const myPrincipal = auth
+        .getIdentity()
+        ?.getPrincipal?.()
+        ?.toText?.();
+
+      // Do not allow removing our own controller or the status-proxy canister
+      // Import dynamically to avoid circular deps
+      const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
+      if (userPrincipal === myPrincipal) {
+        return { success: false, error: "You can't remove yourself from controllers." };
+      }
+      if (userPrincipal === statusProxyCanisterId) {
+        return {
+          success: false,
+          error: "You can't remove the status-proxy canister from controllers.",
+        };
+      }
+
+      const managementCanister = await getManagementActor();
+
+      // Get current canister status
+      const status = await managementCanister.canister_status
+        .withOptions({
+          effectiveCanisterId: Principal.fromText(canister.icCanisterId),
+        })({
+          canister_id: Principal.fromText(canister.icCanisterId),
+        });
+
+      const currentControllers: Principal[] = status.settings.controllers;
+      const toRemove = Principal.fromText(userPrincipal);
+      const exists = currentControllers.find((p) => p.toText() === userPrincipal);
+      if (!exists) {
+        // Already removed
+        return { success: true };
+      }
+
+      const newControllers = currentControllers.filter(
+        (p) => p.toText() !== userPrincipal
+      );
+
+      // Update canister settings
+      await managementCanister.update_settings.withOptions({
+        effectiveCanisterId: Principal.fromText(canister.icCanisterId),
+      })({
+        canister_id: Principal.fromText(canister.icCanisterId),
+        settings: {
+          freezing_threshold: [],
+          controllers: [newControllers],
+          reserved_cycles_limit: [],
+          log_visibility: [],
+          wasm_memory_limit: [],
+          memory_allocation: [],
+          compute_allocation: [],
+          wasm_memory_threshold: [],
+        },
+        sender_canister_version: [],
+      });
+
+      // If asset canister, revoke permissions: Prepare, ManagePermissions, Commit
+      try {
+        const assetCanister = await getAssetStorageActor(canister.icCanisterId);
+        await Promise.all([
+          assetCanister.revoke_permission({
+            permission: { Prepare: null },
+            of_principal: toRemove,
+          }),
+          assetCanister.revoke_permission({
+            permission: { ManagePermissions: null },
+            of_principal: toRemove,
+          }),
+          assetCanister.revoke_permission({
+            permission: { Commit: null },
+            of_principal: toRemove,
+          }),
+        ]);
+      } catch {
+        // not an asset canister, pass
+      }
+
+      // Invalidate all canister-related cache after removing controller
+      queryClient.invalidateQueries({ queryKey: ['canisters'] });
+
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error:
+          err instanceof Error ? err.message : 'Failed to remove controller',
+      };
+    }
+  };
+
   return {
     canisters,
     isLoading,
@@ -403,6 +510,7 @@ export function useCanisters() {
     claimFreeCanister,
     deleteCanister,
     addController,
+    removeController,
     getCanister,
     refreshCanisters,
     creationMessage,
