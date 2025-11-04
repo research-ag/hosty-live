@@ -3,7 +3,9 @@ import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
 export interface CanisterInfo {
+  'alias' : [] | [string],
   'createdAt' : bigint,
+  'description' : [] | [string],
   'userIds' : Array<Principal>,
   'updatedAt' : bigint,
   'frontendUrl' : string,
@@ -27,7 +29,17 @@ export interface _SERVICE {
   'listCanisters' : ActorMethod<[], Array<CanisterInfo>>,
   'onCanisterDeployed' : ActorMethod<[Principal], undefined>,
   'registerCanister' : ActorMethod<[Principal], CanisterInfo>,
-  'updateCanisterFrontendUrl' : ActorMethod<[Principal, string], CanisterInfo>,
+  'updateCanister' : ActorMethod<
+    [
+      Principal,
+      {
+        'alias' : [] | [[] | [string]],
+        'description' : [] | [[] | [string]],
+        'frontendUrl' : [] | [string],
+      },
+    ],
+    CanisterInfo
+  >,
   'updateProfile' : ActorMethod<[{ 'username' : [] | [string] }], ProfileInfo>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;

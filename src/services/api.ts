@@ -160,7 +160,11 @@ export const customDomainApi = {
       }
       const result = await response.json();
       const backend = await getBackendActor();
-      await backend.updateCanisterFrontendUrl(Principal.fromText(canisterId), domain);
+      await backend.updateCanister(Principal.fromText(canisterId), {
+        alias: [],
+        description: [],
+        frontendUrl: [domain]
+      });
       return {
         success: true,
         requestId: result.id,
