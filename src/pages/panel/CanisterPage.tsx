@@ -35,6 +35,7 @@ import { Principal } from "@dfinity/principal";
 import { getStatusProxyActor, statusProxyCanisterId, } from "../../api/status-proxy";
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
+import { getAssetStorageActor } from "../../api/asset-storage";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -363,6 +364,15 @@ export function CanisterPage() {
       setIsImmutabilityActionLoading(true);
       const actor = await getStatusProxyActor();
       await actor.undoImmutability(Principal.fromText(icCanisterId));
+      const assetCanister = await getAssetStorageActor(icCanisterId);
+      try {
+        await assetCanister.grant_permission({
+          permission: { Commit: null },
+          to_principal: Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL),
+        });
+      } catch (_) {
+        // pass
+      }
       toast.success("Immutability undone", "Canister is mutable again.");
       setIsImmutableInDebugMode(false);
       await fetchCanister();
@@ -639,8 +649,8 @@ export function CanisterPage() {
                                 isSelf
                                   ? "You can't remove yourself"
                                   : isProxy
-                                  ? "You can't remove the status-proxy canister"
-                                  : "Remove controller"
+                                    ? "You can't remove the status-proxy canister"
+                                    : "Remove controller"
                               }
                             >
                               Remove
@@ -715,7 +725,7 @@ export function CanisterPage() {
                 variant="destructive"
                 onClick={() => setIsResetOpen(true)}
               >
-                <AlertCircle className="mr-2 h-4 w-4" />
+                <AlertCircle className="mr-2 h-4 w-4"/>
                 Reset canister
               </Button>
             </div>
