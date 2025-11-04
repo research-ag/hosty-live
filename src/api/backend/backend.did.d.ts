@@ -3,8 +3,8 @@ import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
 export interface CanisterInfo {
-  'userId' : Principal,
   'createdAt' : bigint,
+  'userIds' : Array<Principal>,
   'updatedAt' : bigint,
   'frontendUrl' : string,
   'deletedAt' : [] | [bigint],

@@ -11,6 +11,7 @@ import type { CanisterInfo as BackendCanisterInfo } from "../api/backend/backend
 import { init as assetStorageInit } from "../api/asset-storage/asset_storage.did";
 import { IDL } from "@dfinity/candid";
 import defaultPage from "../constants/default-page.ts";
+import { canister_status_result } from "../api/management/management.did";
 
 export type CanisterInfo = {
   id: string;
@@ -24,7 +25,7 @@ export type CanisterInfo = {
   updatedAt: string;
   deleted: boolean;
   deletedAt: string | undefined;
-  userId: string;
+  userIds: string[];
   cyclesBalance: string | undefined;
   cyclesBalanceRaw: string | undefined;
   wasmBinarySize: string | undefined;
@@ -55,7 +56,7 @@ function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInf
     updatedAt: updatedAt,
     deleted: !!deletedAt,
     deletedAt,
-    userId: b.userId.toText(),
+    userIds: b.userIds.map(p => p.toText()),
     cyclesBalance: undefined,
     cyclesBalanceRaw: undefined,
     wasmBinarySize: undefined,
@@ -503,11 +504,13 @@ export function useCanisters() {
   };
 
   const resetCanister = async (
-    canisterDbId: string
+    canisterId: string,
+    options: {
+      skipCheck?: boolean;
+    } = {},
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const canister = canisters.find((c) => c.id === canisterDbId);
-      if (!canister) {
+      if (!options.skipCheck && !canisters.find((c) => c.id === canisterId)) {
         throw new Error('Canister not found');
       }
 
@@ -519,9 +522,9 @@ export function useCanisters() {
 
       // 1) Reset controllers to defaults: current user + status-proxy canister
       await managementCanister.update_settings.withOptions({
-        effectiveCanisterId: Principal.fromText(canister.icCanisterId),
+        effectiveCanisterId: Principal.fromText(canisterId),
       })({
-        canister_id: Principal.fromText(canister.icCanisterId),
+        canister_id: Principal.fromText(canisterId),
         settings: {
           freezing_threshold: [],
           controllers: [[myPrincipal, Principal.fromText(statusProxyCanisterId)]],
@@ -537,7 +540,7 @@ export function useCanisters() {
 
       // 2) Reset asset canister permissions to defaults
       try {
-        const assetCanister = await getAssetStorageActor(canister.icCanisterId);
+        const assetCanister = await getAssetStorageActor(canisterId);
 
         // Reset permissions by taking ownership: removes all permissions except for the caller
         await assetCanister.take_ownership();
@@ -561,7 +564,7 @@ export function useCanisters() {
         // 3) Deploy default page to the canister
         await assetCanister.store({
           key: '/index.html',
-          content: new TextEncoder().encode(defaultPage(canister.icCanisterId)),
+          content: new TextEncoder().encode(defaultPage(canisterId)),
           sha256: [],
           content_type: 'text/html',
           content_encoding: 'identity',
@@ -573,14 +576,98 @@ export function useCanisters() {
 
       // Invalidate caches related to canisters
       queryClient.invalidateQueries({ queryKey: ['canisters'] });
-      queryClient.invalidateQueries({ queryKey: ['canister', canister.icCanisterId] });
-      await queryClient.invalidateQueries({ queryKey: ['canister', 'status', canister.icCanisterId] });
+      queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
+      await queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });
 
       return { success: true };
     } catch (err) {
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Failed to reset canister',
+      };
+    }
+  };
+
+  const importCanister = async (
+    canisterId: string,
+    opts: { reset: boolean }
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (canisters.find((c) => c.id === canisterId)) {
+        return { success: false, error: 'Already registered' };
+      }
+      const management = await getManagementActor();
+      // Validate controller
+      let canisterStatus: canister_status_result;
+      try {
+        canisterStatus = await management.canister_status.withOptions({
+          effectiveCanisterId: Principal.fromText(canisterId),
+        })({
+          canister_id: Principal.fromText(canisterId),
+        });
+      } catch (_) {
+        return {
+          success: false,
+          error: 'Canister does not exist or you are not a controller of this canister. Please add yourself as a controller first.'
+        };
+      }
+      // the fact that management canister returned data means that user is a controller
+
+      // const controllers: Principal[] = status.settings.controllers;
+      // const isController = controllers.some((p) => p.toText() === myPrincipal.toText());
+      // if (!isController) {
+      //   return { success: false, error: 'You are not a controller of this canister. Please add yourself as a controller first.' };
+      // }
+
+      // Register in backend
+      const backend = await getBackendActor();
+      await backend.registerCanister(Principal.fromText(canisterId));
+
+      if (opts.reset) {
+        await resetCanister(canisterId, { skipCheck: true });
+      } else {
+        // ensure that the status proxy canister is a controller and the build system has ability to commit assets
+        const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
+        let controllers = canisterStatus.settings.controllers;
+        if (!controllers.some((p) => p.toText() === statusProxyCanisterId)) {
+          await management.update_settings.withOptions({
+            effectiveCanisterId: Principal.fromText(canisterId),
+          })({
+            canister_id: Principal.fromText(canisterId),
+            settings: {
+              freezing_threshold: [],
+              controllers: [[...controllers, Principal.fromText(statusProxyCanisterId)]],
+              reserved_cycles_limit: [],
+              log_visibility: [],
+              wasm_memory_limit: [],
+              memory_allocation: [],
+              compute_allocation: [],
+              wasm_memory_threshold: [],
+            },
+            sender_canister_version: [],
+          });
+        }
+        try {
+          const assetCanister = await getAssetStorageActor(canisterId);
+          await assetCanister.grant_permission({
+            permission: { Commit: null },
+            to_principal: Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL),
+          });
+        } catch (_) {
+          // pass
+        }
+      }
+
+      // Refresh lists and specific caches
+      queryClient.invalidateQueries({ queryKey: ['canisters'] });
+      queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
+      queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });
+
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to import canister',
       };
     }
   };
@@ -601,5 +688,6 @@ export function useCanisters() {
       setCreationMessage('')
     },
     resetCanister,
+    importCanister,
   }
 }
