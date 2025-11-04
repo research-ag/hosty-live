@@ -522,6 +522,7 @@ export function CanisterPage() {
           <Button
             variant="outline"
             onClick={() => setIsTransferModalOpen(true)}
+            disabled={!principal || !canisterStatus.controllers?.includes(principal)}
             className="w-full sm:w-auto"
           >
             <UserCheck className="mr-2 h-4 w-4"/>
@@ -723,6 +724,7 @@ export function CanisterPage() {
             <div className="pt-2">
               <Button
                 variant="destructive"
+                disabled={!principal || !canisterStatus.controllers?.includes(principal)}
                 onClick={() => setIsResetOpen(true)}
               >
                 <AlertCircle className="mr-2 h-4 w-4"/>
