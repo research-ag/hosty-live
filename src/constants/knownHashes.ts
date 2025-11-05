@@ -27,9 +27,16 @@ const walletMap = sdkModuleHashes.reduce<Record<string, string[]>>(
 export const hostyBotModuleHash =
   "a29f0846ddf65e8a720826a9511b55017c452088f85c57b5ed99ff8510c07272";
 
+export const customAssetHash =
+  "ac918fb867b432655422c7fec1b21f5c084a9bc008487c9ac8472e0b3a3c0327";
+
 export const mapModuleHash = (hash: string) => {
   if (hash === hostyBotModuleHash) {
     return "hostybot-0.26.0";
+  }
+
+  if (hash === customAssetHash) {
+    return "asset canister custom";
   }
 
   if (assetMap[hash]) {

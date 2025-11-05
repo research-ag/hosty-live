@@ -724,4 +724,214 @@ export const sdkModuleHashes: Array<{
     walletModuleHash:
       "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
   },
+  {
+    version: "0.25.1-beta.1",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.25.1",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.26.0-beta.0",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.26.0-beta.1",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.26.0-beta.2",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.26.0",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.26.1-beta.0",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.26.1-beta.1",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.26.1",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.27.0-beta.0",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.27.0",
+    assetModuleHash:
+      "865eb25df5a6d857147e078bb33c727797957247f7af2635846d65c5397b36a6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.28.0-beta.0",
+    assetModuleHash:
+      "2f73b9e18b992f221a5fbab7fc59d840a9cbc461f7cfe875049f51354d23696c",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.28.0-beta.1",
+    assetModuleHash:
+      "2f73b9e18b992f221a5fbab7fc59d840a9cbc461f7cfe875049f51354d23696c",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.28.0-beta.2",
+    assetModuleHash:
+      "2f73b9e18b992f221a5fbab7fc59d840a9cbc461f7cfe875049f51354d23696c",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.28.0-beta.3",
+    assetModuleHash:
+      "2f73b9e18b992f221a5fbab7fc59d840a9cbc461f7cfe875049f51354d23696c",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.28.0-beta.3",
+    assetModuleHash:
+      "2f73b9e18b992f221a5fbab7fc59d840a9cbc461f7cfe875049f51354d23696c",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.28.0",
+    assetModuleHash:
+      "2f73b9e18b992f221a5fbab7fc59d840a9cbc461f7cfe875049f51354d23696c",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.0-beta.0",
+    assetModuleHash:
+      "f1036e852d2d27418d7b667a9783a38ba84271f5d9730380f1f20b1494d1da82",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.0-beta.1",
+    assetModuleHash:
+      "f1036e852d2d27418d7b667a9783a38ba84271f5d9730380f1f20b1494d1da82",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.0",
+    assetModuleHash:
+      "f1036e852d2d27418d7b667a9783a38ba84271f5d9730380f1f20b1494d1da82",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.1-beta.0",
+    assetModuleHash:
+      "4014793c83ae0ff2d851a0c4e62f289a114d36bc1826f5579f55a70ff3c70551",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.1-beta.1",
+    assetModuleHash:
+      "4014793c83ae0ff2d851a0c4e62f289a114d36bc1826f5579f55a70ff3c70551",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.1",
+    assetModuleHash:
+      "4014793c83ae0ff2d851a0c4e62f289a114d36bc1826f5579f55a70ff3c70551",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.1",
+    assetModuleHash:
+      "4014793c83ae0ff2d851a0c4e62f289a114d36bc1826f5579f55a70ff3c70551",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.2-beta.0",
+    assetModuleHash:
+      "423f20ee4e5daf8f76d6bb2b4a87440227f15b26cf874c132fd75d83e252c8f6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.29.2",
+    assetModuleHash:
+      "423f20ee4e5daf8f76d6bb2b4a87440227f15b26cf874c132fd75d83e252c8f6",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.30.0-beta.0",
+    assetModuleHash:
+      "b312a16c3179cf8384afa852e468c1333b7439d4c5a39f26df69b12320f629f8",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.30.0-beta.0",
+    assetModuleHash:
+      "b312a16c3179cf8384afa852e468c1333b7439d4c5a39f26df69b12320f629f8",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.30.0-beta.1",
+    assetModuleHash:
+      "b312a16c3179cf8384afa852e468c1333b7439d4c5a39f26df69b12320f629f8",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
+  {
+    version: "0.30.0-beta.2",
+    assetModuleHash:
+      "b312a16c3179cf8384afa852e468c1333b7439d4c5a39f26df69b12320f629f8",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  },
 ];
