@@ -464,7 +464,7 @@ export function CanistersPage() {
                   {getStatusIcon(canister.status)}
                   <div className="min-w-0 flex-1">
                     <CardTitle className="text-lg font-semibold truncate group-hover:text-primary transition-colors">
-                      {canister.name}
+                      {canister.alias}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground font-mono truncate mt-1">
                       {canister.icCanisterId}

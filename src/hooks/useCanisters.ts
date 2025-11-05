@@ -16,7 +16,8 @@ import { canister_status_result } from "../api/management/management.did";
 export type CanisterInfo = {
   id: string;
   icCanisterId: string;
-  name: string;
+  alias: string;
+  description: string | null;
   cycles: number;
   lastDeployment: string;
   status: 'active' | 'inactive';
@@ -47,7 +48,8 @@ function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInf
   return {
     id: icId, // No DB id from backend; use canister id
     icCanisterId: icId,
-    name: `Canister ${icId.slice(0, 5)}`,
+    alias: b.alias[0] || `Canister ${icId.slice(0, 5)}`,
+    description: b.description[0] || null,
     cycles: 0,
     lastDeployment: createdAt,
     status: 'active',

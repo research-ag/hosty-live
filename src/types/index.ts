@@ -1,25 +1,6 @@
-export interface Canister {
-  id: string
-  userId: string
-  icCanisterId: string
-  name: string
-  cycles: number
-  lastDeployment: string
-  status: 'active' | 'inactive'
-  frontendUrl?: string
-  createdAt: string
-  updatedAt: string
-  deleted: boolean
-  deletedAt?: string
-  cyclesBalance?: string
-  cyclesBalanceRaw?: string
-  wasmBinarySize?: string
-  moduleHash?: string
-  controllers?: string[]
-  _apiData?: ApiCanister
-  isAssetCanister?: boolean
-  isSystemController?: boolean
-}
+import { CanisterInfo } from "../hooks/useCanisters.ts";
+
+export type Canister = CanisterInfo
 
 export interface Deployment {
   id: string
