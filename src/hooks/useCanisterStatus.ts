@@ -142,7 +142,7 @@ export function useCanisterStatus(canisterId?: string) {
     try {
       if ((status?.module_hash?.length || 0) === 0) return undefined;
       const [module_hash] = status?.module_hash as [
-        Uint8Array<ArrayBufferLike> | number[]
+          Uint8Array<ArrayBufferLike> | number[]
       ];
       return arrayBufferToHex(module_hash);
     } catch {
@@ -175,5 +175,6 @@ export function useCanisterStatus(canisterId?: string) {
     controllers,
     isAssetCanister: isAssetCanisterResult,
     isSystemController,
+    pageViews: status?.query_stats.num_calls_total.toString(),
   };
 }

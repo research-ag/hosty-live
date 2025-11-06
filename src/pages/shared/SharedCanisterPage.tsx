@@ -140,6 +140,16 @@ export function SharedCanisterPage() {
                   </div>
                 </div>
               )}
+            {canisterStatus.pageViews !== undefined && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Page views
+                </label>
+                <p className="text-sm">
+                  {canisterStatus.pageViews}
+                </p>
+              </div>
+            )}
             {canisterStatus.isAssetCanister !== undefined && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
