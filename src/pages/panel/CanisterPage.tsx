@@ -14,9 +14,11 @@ import {
   Upload,
   UserCheck,
   Zap,
+  Pencil,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
+import { TextInputModal } from "../../components/ui/TextInputModal";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { Badge } from "../../components/ui/Badge";
 import { DeployModal } from "../../components/panel/DeployModal";
@@ -36,6 +38,7 @@ import { getStatusProxyActor, statusProxyCanisterId, } from "../../api/status-pr
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
 import { getAssetStorageActor } from "../../api/asset-storage";
+import { getBackendActor } from "../../api/backend";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -50,7 +53,6 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
 }
 
 function BurnInfo({ canisterId }: { canisterId: string }) {
-  const { principal } = useAuth();
   const { isCanisterStatusLoading, burnTcPerYear, yearsLeft } =
     useCanisterStatus(canisterId);
   if (isCanisterStatusLoading)
@@ -107,7 +109,7 @@ export function CanisterPage() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
   const [_, setCopied] = useState(false);
-  const [canister, setCanister] = useState<CanisterInfo>(null);
+  const [canister, setCanister] = useState<CanisterInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [deployError, setDeployError] = useState<string>("");
@@ -122,6 +124,8 @@ export function CanisterPage() {
     boolean | null
   >(null);
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+  const [isEditAliasOpen, setIsEditAliasOpen] = useState(false);
+  const [isEditDescriptionOpen, setIsEditDescriptionOpen] = useState(false);
   const { withdrawToCanister, balanceRaw, formatTC, refresh } =
     useTCycles(principal);
   // Remove controller confirm dialog state
@@ -456,6 +460,42 @@ export function CanisterPage() {
     }
   };
 
+  const handleUpdateAlias = async (newAlias: string) => {
+    if (!icCanisterId) return;
+    try {
+      const backend = await getBackendActor();
+      const payload : any = { alias: [], description: [], frontendUrl: [] };
+      const trimmed = (newAlias ?? '').trim();
+      payload.alias = trimmed === '' ? [[]] : [[trimmed]];
+      await backend.updateCanister(Principal.fromText(icCanisterId), payload);
+      toast.success("Alias updated");
+      await fetchCanister();
+      queryClient.invalidateQueries({ queryKey: ['canisters'] }).then();
+    } catch (e: any) {
+      console.error("Failed to update alias", e);
+      toast.error("Failed to update alias", e?.message || String(e));
+      throw e;
+    }
+  };
+
+  const handleUpdateDescription = async (newDesc: string) => {
+    if (!icCanisterId) return;
+    try {
+      const backend = await getBackendActor();
+      const payload : any = { alias: [], description: [], frontendUrl: [] };
+      const trimmed = (newDesc ?? '').trim();
+      payload.description = trimmed === '' ? [[]] : [[trimmed]];
+      await backend.updateCanister(Principal.fromText(icCanisterId), payload);
+      toast.success("Description updated");
+      await fetchCanister();
+      queryClient.invalidateQueries({ queryKey: ['canisters'] }).then();
+    } catch (e: any) {
+      console.error("Failed to update description", e);
+      toast.error("Failed to update description", e?.message || String(e));
+      throw e;
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
@@ -486,9 +526,20 @@ export function CanisterPage() {
       {/* General Info */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-6">
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold mb-2">
-            {canister.name || `${canister.icCanisterId?.slice(0, 5)}...`}
-          </h1>
+          <div className="flex items-center gap-2 mb-2">
+            <h1 className="text-2xl font-semibold">
+              {canister.alias}
+            </h1>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsEditAliasOpen(true)}
+              title="Edit alias"
+              className="h-7 w-7 p-0"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
           <div className="flex items-center space-x-2">
             {getStatusIcon(canister.status)}
             <Badge
@@ -549,6 +600,23 @@ export function CanisterPage() {
             <CardTitle>Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Description
+                </label>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsEditDescriptionOpen(true)}
+                  title="Edit description"
+                  className="h-6 w-6 p-0"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-sm font-mono">{canister.description || '-'}</p>
+            </div>
             {!!domainFromIcDomains && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
@@ -974,6 +1042,26 @@ export function CanisterPage() {
           }
         }}
         className="[&_.btn-confirm]:bg-destructive"
+      />
+
+      <TextInputModal
+        isOpen={isEditAliasOpen}
+        onClose={() => setIsEditAliasOpen(false)}
+        title="Enter canister alias"
+        label="Enter canister alias"
+        initialValue={canister.alias ?? ''}
+        submitText="Submit"
+        onSubmit={handleUpdateAlias}
+      />
+
+      <TextInputModal
+        isOpen={isEditDescriptionOpen}
+        onClose={() => setIsEditDescriptionOpen(false)}
+        title="Enter canister description"
+        label="Enter canister description"
+        initialValue={canister.description ?? ''}
+        submitText="Submit"
+        onSubmit={handleUpdateDescription}
       />
 
       {showMakeImmutableModal && (

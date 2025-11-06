@@ -6,6 +6,7 @@ import { SortButton } from "../../components/ui/SortButton";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { CreateCanisterModal } from "../../components/panel/CreateCanisterModal";
+import { ImportCanisterModal } from "../../components/panel/ImportCanisterModal";
 import { DeleteCanisterModal } from "../../components/panel/DeleteCanisterModal";
 import { useCanisters } from "../../hooks/useCanisters";
 import { useToast } from "../../hooks/useToast";
@@ -77,15 +78,18 @@ export function CanistersPage() {
     refreshCanisters,
     creationMessage,
     resetCreationStatus,
+    importCanister,
   } = useCanisters();
   const { toast } = useToast();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [canisterToDelete, setCanisterToDelete] = useState<Canister | null>(
     null
   );
   const [isCreating, setIsCreating] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [actionError, setActionError] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(initialPage);
@@ -201,6 +205,7 @@ export function CanistersPage() {
         "Your new canister is ready for deployment."
       );
       setIsCreateModalOpen(false);
+      await refreshCanisters();
     } else {
       toast.error(
         "Failed to create canister",
@@ -210,6 +215,32 @@ export function CanistersPage() {
     }
 
     setIsCreating(false);
+  };
+
+  const handleImportCanister = async (cid: string, opts: { reset: boolean }) => {
+    setIsImporting(true);
+    setActionError("");
+    try {
+      const res = await importCanister(cid, opts);
+      if (res.success) {
+        toast.success(
+          "Canister imported",
+          opts.reset ? "Registered and reset completed." : "Registered successfully."
+        );
+        setIsImportModalOpen(false);
+        await refreshCanisters();
+      } else {
+        const message = res.error || "Failed to import canister";
+        setActionError(message);
+        toast.error("Import failed", message);
+      }
+    } catch (e: any) {
+      const message = e?.message || String(e) || "Failed to import canister";
+      setActionError(message);
+      toast.error("Import failed", message);
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleDeleteCanister = async () => {
@@ -382,6 +413,13 @@ export function CanistersPage() {
             <Plus className="mr-2 h-4 w-4"/>
             Create Canister
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setIsImportModalOpen(true)}
+            className="w-full sm:w-auto"
+          >
+            Import Canister
+          </Button>
         </div>
       </div>
 
@@ -426,7 +464,7 @@ export function CanistersPage() {
                   {getStatusIcon(canister.status)}
                   <div className="min-w-0 flex-1">
                     <CardTitle className="text-lg font-semibold truncate group-hover:text-primary transition-colors">
-                      {canister.name}
+                      {canister.alias}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground font-mono truncate mt-1">
                       {canister.icCanisterId}
@@ -606,6 +644,17 @@ export function CanistersPage() {
         onCreateCanister={handleCreateCanister}
         isLoading={isCreating}
         statusMessage={creationMessage}
+        error={actionError}
+      />
+
+      <ImportCanisterModal
+        isOpen={isImportModalOpen}
+        onClose={() => {
+          setIsImportModalOpen(false);
+          setActionError("");
+        }}
+        onImport={handleImportCanister}
+        isWorking={isImporting}
         error={actionError}
       />
 

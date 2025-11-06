@@ -56,7 +56,7 @@ export async function createCanisterOnLedger() {
   return { canisterId: res.Ok.canister_id.toText(), blockId: res.Ok.block_id }
 }
 
-export function useTCycles(principal?: string) {
+export function useTCycles(principal: string | null = null) {
   const {
     data,
     isLoading,

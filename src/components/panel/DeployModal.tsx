@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Info, AlertTriangle, Zap, Server, Upload, Github } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
@@ -29,6 +29,46 @@ export function DeployModal({ isOpen, onClose, onDeploy, onDeployFromGit, canist
   const [isDeploying, setIsDeploying] = useState(false)
   const { toast } = useToast()
 
+  type PersistedDeployForm = {
+    method: DeploymentMethod
+    gitRepoUrl: string
+    branch: string
+    buildCommand: string
+    outputDir: string
+  }
+
+  const getLsKey = (canisterId: string) => `deploy_form:${canisterId}`
+
+  const persistForm = () => {
+    const canisterId = canister?.icCanisterId
+    if (!canisterId) return
+    const payload: PersistedDeployForm = {
+      method: deploymentMethod,
+      gitRepoUrl,
+      branch,
+      buildCommand,
+      outputDir,
+    }
+    try {
+      localStorage.setItem(getLsKey(canisterId), JSON.stringify(payload))
+    } catch {}
+  }
+
+  useEffect(() => {
+    const canisterId = canister?.icCanisterId
+    if (!isOpen || !canisterId) return
+    try {
+      const raw = localStorage.getItem(getLsKey(canisterId))
+      if (!raw) return
+      const data = JSON.parse(raw) as Partial<PersistedDeployForm>
+      if (data.method === 'zip' || data.method === 'git') setDeploymentMethod(data.method)
+      if (typeof data.gitRepoUrl === 'string') setGitRepoUrl(data.gitRepoUrl)
+      if (typeof data.branch === 'string') setBranch(data.branch)
+      if (typeof data.buildCommand === 'string') setBuildCommand(data.buildCommand)
+      if (typeof data.outputDir === 'string') setOutputDir(data.outputDir)
+    } catch {}
+  }, [isOpen, canister?.icCanisterId])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsDeploying(true)
@@ -49,6 +89,8 @@ export function DeployModal({ isOpen, onClose, onDeploy, onDeployFromGit, canist
       }
       
       if (!error) {
+        // Persist form values per canister on successful run
+        persistForm()
         onClose()
         // Reset form
         setFile(null)
