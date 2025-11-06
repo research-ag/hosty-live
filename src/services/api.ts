@@ -5,7 +5,7 @@ import { getAgent } from "../hooks/useInternetIdentity.ts";
 import { getBackendActor } from "../api/backend";
 import { isValidDomain } from "../utils/domains.ts";
 
-const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
+const API_BASE = `${import.meta.env.VITE_HOSTY_API_BASE || 'https://mrresearch.xyz/hosty-live-api'}`
 
 // Token storage keys
 const ACCESS_TOKEN_KEY = 'hosty_access_token'
@@ -84,7 +84,7 @@ export const authApi = {
     try {
       console.log('🔐 [authApi.authWithII] Authenticating with principal:', principal)
 
-      const response = await fetch(`${API_BASE}/auth-ii`, {
+      const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,18 +97,19 @@ export const authApi = {
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Network error' }))
         console.error('❌ [authApi.authWithII] Error response:', error)
-        return { success: false, error: error.error || `HTTP ${response.status}` }
+        return { success: false, error: (error && error.message) || `HTTP ${response.status}` }
       }
 
       const data = await response.json()
       console.log('✅ [authApi.authWithII] Success response:', data)
 
-      // Store tokens
-      if (data.success && data.accessToken && data.refreshToken) {
-        setAuthTokens(data.accessToken, data.refreshToken, principal)
+      // Expect AuthResponseDto { principal, accessToken, refreshToken }
+      if (data && data.accessToken && data.refreshToken) {
+        setAuthTokens(data.accessToken, data.refreshToken, data.principal || principal)
+        return { success: true, principal: data.principal || principal, accessToken: data.accessToken, refreshToken: data.refreshToken }
       }
 
-      return data
+      return { success: false, error: 'Invalid auth response' }
     } catch (err) {
       console.error('💥 [authApi.authWithII] Exception:', err)
       return {
@@ -230,7 +231,7 @@ export const deploymentsApi = {
         offset: offset.toString()
       })
 
-      const response = await fetch(`${API_BASE}/deployments-list?${params}`, {
+      const response = await fetch(`${API_BASE}/deployments?${params}`, {
         method: 'GET',
         headers,
       })
@@ -247,7 +248,7 @@ export const deploymentsApi = {
 
       const data = await response.json()
       console.log('✅ [deploymentsApi.listDeployments] Success response:', data)
-      return data // Return the edge function response directly
+      return { success: true, deployments: data.deployments || [], pagination: data.pagination }
     } catch (err) {
       console.error('💥 [deploymentsApi.listDeployments] Exception:', err)
       return {
@@ -265,7 +266,7 @@ export const deploymentsApi = {
       const headers = await getAuthHeaders()
       console.log('🔑 [deploymentsApi.getDeployment] Headers prepared')
 
-      const url = `${API_BASE}/deployment-get?id=${encodeURIComponent(deploymentId)}`
+      const url = `${API_BASE}/deployments/${encodeURIComponent(deploymentId)}`
       console.log('🌐 [deploymentsApi.getDeployment] URL:', url)
 
       const response = await fetch(url, {
@@ -285,15 +286,10 @@ export const deploymentsApi = {
       }
 
       const data = await response.json()
-      console.log('✅ [deploymentsApi.getDeployment] Success response:', {
-        success: data.success,
-        hasData: !!data.data,
-        hasDeployment: !!data.data?.deployment,
-        deploymentId: data.data?.deployment?.id,
-        fullResponse: data
-      })
+      console.log('✅ [deploymentsApi.getDeployment] Success response (raw):', data)
 
-      return data // Return the edge function response directly
+      // data is DeploymentResponseDto
+      return { success: true, deployment: data }
     } catch (err) {
       console.error('💥 [deploymentsApi.getDeployment] Exception:', err)
       return {
@@ -327,7 +323,7 @@ export const deploymentsApi = {
         formData.append('outputDir', data.outputDir)
       }
 
-      const response = await fetch(`${API_BASE}/upload-deployment`, {
+      const response = await fetch(`${API_BASE}/deployments/deploy-zip`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -343,7 +339,8 @@ export const deploymentsApi = {
       }
 
       const result = await response.json()
-      return result // Return the edge function response directly
+      // result is DeploymentResponseDto
+      return { success: true, deploymentId: result.id, deployment: result }
     } catch (err) {
       return {
         success: false,
@@ -367,7 +364,7 @@ export const deploymentsApi = {
         throw new Error('No active session')
       }
 
-      const response = await fetch(`${API_BASE}/upload-deployment-git`, {
+      const response = await fetch(`${API_BASE}/deployments/deploy-git`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -390,11 +387,50 @@ export const deploymentsApi = {
       }
 
       const result = await response.json()
-      return result // Return the edge function response directly
+      // result is DeploymentResponseDto
+      return { success: true, deploymentId: result.id, deployment: result }
     } catch (err) {
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Failed to upload deployment from Git'
+      }
+    }
+  },
+
+  // Upload deployment from URL (zip)
+  async uploadDeploymentFromUrl(data: {
+    canisterId: string;
+    zipUrl: string;
+    buildCommand?: string;
+    outputDir?: string;
+  }) {
+    try {
+      const headers = await getAuthHeaders()
+      const response = await fetch(`${API_BASE}/deployments/deploy-url`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          canisterId: data.canisterId,
+          zipUrl: data.zipUrl,
+          buildCommand: data.buildCommand,
+          outputDir: data.outputDir,
+        })
+      })
+
+      checkUnauthorized(response)
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Network error' }))
+        return { success: false, error: error.error || `HTTP ${response.status}` }
+      }
+
+      const result = await response.json()
+      // result is DeploymentResponseDto
+      return { success: true, deploymentId: result.id, deployment: result }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to upload deployment from URL'
       }
     }
   }

@@ -66,23 +66,50 @@ export interface ApiCanister {
   isSystemController?: boolean
 }
 
+export enum DeploymentStatus {
+  PENDING = 'PENDING',
+  BUILDING = 'BUILDING',
+  DEPLOYING = 'DEPLOYING',
+  SUCCESS = 'SUCCESS',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum SourceType {
+  ZIP = 'ZIP',
+  GIT = 'GIT',
+  URL = 'URL',
+}
+
 export interface ApiDeployment {
   id: string
-  canister_id: string
-  status: 'PENDING' | 'BUILDING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'DEPLOYING'
-  status_reason?: string
-  user_id: string
-  build_command: string
-  output_dir: string
-  duration_ms?: number
-  created_at: string
-  updated_at: string
-  build_service_job_id?: string
-  deployed_at?: string
-  build_logs?: string
-  source_git_repo?: string
-  source_type?: 'zip' | 'git'
-  git_branch?: string
+  principal: string
+  canisterId: string
+  status: DeploymentStatus | keyof typeof DeploymentStatus | string
+  statusReason?: string
+  buildCommand?: string
+  outputDir?: string
+  envVars?: Record<string, string>
+  sourceType: SourceType | keyof typeof SourceType | string
+  sourceZipUrl?: string
+  sourceGitRepo?: string
+  gitBranch?: string
+  buildServiceJobId?: string
+  buildLogs?: string
+  builtAssetsUrl?: string
+  durationMs?: number
+  deployedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DeploymentsListResponseDto {
+  deployments: ApiDeployment[]
+  pagination: {
+    limit: number
+    offset: number
+    hasMore: boolean
+  }
 }
 
 export type Response<T> = {

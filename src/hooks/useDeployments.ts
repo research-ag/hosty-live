@@ -4,23 +4,40 @@ import type { ApiDeployment } from '../types'
 
 // Transform API deployment to frontend format
 function transformApiDeployment(apiDeployment: ApiDeployment) {
+  // Normalize status to UI values
+  const rawStatus = (apiDeployment.status || '').toString().toUpperCase()
+  const status = (
+    rawStatus === 'SUCCESS' ? 'deployed' :
+    rawStatus === 'BUILDING' || rawStatus === 'DEPLOYING' ? 'building' :
+    rawStatus === 'FAILED' || rawStatus === 'CANCELLED' ? 'failed' :
+    'pending'
+  ) as 'pending' | 'building' | 'deployed' | 'failed'
+
+  // Map source type to legacy union
+  const rawSource = (apiDeployment.sourceType || '').toString().toUpperCase()
+  const sourceType = (
+    rawSource === 'GIT' ? 'git' :
+    rawSource === 'ZIP' ? 'zip' :
+    undefined
+  ) as 'zip' | 'git' | undefined
+
   return {
     id: apiDeployment.id,
-    canisterId: apiDeployment.canister_id,
-    status: apiDeployment.status.toLowerCase() as 'pending' | 'building' | 'deployed' | 'failed',
-    statusReason: apiDeployment.status_reason,
-    userId: apiDeployment.user_id,
-    buildCommand: apiDeployment.build_command,
-    outputDirectory: apiDeployment.output_dir,
-    duration: apiDeployment.duration_ms,
-    createdAt: apiDeployment.created_at,
-    updatedAt: apiDeployment.updated_at,
-    buildServiceJobId: apiDeployment.build_service_job_id,
-    deployedAt: apiDeployment.deployed_at,
-    buildLogs: apiDeployment.build_logs,
-    sourceGitRepo: apiDeployment.source_git_repo,
-    sourceType: apiDeployment.source_type,
-    gitBranch: apiDeployment.git_branch,
+    canisterId: apiDeployment.canisterId,
+    status,
+    statusReason: apiDeployment.statusReason,
+    userId: apiDeployment.principal,
+    buildCommand: apiDeployment.buildCommand || '',
+    outputDirectory: apiDeployment.outputDir || '',
+    duration: apiDeployment.durationMs,
+    createdAt: apiDeployment.createdAt,
+    updatedAt: apiDeployment.updatedAt,
+    buildServiceJobId: apiDeployment.buildServiceJobId,
+    deployedAt: apiDeployment.deployedAt,
+    buildLogs: apiDeployment.buildLogs,
+    sourceGitRepo: apiDeployment.sourceGitRepo,
+    sourceType,
+    gitBranch: apiDeployment.gitBranch,
     // Store additional API data
     _apiData: apiDeployment
   }
