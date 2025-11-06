@@ -10,6 +10,7 @@ import {
 } from "../../components/ui/Card";
 import { Modal } from "../../components/ui/Modal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
+import { BurnInfo } from "../components/BurnInfo";
 
 function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
   if (!cyclesBalanceRaw) return <>unknown</>;
@@ -114,6 +115,7 @@ export function SharedCanisterPage() {
                     <Zap className="h-3.5 w-3.5" />
                   </Button>
                 </div>
+                <BurnInfo canisterId={icCanisterId}/>
               </div>
             </div>
             {canisterStatus.controllers &&

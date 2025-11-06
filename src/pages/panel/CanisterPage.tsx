@@ -39,6 +39,7 @@ import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
 import { getAssetStorageActor } from "../../api/asset-storage";
 import { getBackendActor } from "../../api/backend";
+import { BurnInfo } from "../components/BurnInfo.tsx";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -50,32 +51,6 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
   } catch {
     return <>unknown</>;
   }
-}
-
-function BurnInfo({ canisterId }: { canisterId: string }) {
-  const { isCanisterStatusLoading, burnTcPerYear, yearsLeft } =
-    useCanisterStatus(canisterId);
-  if (isCanisterStatusLoading)
-    return <p className="text-xs text-muted-foreground">…</p>;
-  const formatNum = (n: number | undefined, precision: number) => {
-    if (n === undefined) return "unknown";
-    if (!isFinite(n)) return "∞";
-    return n.toFixed(precision);
-  };
-  return (
-    <div className="text-xs text-muted-foreground">
-      <div>
-        Burn rate:{" "}
-        {burnTcPerYear !== undefined
-          ? `${formatNum(burnTcPerYear, 4)} TC/year`
-          : "unknown"}
-      </div>
-      <div>
-        Years left:{" "}
-        {yearsLeft !== undefined ? formatNum(yearsLeft, 2) : "unknown"}
-      </div>
-    </div>
-  );
 }
 
 export function CanisterPage() {
