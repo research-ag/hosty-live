@@ -296,30 +296,4 @@ persistent actor class Backend() {
     };
   };
 
-  // tmp function
-  public shared ({ caller }) func submitRegisteredCanisters(canisters : [CanisterInfo]) : () {
-    assert Principal.equal(caller, CONSTANTS.BACKEND_PRINCIPAL);
-    for (ci in canisters.vals()) {
-      switch (getCanister_(ci.canisterId)) {
-        case (?(_, data)) {
-          data.frontendUrl := ci.frontendUrl;
-          data.updatedAt := ci.updatedAt;
-          data.deletedAt := ci.deletedAt;
-        };
-        case (null) {
-          addCanisterToStorage_({
-            canisterId = ci.canisterId;
-            var alias = ci.alias;
-            var description = ci.description;
-            var userIds = ci.userIds;
-            var frontendUrl = ci.frontendUrl;
-            createdAt = ci.createdAt;
-            var updatedAt = ci.updatedAt;
-            var deletedAt = ci.deletedAt;
-          });
-        };
-      };
-    };
-  };
-
 };
