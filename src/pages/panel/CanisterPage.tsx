@@ -9,12 +9,12 @@ import {
   Globe,
   LockKeyhole,
   LockKeyholeOpen,
+  Pencil,
   Settings,
   Share2,
   Upload,
   UserCheck,
   Zap,
-  Pencil,
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
@@ -290,7 +290,7 @@ export function CanisterPage() {
     try {
       setIsResetting(true);
       setResetError("");
-      const res = await resetCanister(canister.id);
+      const res = await resetCanister(canister.id, canister.userIds.map(ps => Principal.fromText(ps)));
       if (res.success) {
         toast.success("Canister reset", "The canister was reset to defaults.");
         setIsResetOpen(false);
@@ -464,7 +464,7 @@ export function CanisterPage() {
     if (!icCanisterId) return;
     try {
       const backend = await getBackendActor();
-      const payload : any = { alias: [], description: [], frontendUrl: [] };
+      const payload: any = { alias: [], description: [], frontendUrl: [] };
       const trimmed = (newAlias ?? '').trim();
       payload.alias = trimmed === '' ? [[]] : [[trimmed]];
       await backend.updateCanister(Principal.fromText(icCanisterId), payload);
@@ -482,7 +482,7 @@ export function CanisterPage() {
     if (!icCanisterId) return;
     try {
       const backend = await getBackendActor();
-      const payload : any = { alias: [], description: [], frontendUrl: [] };
+      const payload: any = { alias: [], description: [], frontendUrl: [] };
       const trimmed = (newDesc ?? '').trim();
       payload.description = trimmed === '' ? [[]] : [[trimmed]];
       await backend.updateCanister(Principal.fromText(icCanisterId), payload);
@@ -537,7 +537,7 @@ export function CanisterPage() {
               title="Edit alias"
               className="h-7 w-7 p-0"
             >
-              <Pencil className="h-4 w-4" />
+              <Pencil className="h-4 w-4"/>
             </Button>
           </div>
           <div className="flex items-center space-x-2">
@@ -612,7 +612,7 @@ export function CanisterPage() {
                   title="Edit description"
                   className="h-6 w-6 p-0"
                 >
-                  <Pencil className="h-3.5 w-3.5" />
+                  <Pencil className="h-3.5 w-3.5"/>
                 </Button>
               </div>
               <p className="text-sm font-mono">{canister.description || '-'}</p>

@@ -100,8 +100,9 @@ export function useCanisters() {
     canisterId: string,
     management: Awaited<ReturnType<typeof getManagementActor>>,
     wasmBinary: Uint8Array,
-    myPrincipal: Principal,
-    buildSystemPrincipal: Principal
+    userPrincipals: Principal[],
+    buildSystemPrincipal: Principal,
+    reinstall: boolean = false,
   ) => {
     // install asset canister
     await management.install_code.withOptions({
@@ -109,20 +110,20 @@ export function useCanisters() {
     })({
       arg: new Uint8Array(IDL.encode(assetStorageInit({ IDL }), [[]])),
       wasm_module: [...wasmBinary],
-      mode: { install: null },
+      mode: reinstall ? { reinstall: null } : { install: null },
       canister_id: Principal.fromText(canisterId),
       sender_canister_version: [],
     });
     const assetCanister = await getAssetStorageActor(canisterId);
     await Promise.all([
-      assetCanister.grant_permission({
+      ...userPrincipals.map(p => assetCanister.grant_permission({
         permission: { Prepare: null },
-        to_principal: myPrincipal,
-      }),
-      assetCanister.grant_permission({
+        to_principal: p,
+      })),
+      ...userPrincipals.map(p => assetCanister.grant_permission({
         permission: { Commit: null },
-        to_principal: myPrincipal,
-      }),
+        to_principal: p,
+      })),
       assetCanister.grant_permission({
         permission: { Commit: null },
         to_principal: buildSystemPrincipal,
@@ -157,7 +158,7 @@ export function useCanisters() {
       // Step 2: preparing via backend
       setCreationMessage('Preparing your canister...')
       try {
-        await performInitialCanisterSetup(canisterId, management, wasmBinary, myPrincipal, buildSystemPrincipal);
+        await performInitialCanisterSetup(canisterId, management, wasmBinary, [myPrincipal], buildSystemPrincipal);
       } catch (err) {
         // TODO implement a way to setup canister again later. We need to register it anyway
         console.error(err);
@@ -201,7 +202,7 @@ export function useCanisters() {
       if ("ok" in result) {
         const canisterInfo = result['ok'];
         try {
-          await performInitialCanisterSetup(canisterInfo.canisterId.toText(), management, wasmBinary, myPrincipal, buildSystemPrincipal);
+          await performInitialCanisterSetup(canisterInfo.canisterId.toText(), management, wasmBinary, [myPrincipal], buildSystemPrincipal);
         } catch (err) {
           // TODO implement a way to setup canister again later
           console.error(err);
@@ -507,6 +508,7 @@ export function useCanisters() {
 
   const resetCanister = async (
     canisterId: string,
+    canisterOwners: Principal[],
     options: {
       skipCheck?: boolean;
     } = {},
@@ -516,9 +518,12 @@ export function useCanisters() {
         throw new Error('Canister not found');
       }
 
+      const response = await fetch("/assetstorage.wasm.gz");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+      }
+      const wasmBinary = new Uint8Array(await response.arrayBuffer())
       const managementCanister = await getManagementActor();
-      const auth = await getAuthClient();
-      const myPrincipal = auth.getIdentity().getPrincipal();
       const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
       const buildSystemPrincipal = Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL);
 
@@ -529,7 +534,7 @@ export function useCanisters() {
         canister_id: Principal.fromText(canisterId),
         settings: {
           freezing_threshold: [],
-          controllers: [[myPrincipal, Principal.fromText(statusProxyCanisterId)]],
+          controllers: [[...canisterOwners, Principal.fromText(statusProxyCanisterId)]],
           reserved_cycles_limit: [],
           log_visibility: [],
           wasm_memory_limit: [],
@@ -539,54 +544,18 @@ export function useCanisters() {
         },
         sender_canister_version: [],
       });
-
-      // 2) Reset asset canister permissions to defaults
-      try {
-        const assetCanister = await getAssetStorageActor(canisterId);
-
-        // Reset permissions by taking ownership: removes all permissions except for the caller
-        await assetCanister.take_ownership();
-
-        // Then grant the default ones (idempotent)
-        await Promise.all([
-          assetCanister.grant_permission({
-            permission: { Prepare: null },
-            to_principal: myPrincipal,
-          }),
-          assetCanister.grant_permission({
-            permission: { Commit: null },
-            to_principal: myPrincipal,
-          }),
-          assetCanister.grant_permission({
-            permission: { Commit: null },
-            to_principal: buildSystemPrincipal,
-          }),
-        ]);
-
-        // 3) Deploy default page to the canister
-        await assetCanister.store({
-          key: '/index.html',
-          content: new TextEncoder().encode(defaultPage(canisterId)),
-          sha256: [],
-          content_type: 'text/html',
-          content_encoding: 'identity',
-        });
-      } catch (e) {
-        // Not an asset canister or permissions API unavailable; continue
-        console.warn('[resetCanister] Asset canister step skipped:', e);
-      }
-
-      // Invalidate caches related to canisters
-      queryClient.invalidateQueries({ queryKey: ['canisters'] });
-      queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
-      await queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });
-
+      await performInitialCanisterSetup(canisterId, managementCanister, wasmBinary, canisterOwners, buildSystemPrincipal, true);
       return { success: true };
     } catch (err) {
+      console.error(err);
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Failed to reset canister',
       };
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['canisters'] });
+      queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
+      await queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });
     }
   };
 
@@ -623,14 +592,14 @@ export function useCanisters() {
 
       // Register in backend
       const backend = await getBackendActor();
-      await backend.registerCanister(Principal.fromText(canisterId));
+      const canisterInfo = await backend.registerCanister(Principal.fromText(canisterId));
 
       if (opts.reset) {
-        await resetCanister(canisterId, { skipCheck: true });
+        await resetCanister(canisterId, canisterInfo.userIds, { skipCheck: true });
       } else {
         // ensure that the status proxy canister is a controller and the build system has ability to commit assets
         const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
-        let controllers = canisterStatus.settings.controllers;
+        const controllers = canisterStatus.settings.controllers;
         if (!controllers.some((p) => p.toText() === statusProxyCanisterId)) {
           await management.update_settings.withOptions({
             effectiveCanisterId: Principal.fromText(canisterId),
