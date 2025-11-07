@@ -165,7 +165,7 @@ export function CanistersPage() {
       newDirection = sortDirection === "asc" ? "desc" : "asc";
     } else {
       newDirection =
-        field === "createdAt" || field === "lastDeployment" ? "desc" : "asc";
+        field === "createdAt" || field === "deployedAt" ? "desc" : "asc";
     }
 
     setSortField(field);
@@ -274,7 +274,7 @@ export function CanistersPage() {
     try {
       const result = await claimFreeCanister();
       if (result.success) {
-        toast.success("Success!", `Free canister created: ${result.data?.icCanisterId}`);
+        toast.success("Success!", `Free canister created: ${result.data?.id}`);
         // Refresh canisters list and profile
         await refreshCanisters();
         try {
@@ -430,9 +430,9 @@ export function CanistersPage() {
         </div>
         <SortButton
           label="Name"
-          active={sortField === "name"}
+          active={sortField === "alias"}
           direction={sortDirection}
-          onClick={() => handleSort("name")}
+          onClick={() => handleSort("alias")}
         />
         <SortButton
           label="Created At"
@@ -442,9 +442,9 @@ export function CanistersPage() {
         />
         <SortButton
           label="Last Deployment"
-          active={sortField === "lastDeployment"}
+          active={sortField === "deployedAt"}
           direction={sortDirection}
-          onClick={() => handleSort("lastDeployment")}
+          onClick={() => handleSort("deployedAt")}
         />
       </div>
 
@@ -454,10 +454,10 @@ export function CanistersPage() {
           <Card
             key={canister.id}
             className="relative group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20 h-full flex flex-col"
-            onClick={() => navigate(`/panel/canister/${canister.icCanisterId}`)}
+            onClick={() => navigate(`/panel/canister/${canister.id}`)}
           >
             {/* Control Status Indicator */}
-            <NotControlledIndicator canisterId={canister.icCanisterId}/>
+            <NotControlledIndicator canisterId={canister.id}/>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -467,7 +467,7 @@ export function CanistersPage() {
                       {canister.alias}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground font-mono truncate mt-1">
-                      {canister.icCanisterId}
+                      {canister.id}
                     </p>
                   </div>
                 </div>
@@ -480,7 +480,7 @@ export function CanistersPage() {
                   {canister.description}
                 </p>
               )}
-              <div className="mt-auto" />
+              <div className="mt-auto"/>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">
@@ -488,14 +488,14 @@ export function CanistersPage() {
                   </p>
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-primary">
-                      <CyclesCell canisterId={canister.icCanisterId}/>
+                      <CyclesCell canisterId={canister.id}/>
                     </p>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setTopUpCanisterId(canister.icCanisterId);
+                        setTopUpCanisterId(canister.id);
                         setIsTopUpModalOpen(true);
                       }}
                       title="Top up"
@@ -522,12 +522,12 @@ export function CanistersPage() {
                 </div>
               </div>
 
-              <div>
+              {canister.deployedAt && (<div>
                 <p className="text-muted-foreground text-xs font-medium mb-1">
                   Last Deployment
                 </p>
                 <p className="text-sm">
-                  {new Date(canister.lastDeployment).toLocaleDateString(
+                  {new Date(canister.deployedAt).toLocaleDateString(
                     undefined,
                     {
                       year: "numeric",
@@ -538,7 +538,7 @@ export function CanistersPage() {
                     }
                   )}
                 </p>
-              </div>
+              </div>)}
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div className="flex items-center gap-2">
                   <Button
@@ -546,7 +546,7 @@ export function CanistersPage() {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/panel/canister/${canister.icCanisterId}`);
+                      navigate(`/panel/canister/${canister.id}`);
                     }}
                     className="flex items-center gap-1 text-xs hover:bg-primary/10"
                   >

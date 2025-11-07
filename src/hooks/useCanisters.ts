@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { ApiCanister, Response } from '../types'
+import { Response } from '../types'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
 import { Principal } from "@dfinity/principal";
@@ -15,16 +15,13 @@ import { canister_status_result } from "../api/management/management.did";
 
 export type CanisterInfo = {
   id: string;
-  icCanisterId: string;
   alias: string;
   description: string | null;
   cycles: number;
-  lastDeployment: string;
   status: 'active' | 'inactive';
   frontendUrl: string;
   createdAt: string;
-  updatedAt: string;
-  deleted: boolean;
+  deployedAt: string | undefined;
   deletedAt: string | undefined;
   userIds: string[];
   cyclesBalance: string | undefined;
@@ -33,30 +30,27 @@ export type CanisterInfo = {
   moduleHash: string | undefined;
   controllers: string[] | undefined;
   isAssetCanister: boolean | undefined;
-  isSystemController: boolean | undefined;
-  _apiData?: ApiCanister;
 }
 
 // Transform Backend canister to frontend format
 function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInfo {
   const icId = b.canisterId.toText();
   const createdAt = new Date(Number(b.createdAt / 1_000_000n)).toISOString();
-  const updatedAt = new Date(Number(b.updatedAt / 1_000_000n)).toISOString();
+  const deployedAt = b.deployedAt.length
+    ? new Date(Number(b.deployedAt[0] / 1_000_000n)).toISOString()
+    : undefined;
   const deletedAt = b.deletedAt.length
     ? new Date(Number(b.deletedAt[0] / 1_000_000n)).toISOString()
     : undefined;
   return {
-    id: icId, // No DB id from backend; use canister id
-    icCanisterId: icId,
+    id: icId,
     alias: b.alias[0] || `Canister ${icId.slice(0, 5)}`,
     description: b.description[0] || null,
     cycles: 0,
-    lastDeployment: updatedAt,
+    deployedAt,
     status: 'active',
     frontendUrl: b.frontendUrl,
     createdAt: createdAt,
-    updatedAt: updatedAt,
-    deleted: !!deletedAt,
     deletedAt,
     userIds: b.userIds.map(p => p.toText()),
     cyclesBalance: undefined,
@@ -65,8 +59,6 @@ function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInf
     moduleHash: undefined,
     controllers: undefined,
     isAssetCanister: undefined,
-    isSystemController: undefined,
-    _apiData: undefined,
   }
 }
 
@@ -235,12 +227,12 @@ export function useCanisters() {
       }
 
       const backend = await getBackendActor();
-      await backend.deleteCanister(Principal.fromText(canister.icCanisterId));
+      await backend.deleteCanister(Principal.fromText(canister.id));
       return { canisterDbId }
     },
     onSuccess: ({ canisterDbId }) => {
       // Optimistically remove from cache
-      queryClient.setQueryData(['canisters'], (oldData) => {
+      queryClient.setQueryData(['canisters'], (oldData: CanisterInfo[]) => {
         if (!oldData) return oldData
         return oldData.filter((c) => c.id !== canisterDbId)
       })
@@ -255,7 +247,7 @@ export function useCanisters() {
       console.log('🔍 [useCanisters.getCanister] Getting canister by IC ID:', icCanisterId)
 
       // Try to get from cache first
-      const cachedCanister = canisters?.find(c => c.icCanisterId === icCanisterId)
+      const cachedCanister = canisters?.find(c => c.id === icCanisterId)
       if (!skipCache && cachedCanister) {
         console.log('💾 [useCanisters.getCanister] Found in cache:', cachedCanister)
         return { success: true, data: cachedCanister }
@@ -337,9 +329,9 @@ export function useCanisters() {
       // Get current canister status
       const status = await managementCanister.canister_status
         .withOptions({
-          effectiveCanisterId: Principal.fromText(canister.icCanisterId)
+          effectiveCanisterId: Principal.fromText(canister.id)
         })({
-          canister_id: Principal.fromText(canister.icCanisterId),
+          canister_id: Principal.fromText(canister.id),
         });
       if (status.settings.controllers.find(p => p.toText() === userPrincipal)) {
         return { success: true };
@@ -347,9 +339,9 @@ export function useCanisters() {
 
       // Update canister settings
       await managementCanister.update_settings.withOptions({
-        effectiveCanisterId: Principal.fromText(canister.icCanisterId)
+        effectiveCanisterId: Principal.fromText(canister.id)
       })({
-        canister_id: Principal.fromText(canister.icCanisterId),
+        canister_id: Principal.fromText(canister.id),
         settings: {
           freezing_threshold: [],
           controllers: [[...status.settings.controllers, Principal.fromText(userPrincipal)]],
@@ -365,7 +357,7 @@ export function useCanisters() {
 
       // If asset canister, grant all permissions: Prepare, ManagePermissions, Commit
       try {
-        const assetCanister = await getAssetStorageActor(canister.icCanisterId);
+        const assetCanister = await getAssetStorageActor(canister.id);
         await Promise.all([
           assetCanister.grant_permission({
             permission: { Prepare: null },
@@ -437,9 +429,9 @@ export function useCanisters() {
       // Get current canister status
       const status = await managementCanister.canister_status
         .withOptions({
-          effectiveCanisterId: Principal.fromText(canister.icCanisterId),
+          effectiveCanisterId: Principal.fromText(canister.id),
         })({
-          canister_id: Principal.fromText(canister.icCanisterId),
+          canister_id: Principal.fromText(canister.id),
         });
 
       const currentControllers: Principal[] = status.settings.controllers;
@@ -456,9 +448,9 @@ export function useCanisters() {
 
       // Update canister settings
       await managementCanister.update_settings.withOptions({
-        effectiveCanisterId: Principal.fromText(canister.icCanisterId),
+        effectiveCanisterId: Principal.fromText(canister.id),
       })({
-        canister_id: Principal.fromText(canister.icCanisterId),
+        canister_id: Principal.fromText(canister.id),
         settings: {
           freezing_threshold: [],
           controllers: [newControllers],
@@ -474,7 +466,7 @@ export function useCanisters() {
 
       // If asset canister, revoke permissions: Prepare, ManagePermissions, Commit
       try {
-        const assetCanister = await getAssetStorageActor(canister.icCanisterId);
+        const assetCanister = await getAssetStorageActor(canister.id);
         await Promise.all([
           assetCanister.revoke_permission({
             permission: { Prepare: null },

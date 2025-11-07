@@ -1,5 +1,5 @@
 import * as React from "react"
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react"
+import { AlertCircle, AlertTriangle, CheckCircle, Info, X } from "lucide-react"
 import { cn } from "../../lib/utils"
 import { Button } from "./Button"
 
@@ -31,7 +31,7 @@ const toastVariants = {
   }
 }
 
-export function Toast({ id, title, description, type = 'info', onClose }: ToastProps) {
+export function Toast({ title, description, type = 'info', onClose }: ToastProps) {
   const { icon: Icon, className } = toastVariants[type]
 
   return (
@@ -43,7 +43,7 @@ export function Toast({ id, title, description, type = 'info', onClose }: ToastP
       )}
       role="alert"
     >
-      <Icon className="h-5 w-5 shrink-0" />
+      <Icon className="h-5 w-5 shrink-0"/>
       <div className="flex-1 space-y-1">
         {title && (
           <div className="text-sm font-semibold">{title}</div>
@@ -59,7 +59,7 @@ export function Toast({ id, title, description, type = 'info', onClose }: ToastP
           className="h-6 w-6 shrink-0 opacity-70 hover:opacity-100"
           onClick={onClose}
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4"/>
         </Button>
       )}
     </div>

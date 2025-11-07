@@ -63,17 +63,17 @@ export function CustomDomainModal({
   const { domainFromIcDomains } =
     customDomainApiV2.fetchDomainFromIcDomains.useQuery(
       {
-        canisterId: canister?.icCanisterId ?? "",
+        canisterId: canister?.id ?? "",
       },
-      { enabled: !!canister?.icCanisterId }
+      { enabled: !!canister?.id }
     );
 
   const { domainCheckResult, domainCheckResultIsLoading } =
     customDomainApiV2.checkCustomDomain.useQuery(
       {
-        canisterId: canister?.icCanisterId ?? "",
+        canisterId: canister?.id ?? "",
       },
-      { enabled: !!canister?.icCanisterId && !!domainFromIcDomains }
+      { enabled: !!canister?.id && !!domainFromIcDomains }
     );
 
   const {
@@ -94,7 +94,7 @@ export function CustomDomainModal({
   } = customDomainApiV2.validateCanisterIdRecord.useQuery(
     {
       domain: domain,
-      expectedCanisterId: canister?.icCanisterId ?? "",
+      expectedCanisterId: canister?.id ?? "",
     },
     { enabled: false }
   );
@@ -117,7 +117,7 @@ export function CustomDomainModal({
   } = customDomainApiV2.checkNamecheapDns.useQuery(
     {
       domain: domain,
-      expectedCanisterId: canister?.icCanisterId ?? "",
+      expectedCanisterId: canister?.id ?? "",
     },
     { enabled: false }
   );
@@ -187,11 +187,11 @@ export function CustomDomainModal({
       setShowDnsCheck(false);
 
       // Fetch current domain
-      if (canister?.icCanisterId) {
+      if (canister?.id) {
         fetchCurrentDomain();
       }
     }
-  }, [isOpen, canister?.icCanisterId]);
+  }, [isOpen, canister?.id]);
 
   useEffect(() => {
     setDomain(domainFromIcDomains ?? "");
@@ -204,12 +204,12 @@ export function CustomDomainModal({
   }, [domain]);
 
   const fetchCurrentDomain = async () => {
-    if (!canister?.icCanisterId) return;
+    if (!canister?.id) return;
 
     setIsLoadingInitial(true);
     try {
       const currentDomain = await customDomainApi.getCurrentDomain(
-        canister.icCanisterId
+        canister.id
       );
       if (currentDomain) {
         setRegisterDomain(currentDomain);
@@ -241,7 +241,7 @@ export function CustomDomainModal({
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (
-      !canister?.icCanisterId ||
+      !canister?.id ||
       !registerDomain ||
       !isValidDomain(registerDomain)
     )
@@ -265,7 +265,7 @@ export function CustomDomainModal({
         }),
         customDomainApiV2.validateCanisterIdRecord.fetch(queryClient, {
           domain: registerDomain,
-          expectedCanisterId: canister.icCanisterId,
+          expectedCanisterId: canister.id,
         }),
         customDomainApiV2.validateAcmeChallengeRecord.fetch(queryClient, {
           domain: registerDomain,
@@ -293,7 +293,7 @@ export function CustomDomainModal({
       setDnsSuccess(true);
 
       const result = await customDomainApi.addDomain(
-        canister.icCanisterId,
+        canister.id,
         registerDomain,
         isCheckStatus
       );
@@ -305,17 +305,17 @@ export function CustomDomainModal({
         queryKey: [
           "canister-id-record-validation-res",
           registerDomain,
-          canister.icCanisterId,
+          canister.id,
         ],
       });
       queryClient.invalidateQueries({
         queryKey: ["acme-challenge-record-validation-res", registerDomain],
       });
       queryClient.invalidateQueries({
-        queryKey: ["domain-from-ic-domains", canister.icCanisterId],
+        queryKey: ["domain-from-ic-domains", canister.id],
       });
       queryClient.invalidateQueries({
-        queryKey: ["domain-check-result", canister.icCanisterId],
+        queryKey: ["domain-check-result", canister.id],
       });
 
       if (result.success && result.requestId) {
@@ -350,7 +350,7 @@ export function CustomDomainModal({
   const displayDomain = domain || "<domain>";
 
   const getDnsRecords = () => {
-    const displayCanisterId = canister?.icCanisterId || "<canister-id>";
+    const displayCanisterId = canister?.id || "<canister-id>";
 
     const { isApex, subdomain } = getDomainParts(domain);
 
@@ -544,7 +544,7 @@ export function CustomDomainModal({
                         <div className="flex items-center w-full gap-1">
                           <div
                             className={`flex-1 font-mono text-xs break-all ${
-                              !domain || !canister?.icCanisterId
+                              !domain || !canister?.id
                                 ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1 py-0.5 rounded"
                                 : ""
                             }`}

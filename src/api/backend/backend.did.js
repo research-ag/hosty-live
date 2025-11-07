@@ -1,10 +1,10 @@
 export const idlFactory = ({ IDL }) => {
   const CanisterInfo = IDL.Record({
     'alias' : IDL.Opt(IDL.Text),
+    'deployedAt' : IDL.Opt(IDL.Nat64),
     'createdAt' : IDL.Nat64,
     'description' : IDL.Opt(IDL.Text),
     'userIds' : IDL.Vec(IDL.Principal),
-    'updatedAt' : IDL.Nat64,
     'frontendUrl' : IDL.Text,
     'deletedAt' : IDL.Opt(IDL.Nat64),
     'canisterId' : IDL.Principal,

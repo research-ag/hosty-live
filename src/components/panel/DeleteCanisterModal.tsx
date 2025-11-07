@@ -36,7 +36,7 @@ export function DeleteCanisterModal({
         )}
         
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete canister <strong>{canister?.icCanisterId}</strong>? 
+          Are you sure you want to delete canister <strong>{canister?.id}</strong>? 
           This action cannot be undone.
         </p>
         <div className="flex justify-end space-x-3">

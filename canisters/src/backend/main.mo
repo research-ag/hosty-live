@@ -27,7 +27,7 @@ persistent actor class Backend() {
     var userIds : [Principal];
     var frontendUrl : Text;
     createdAt : Nat64;
-    var updatedAt : Nat64;
+    var deployedAt : ?Nat64;
     var deletedAt : ?Nat64;
   };
 
@@ -67,7 +67,7 @@ persistent actor class Backend() {
     userIds : [Principal];
     frontendUrl : Text;
     createdAt : Nat64;
-    updatedAt : Nat64;
+    deployedAt : ?Nat64;
     deletedAt : ?Nat64;
   };
   func freezeCanisterData_(cd : CanisterData) : CanisterInfo = {
@@ -77,7 +77,7 @@ persistent actor class Backend() {
     userIds = cd.userIds;
     frontendUrl = cd.frontendUrl;
     createdAt = cd.createdAt;
-    updatedAt = cd.updatedAt;
+    deployedAt = cd.deployedAt;
     deletedAt = cd.deletedAt;
   };
 
@@ -183,7 +183,6 @@ persistent actor class Backend() {
     let data = switch (existing) {
       case (?(canisterIndex, canisterData)) {
         canisterData.userIds := Array.concat(canisterData.userIds, [caller]);
-        canisterData.updatedAt := Prim.time();
         let userCanisters = switch (Map.get(userCanistersMap, Principal.compare, caller)) {
           case (?list) list;
           case (null) {
@@ -203,7 +202,7 @@ persistent actor class Backend() {
           var userIds = [caller];
           var frontendUrl = "https://" # Principal.toText(cid) # ".icp0.io/";
           createdAt = Prim.time();
-          var updatedAt = Prim.time();
+          var deployedAt = null;
           var deletedAt = null;
         };
         addCanisterToStorage_(canisterData);
@@ -223,7 +222,7 @@ persistent actor class Backend() {
       throw Error.reject("Permission denied");
     };
     let ?(_, canisterData) = getCanister_(cid) else throw Error.reject("Not found");
-    canisterData.updatedAt := Prim.time();
+    canisterData.deployedAt := ?Prim.time();
   };
 
   public shared ({ caller }) func updateCanister(cid : Principal, updates : { alias : ??Text; description : ??Text; frontendUrl : ?Text }) : async CanisterInfo {
@@ -246,7 +245,6 @@ persistent actor class Backend() {
       case (?frontendUrl) canisterData.frontendUrl := frontendUrl;
       case (null) {};
     };
-    canisterData.updatedAt := Prim.time();
     freezeCanisterData_(canisterData);
   };
 
@@ -286,7 +284,7 @@ persistent actor class Backend() {
         var userIds = [caller];
         var frontendUrl = "https://" # Principal.toText(canister_id) # ".icp0.io/";
         createdAt = Prim.time();
-        var updatedAt = Prim.time();
+        var deployedAt = null;
         var deletedAt = null;
       };
       addCanisterToStorage_(canisterData);

@@ -1,30 +1,40 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, ChevronLeft, ChevronRight, Zap, Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, Upload, Github } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Eye,
+  Github,
+  RefreshCw,
+  Upload,
+  XCircle,
+  Zap
+} from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { SortButton } from '../../components/ui/SortButton'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { useDeployments } from '../../hooks/useDeployments'
-import { useToast } from '../../hooks/useToast'
 
 export function DeploymentsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  
+
   // Read initial state from URL parameters
   const initialPage = parseInt(searchParams.get('page') || '1', 10)
   const initialSortField = searchParams.get('sortBy') || 'createdAt'
   const initialSortDirection = (searchParams.get('sortDirection') as 'asc' | 'desc') || 'desc'
-  
-  const { 
-    deployments, 
-    isLoading, 
-    error, 
-    refreshDeployments 
+
+  const {
+    deployments,
+    isLoading,
+    error,
+    refreshDeployments
   } = useDeployments()
-  const { toast } = useToast()
-  
+
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [currentPage, setCurrentPage] = useState(initialPage)
   const [sortField, setSortField] = useState(initialSortField)
@@ -39,7 +49,7 @@ export function DeploymentsPage() {
     if (page !== 1) params.set('page', page.toString())
     if (sortBy !== 'createdAt') params.set('sortBy', sortBy)
     if (direction !== 'desc') params.set('sortDirection', direction)
-    
+
     setSearchParams(params)
   }
 
@@ -59,7 +69,7 @@ export function DeploymentsPage() {
     } else {
       newDirection = 'asc'
     }
-    
+
     setSortField(field)
     setSortDirection(newDirection)
     setCurrentPage(1) // Reset to first page when sorting changes
@@ -74,7 +84,7 @@ export function DeploymentsPage() {
   const sortedDeployments = [...deployments].sort((a, b) => {
     const aValue = a[sortField]
     const bValue = b[sortField]
-    
+
     if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
     if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
     return 0
@@ -92,22 +102,22 @@ export function DeploymentsPage() {
       deployed: 'success',
       failed: 'destructive'
     } as const
-    
+
     return <Badge variant={variants[status]}>{status}</Badge>
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'deployed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+        return <CheckCircle className="h-4 w-4 text-green-500"/>
       case 'building':
-        return <Clock className="h-4 w-4 text-blue-500 animate-pulse" />
+        return <Clock className="h-4 w-4 text-blue-500 animate-pulse"/>
       case 'failed':
-        return <XCircle className="h-4 w-4 text-red-500" />
+        return <XCircle className="h-4 w-4 text-red-500"/>
       case 'pending':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />
+        return <AlertCircle className="h-4 w-4 text-yellow-500"/>
       default:
-        return <Zap className="h-4 w-4" />
+        return <Zap className="h-4 w-4"/>
     }
   }
 
@@ -119,10 +129,10 @@ export function DeploymentsPage() {
   const getSourceIcon = (sourceType?: string) => {
     switch (sourceType) {
       case 'git':
-        return <Github className="h-4 w-4 text-blue-500" />
+        return <Github className="h-4 w-4 text-blue-500"/>
       case 'zip':
       default:
-        return <Upload className="h-4 w-4 text-green-500" />
+        return <Upload className="h-4 w-4 text-green-500"/>
     }
   }
 
@@ -136,10 +146,10 @@ export function DeploymentsPage() {
             Track your deployment history and status
           </p>
         </div>
-        
+
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"/>
             <span className="text-lg">Loading deployments...</span>
           </div>
         </div>
@@ -157,7 +167,7 @@ export function DeploymentsPage() {
             Track your deployment history and status
           </p>
         </div>
-        
+
         <Card className="border-destructive/50">
           <CardContent className="p-6">
             <div className="text-center">
@@ -165,7 +175,7 @@ export function DeploymentsPage() {
               <Button onClick={() => {
                 handleRefresh()
               }}>
-                <Zap className="mr-2 h-4 w-4" />
+                <Zap className="mr-2 h-4 w-4"/>
                 Retry
               </Button>
             </div>
@@ -185,13 +195,13 @@ export function DeploymentsPage() {
             Track your deployment history and status
           </p>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={handleRefresh}
           disabled={isLoading || isRefreshing}
           className="flex items-center gap-2"
         >
-          <RefreshCw className={`h-4 w-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`}/>
           Refresh
         </Button>
       </div>
@@ -218,8 +228,8 @@ export function DeploymentsPage() {
       {/* Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-8">
         {paginatedDeployments.map((deployment) => (
-          <Card 
-            key={deployment.id} 
+          <Card
+            key={deployment.id}
             className="group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20"
             onClick={() => navigate(`/panel/deployment/${deployment.id}`)}
           >
@@ -228,7 +238,8 @@ export function DeploymentsPage() {
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   {getStatusIcon(deployment.status)}
                   <div className="min-w-0 flex-1">
-                    <CardTitle className="text-lg font-semibold font-mono group-hover:text-primary transition-colors" title={deployment.id}>
+                    <CardTitle className="text-lg font-semibold font-mono group-hover:text-primary transition-colors"
+                               title={deployment.id}>
                       {deployment.id.slice(0, 7)}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground font-mono truncate mt-1">
@@ -260,7 +271,7 @@ export function DeploymentsPage() {
                   </p>
                 </div>
               </div>
-                
+
               <div>
                 <p className="text-muted-foreground text-xs font-medium mb-1">Status Reason</p>
                 <p className="text-sm truncate" title={deployment.statusReason}>
@@ -294,7 +305,7 @@ export function DeploymentsPage() {
                   }}
                   className="flex items-center gap-1 text-xs hover:bg-primary/10"
                 >
-                  <Eye className="h-3 w-3" />
+                  <Eye className="h-3 w-3"/>
                   View Details
                 </Button>
                 {deployment.buildServiceJobId && (
@@ -312,7 +323,7 @@ export function DeploymentsPage() {
       {deployments.length === 0 && (
         <Card className="text-center py-12">
           <CardContent>
-            <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <Zap className="h-12 w-12 text-muted-foreground mx-auto mb-4"/>
             <h3 className="text-lg font-semibold mb-2">No deployments yet</h3>
             <p className="text-muted-foreground mb-4">
               Your deployment history will appear here once you start deploying to canisters.
@@ -336,7 +347,7 @@ export function DeploymentsPage() {
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4"/>
                 Previous
               </Button>
               <span className="text-sm px-3 py-1 bg-muted rounded-md">
@@ -349,7 +360,7 @@ export function DeploymentsPage() {
                 disabled={currentPage === totalPages}
               >
                 Next
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4"/>
               </Button>
             </div>
           </div>

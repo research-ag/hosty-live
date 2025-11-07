@@ -16,7 +16,7 @@ const ICPLogo = ({ className }: { className?: string }) => (
     x="0px"
     y="0px"
     viewBox="0 0 358.8 179.8"
-    style={{ enableBackground: "new 0 0 358.8 179.8" }}
+    style={{ enableBackground: "new 0 0 358.8 179.8" } as any}
     xmlSpace="preserve"
     className={className}
   >

@@ -99,7 +99,7 @@ export function TransferOwnershipModal({
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                 <span className="text-muted-foreground text-xs sm:text-sm">ID:</span>
                 <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all">
-                  {canister.icCanisterId}
+                  {canister.id}
                 </span>
               </div>
             </div>

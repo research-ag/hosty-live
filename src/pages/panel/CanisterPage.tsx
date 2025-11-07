@@ -135,9 +135,13 @@ export function CanisterPage() {
 
     const result = await getCanister(icCanisterId, true);
 
-    if (result.success && result.data) {
-      console.log("🎯 [CanisterPage] Canister data received:", result.data);
-      setCanister(result.data);
+    if (result.success) {
+      if (result.data) {
+        console.log("🎯 [CanisterPage] Canister data received:", result.data);
+        setCanister(result.data);
+      } else {
+        setError("Canister not found");
+      }
     } else {
       setError(result.error || "Canister not found");
     }
@@ -355,7 +359,7 @@ export function CanisterPage() {
       toast.success("Immutability undone", "Canister is mutable again.");
       setIsImmutableInDebugMode(false);
       await fetchCanister();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       toast.error("Failed to undo immutability", e?.message || String(e));
     } finally {
@@ -495,7 +499,7 @@ export function CanisterPage() {
           Canisters
         </Link>
         <ChevronRight className="h-4 w-4"/>
-        <span className="text-foreground">{canister.name}</span>
+        <span className="text-foreground">{canister.alias}</span>
       </nav>
 
       {/* General Info */}
@@ -528,7 +532,7 @@ export function CanisterPage() {
           <Button
             variant="outline"
             onClick={() => {
-              const sharedUrl = `${window.location.origin}/shared/${canister.icCanisterId}`;
+              const sharedUrl = `${window.location.origin}/shared/${canister.id}`;
               copyToClipboard(sharedUrl);
               toast.success("Shared URL copied to clipboard");
             }}
@@ -608,7 +612,7 @@ export function CanisterPage() {
               <label className="text-sm font-medium text-muted-foreground">
                 IC Canister ID
               </label>
-              <p className="text-sm font-mono">{canister.icCanisterId}</p>
+              <p className="text-sm font-mono">{canister.id}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">
@@ -617,7 +621,7 @@ export function CanisterPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm">
-                    <CyclesValue canisterId={canister.icCanisterId}/>
+                    <CyclesValue canisterId={canister.id}/>
                   </p>
                   <Button
                     variant="ghost"
@@ -629,7 +633,7 @@ export function CanisterPage() {
                     <Zap className="h-3.5 w-3.5"/>
                   </Button>
                 </div>
-                <BurnInfo canisterId={canister.icCanisterId}/>
+                <BurnInfo canisterId={canister.id}/>
               </div>
             </div>
             <div>
@@ -640,14 +644,14 @@ export function CanisterPage() {
                 {new Date(canister.createdAt).toLocaleString()}
               </p>
             </div>
-            <div>
+            {canister.deployedAt && (<div>
               <label className="text-sm font-medium text-muted-foreground">
-                Last Updated
+                Last Deployed
               </label>
               <p className="text-sm">
-                {new Date(canister.updatedAt).toLocaleString()}
+                {new Date(canister.deployedAt).toLocaleString()}
               </p>
-            </div>
+            </div>)}
             {canisterStatus.wasmBinarySize && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
@@ -685,7 +689,7 @@ export function CanisterPage() {
                           </div>
                           <div>
                             <Button
-                              size="xs"
+                              size="sm"
                               variant="ghost"
                               disabled={isSelf || isProxy || isRemovingController}
                               onClick={() => handleRemoveController(controller)}

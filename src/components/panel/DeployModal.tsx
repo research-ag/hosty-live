@@ -40,7 +40,7 @@ export function DeployModal({ isOpen, onClose, onDeploy, onDeployFromGit, canist
   const getLsKey = (canisterId: string) => `deploy_form:${canisterId}`
 
   const persistForm = () => {
-    const canisterId = canister?.icCanisterId
+    const canisterId = canister?.id
     if (!canisterId) return
     const payload: PersistedDeployForm = {
       method: deploymentMethod,
@@ -55,7 +55,7 @@ export function DeployModal({ isOpen, onClose, onDeploy, onDeployFromGit, canist
   }
 
   useEffect(() => {
-    const canisterId = canister?.icCanisterId
+    const canisterId = canister?.id
     if (!isOpen || !canisterId) return
     try {
       const raw = localStorage.getItem(getLsKey(canisterId))
@@ -67,7 +67,7 @@ export function DeployModal({ isOpen, onClose, onDeploy, onDeployFromGit, canist
       if (typeof data.buildCommand === 'string') setBuildCommand(data.buildCommand)
       if (typeof data.outputDir === 'string') setOutputDir(data.outputDir)
     } catch {}
-  }, [isOpen, canister?.icCanisterId])
+  }, [isOpen, canister?.id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -133,7 +133,7 @@ export function DeployModal({ isOpen, onClose, onDeploy, onDeployFromGit, canist
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                 <span className="text-muted-foreground text-xs sm:text-sm">ID:</span>
                 <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all">
-                  {canister.icCanisterId}
+                  {canister.id}
                 </span>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">

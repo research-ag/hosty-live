@@ -35,12 +35,15 @@ export function DeploymentPage() {
       setCanisterError('')
       
       const canisterResult = await getCanister(deployment.canisterId)
-      if (canisterResult.success && canisterResult.data) {
-        setCanister(canisterResult.data)
+      if (canisterResult.success) {
+        if (canisterResult.data) {
+          setCanister(canisterResult.data)
+        } else {
+          setCanisterError('Failed to load canister details')
+        }
       } else {
         setCanisterError(canisterResult.error || 'Failed to load canister details')
       }
-      
       setCanisterLoading(false)
     }
     
@@ -200,10 +203,10 @@ export function DeploymentPage() {
               <label className="text-sm font-medium text-muted-foreground">Canister</label>
               <div className="mt-1 space-y-2">
                 <Link 
-                  to={`/panel/canister/${canister?.icCanisterId || deployment.canisterId}`}
+                  to={`/panel/canister/${canister?.id || deployment.canisterId}`}
                   className="inline-flex items-center gap-2 text-sm font-mono hover:text-primary transition-colors group"
                 >
-                  <span className="group-hover:underline">{canister?.icCanisterId || deployment.canisterId}</span>
+                  <span className="group-hover:underline">{canister?.id || deployment.canisterId}</span>
                   <ExternalLink className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
                 </Link>
               </div>

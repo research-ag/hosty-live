@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipArrow } from "./Tooltip"
+import { Tooltip, TooltipArrow, TooltipContent, TooltipTrigger } from "./Tooltip"
 import { cn } from "../../lib/utils"
 
 interface TooltipWrapperProps {
@@ -8,7 +8,6 @@ interface TooltipWrapperProps {
   side?: "top" | "right" | "bottom" | "left"
   align?: "start" | "center" | "end"
   delayDuration?: number
-  skipDelayDuration?: number
   className?: string
   contentClassName?: string
   showArrow?: boolean
@@ -28,27 +27,26 @@ const TooltipWrapper = React.forwardRef<
   React.ElementRef<typeof TooltipTrigger>,
   TooltipWrapperProps
 >(({
-  content,
-  children,
-  side = "top",
-  align = "center",
-  delayDuration = 400,
-  skipDelayDuration = 300,
-  className,
-  contentClassName,
-  showArrow = true,
-  disabled = false,
-  open,
-  onOpenChange,
-  sideOffset = 4,
-  alignOffset = 0,
-  maxWidth = 300,
-  avoidCollisions = true,
-  collisionBoundary,
-  collisionPadding = 10,
-  sticky = "partial",
-  ...props
-}, ref) => {
+     content,
+     children,
+     side = "top",
+     align = "center",
+     delayDuration = 400,
+     className,
+     contentClassName,
+     showArrow = true,
+     disabled = false,
+     open,
+     onOpenChange,
+     sideOffset = 4,
+     alignOffset = 0,
+     maxWidth = 300,
+     avoidCollisions = true,
+     collisionBoundary,
+     collisionPadding = 10,
+     sticky = "partial",
+     ...props
+   }, ref) => {
   // Don't render tooltip if disabled or no content
   if (disabled || !content) {
     return <>{children}</>
@@ -57,7 +55,6 @@ const TooltipWrapper = React.forwardRef<
   return (
     <Tooltip
       delayDuration={delayDuration}
-      skipDelayDuration={skipDelayDuration}
       open={open}
       onOpenChange={onOpenChange}
     >
@@ -85,7 +82,7 @@ const TooltipWrapper = React.forwardRef<
         style={{ maxWidth }}
       >
         {content}
-        {showArrow && <TooltipArrow />}
+        {showArrow && <TooltipArrow/>}
       </TooltipContent>
     </Tooltip>
   )

@@ -4,10 +4,10 @@ import type { IDL } from '@dfinity/candid';
 
 export interface CanisterInfo {
   'alias' : [] | [string],
+  'deployedAt' : [] | [bigint],
   'createdAt' : bigint,
   'description' : [] | [string],
   'userIds' : Array<Principal>,
-  'updatedAt' : bigint,
   'frontendUrl' : string,
   'deletedAt' : [] | [bigint],
   'canisterId' : Principal,
