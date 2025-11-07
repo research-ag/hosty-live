@@ -137,7 +137,8 @@ Note that you can deploy the hosty.live frontend itself through hosty.live into 
 
 |URL|branch|build command|output directory|comment|
 |---|---|---|---|---|
-|https://github.com/research-ag/hosty-live|main|npm run build|dist|Host.live frontend itself!|
+|https://github.com/research-ag/hosty-live|main|npm run build|dist|Hosty.live frontend itself!|
+|https://github.com/research-ag/wallet|main|npm run build|dist|ICRC-1 web wallet|
 |https://github.com/itkrivoshei/Vanilla-Js-ToDoList.git|main|true|./|pure assets, no building|
 |https://github.com/tejachundru/react-vite-starter.git|main|npm run build|dist||
 |https://github.com/xiaoluoboding/vue3-starter.git|main|npm run build|dist||
