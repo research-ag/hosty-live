@@ -10,6 +10,40 @@ import R "mo:core/Result";
 
 import Management "../shared/management";
 
+// (
+//   with migration = func(
+//     old : {
+//       profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; var freeCanisterClaimedAt : ?Nat64; createdAt : Nat64; var updatedAt : Nat64 }>;
+//       canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var updatedAt : Nat64; var deletedAt : ?Nat64 }>;
+//       userCanistersMap : Map.Map<Principal, List.List<Nat>>;
+//       canisterIdMap : Map.Map<Principal, Nat>;
+//     }
+//   ) : {
+//     profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; var freeCanisterClaimedAt : ?Nat64; createdAt : Nat64; var updatedAt : Nat64 }>;
+//     canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//     userCanistersMap : Map.Map<Principal, List.List<Nat>>;
+//     canisterIdMap : Map.Map<Principal, Nat>;
+//   } {
+//     {
+//       profiles = old.profiles;
+//       canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var updatedAt : Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
+//         old.canisters,
+//         func(c) = {
+//           canisterId = c.canisterId;
+//           var alias = c.alias;
+//           var description = c.description;
+//           var userIds = c.userIds;
+//           var frontendUrl = c.frontendUrl;
+//           createdAt = c.createdAt;
+//           var deployedAt = ?c.updatedAt;
+//           var deletedAt = c.deletedAt;
+//         },
+//       );
+//       userCanistersMap = old.userCanistersMap;
+//       canisterIdMap = old.canisterIdMap;
+//     };
+//   }
+// )
 persistent actor class Backend() {
 
   transient let CONSTANTS = {
