@@ -453,7 +453,7 @@ export function CanistersPage() {
         {paginatedCanisters.map((canister) => (
           <Card
             key={canister.id}
-            className="relative group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20"
+            className="relative group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20 h-full flex flex-col"
             onClick={() => navigate(`/panel/canister/${canister.icCanisterId}`)}
           >
             {/* Control Status Indicator */}
@@ -474,7 +474,13 @@ export function CanistersPage() {
                 {getStatusBadge(canister.status)}
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="flex-1 flex flex-col gap-4">
+              {canister.description && canister.description.trim().length > 0 && (
+                <p className="text-sm text-muted-foreground line-clamp-3">
+                  {canister.description}
+                </p>
+              )}
+              <div className="mt-auto" />
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">
@@ -533,7 +539,6 @@ export function CanistersPage() {
                   )}
                 </p>
               </div>
-
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div className="flex items-center gap-2">
                   <Button
