@@ -51,7 +51,7 @@ function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInf
     alias: b.alias[0] || `Canister ${icId.slice(0, 5)}`,
     description: b.description[0] || null,
     cycles: 0,
-    lastDeployment: createdAt,
+    lastDeployment: updatedAt,
     status: 'active',
     frontendUrl: b.frontendUrl,
     createdAt: createdAt,
