@@ -1050,6 +1050,11 @@ export function CanisterPage() {
               <h3 className="text-lg font-semibold">Make immutable</h3>
             </div>
             <div className="px-4 py-4 space-y-4">
+              {!isImmutabilityActionLoading && (canisterStatus.uptimeYearsLeft || 0) < 1 && (
+                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+                  Cannot make immutable canister with less than 1 year of uptime. Please top up the canister
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input
                   id="debugMode"
@@ -1084,7 +1089,7 @@ export function CanisterPage() {
               </Button>
               <Button
                 onClick={handleConfirmMakeImmutable}
-                disabled={isImmutabilityActionLoading}
+                disabled={isImmutabilityActionLoading || (canisterStatus.uptimeYearsLeft || 0) < 1}
               >
                 {isImmutabilityActionLoading ? "Applying…" : "Confirm"}
               </Button>
