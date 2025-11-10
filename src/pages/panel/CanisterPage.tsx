@@ -994,7 +994,7 @@ export function CanisterPage() {
       <ConfirmDialog
         isOpen={isResetOpen}
         title="Reset this canister?"
-        error={Number(canisterStatus.cyclesRaw) < 300_000_000_000 ? "Please top up canister so has at least 0.3 TC balance in order to reset it" : undefined}
+        error={Number(canisterStatus.cyclesRaw) < 310_000_000_000 ? "Please top up canister so it has at least 0.31 TC balance in order to reset it" : undefined}
         description={(
           <>
             <p className="text-sm">
