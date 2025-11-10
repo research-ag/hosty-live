@@ -9,7 +9,6 @@ const API_BASE = `${import.meta.env.VITE_HOSTY_API_BASE || 'https://mrresearch.x
 
 // Token storage keys
 const ACCESS_TOKEN_KEY = 'hosty_access_token'
-const REFRESH_TOKEN_KEY = 'hosty_refresh_token'
 const PRINCIPAL_KEY = 'hosty_principal'
 
 // Handle 401 errors globally
@@ -25,23 +24,20 @@ export function getStoredAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY)
 }
 
-export function getStoredRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY)
+export function setAccessToken(accessToken: string) {
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
 }
 
 export function getStoredPrincipal(): string | null {
   return localStorage.getItem(PRINCIPAL_KEY)
 }
 
-export function setAuthTokens(accessToken: string, refreshToken: string, principal: string) {
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+export function setStoredPrincipal(principal: string) {
   localStorage.setItem(PRINCIPAL_KEY, principal)
 }
 
 export function clearAuthTokens() {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
-  localStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(PRINCIPAL_KEY)
 }
 
@@ -103,10 +99,14 @@ export const authApi = {
       const data = await response.json()
       console.log('✅ [authApi.authWithII] Success response:', data)
 
-      // Expect AuthResponseDto { principal, accessToken, refreshToken }
-      if (data && data.accessToken && data.refreshToken) {
-        setAuthTokens(data.accessToken, data.refreshToken, data.principal || principal)
-        return { success: true, principal: data.principal || principal, accessToken: data.accessToken, refreshToken: data.refreshToken }
+      // Expect AuthResponseDto { principal, accessToken }
+      if (data && data.accessToken) {
+        setAccessToken(data.accessToken)
+        return {
+          success: true,
+          principal: data.principal || principal,
+          accessToken: data.accessToken
+        }
       }
 
       return { success: false, error: 'Invalid auth response' }
