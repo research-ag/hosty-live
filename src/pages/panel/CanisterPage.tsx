@@ -691,7 +691,7 @@ export function CanisterPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              disabled={isSelf || isProxy || isRemovingController}
+                              disabled={isSelf || isProxy || isRemovingController || (!!principal && !canisterStatus.controllers?.includes(principal))}
                               onClick={() => handleRemoveController(controller)}
                               title={
                                 isSelf
@@ -713,6 +713,7 @@ export function CanisterPage() {
                     <Button
                       variant="outline"
                       onClick={() => setShowMakeImmutableModal(true)}
+                      disabled={(!!principal && !canisterStatus.controllers?.includes(principal))}
                       className="w-full sm:w-auto"
                     >
                       <LockKeyhole className="mr-2 h-4 w-4"/>
@@ -993,6 +994,7 @@ export function CanisterPage() {
       <ConfirmDialog
         isOpen={isResetOpen}
         title="Reset this canister?"
+        error={Number(canisterStatus.cyclesRaw) < 300_000_000_000 ? "Please top up canister so has at least 0.3 TC balance in order to reset it" : undefined}
         description={(
           <>
             <p className="text-sm">
