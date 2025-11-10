@@ -111,6 +111,7 @@ export function SharedCanisterPage() {
                     onClick={() => setIsTopUpModalOpen(true)}
                     title="Top up"
                     className="h-6 w-6 p-0"
+                    disabled={(canisterStatus.uptimeYearsLeft || 0) > 1}
                   >
                     <Zap className="h-3.5 w-3.5" />
                   </Button>
@@ -140,16 +141,6 @@ export function SharedCanisterPage() {
                   </div>
                 </div>
               )}
-            {canisterStatus.pageViews !== undefined && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Page views
-                </label>
-                <p className="text-sm">
-                  {canisterStatus.pageViews}
-                </p>
-              </div>
-            )}
             {canisterStatus.isAssetCanister !== undefined && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
@@ -157,6 +148,16 @@ export function SharedCanisterPage() {
                 </label>
                 <p className="text-sm">
                   {canisterStatus.isAssetCanister ? "Yes" : "No"}
+                </p>
+              </div>
+            )}
+            {canisterStatus.pageViews !== undefined && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Page views
+                </label>
+                <p className="text-sm">
+                  {canisterStatus.pageViews}
                 </p>
               </div>
             )}
@@ -308,7 +309,7 @@ export function SharedCanisterPage() {
 
           <div className="text-sm text-muted-foreground">
             Top up this canister with cycles using Cycle Express. You can pay
-            with ICP or credit card.
+            with credit card.
           </div>
 
           <Button

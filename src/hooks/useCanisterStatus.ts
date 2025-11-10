@@ -100,6 +100,19 @@ export function useCanisterStatus(canisterId?: string) {
     }
   })();
 
+  const freezingThreshold = (() => {
+    if (!status) return undefined;
+    try {
+      return (status.settings.freezing_threshold as unknown as bigint).toString();
+    } catch {
+      try {
+        return String(status.settings.freezing_threshold);
+      } catch {
+        return undefined;
+      }
+    }
+  })();
+
   const idleBurnPerDayRaw = (() => {
     try {
       return String(status?.idle_cycles_burned_per_day) || undefined;
@@ -120,9 +133,17 @@ export function useCanisterStatus(canisterId?: string) {
     }
   })();
 
-  const yearsLeft = (() => {
+  const deletionYearsLeft = (() => {
     try {
       return Number(cycles) / (1_000_000_000_000 * burnTcPerYear!);
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const uptimeYearsLeft = (() => {
+    try {
+      return Number(deletionYearsLeft) - Number(freezingThreshold) / (365 * 24 * 60 * 60);
     } catch {
       return undefined;
     }
@@ -170,11 +191,12 @@ export function useCanisterStatus(canisterId?: string) {
     cyclesRaw: cycles,
     idleBurnPerDayRaw,
     burnTcPerYear,
-    yearsLeft,
+    uptimeYearsLeft,
+    deletionYearsLeft,
     wasmBinarySize,
     controllers,
     isAssetCanister: isAssetCanisterResult,
     isSystemController,
-    pageViews: status?.query_stats.num_calls_total.toString(),
+    pageViews: isAssetCanisterResult ? status?.query_stats.num_calls_total.toString() : undefined,
   };
 }

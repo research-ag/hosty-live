@@ -525,7 +525,7 @@ export function useCanisters() {
       })({
         canister_id: Principal.fromText(canisterId),
         settings: {
-          freezing_threshold: [],
+          freezing_threshold: [BigInt(365 * 24 * 60 * 60)],
           controllers: [[...canisterOwners, Principal.fromText(statusProxyCanisterId)]],
           reserved_cycles_limit: [],
           log_visibility: [],

@@ -301,7 +301,7 @@ persistent actor class Backend() {
       let { canister_id } = await (with cycles = 840_000_000_000) Management.getActor().create_canister({
         settings = ?{
           compute_allocation = null;
-          freezing_threshold = null;
+          freezing_threshold = ?(365 * 24 * 60 * 60);
           log_visibility = null;
           memory_allocation = null;
           controllers = ?[CONSTANTS.STATUS_PROXY_CID, caller];

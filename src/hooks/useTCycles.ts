@@ -38,7 +38,7 @@ export async function createCanisterOnLedger() {
             ]],
             compute_allocation: [],
             memory_allocation: [],
-            freezing_threshold: [],
+            freezing_threshold: [BigInt(365 * 24 * 60 * 60)],
             reserved_cycles_limit: [],
           },
         ],
