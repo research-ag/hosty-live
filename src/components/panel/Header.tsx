@@ -154,32 +154,25 @@ export function Header() {
     <>
       <header
         className={`
-          sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md
-          transition-all duration-300 ease-in-out
+          sticky top-0 z-50 w-full h-16 border-b
           ${
             isScrolled
-              ? "h-14 bg-background/95 shadow-md"
-              : "h-16 sm:h-18 bg-background"
+              ? "bg-background/95 shadow-sm backdrop-blur-md"
+              : "bg-background/80 backdrop-blur-sm"
           }
         `}
       >
         <div className="flex items-center justify-between h-full px-4 sm:px-6">
-          {/* Left side - Logos */}
-          <div className="flex items-center gap-3 sm:gap-5">
-            <div className="flex items-center gap-3 sm:gap-5">
-              <Link to="/panel/canisters">
-                <img
-                  className={`${isScrolled ? "h-10" : "h-12"}`}
-                  src={logoImg}
-                  alt="hosty.live logo"
-                />
-              </Link>
-            </div>
+          {/* Left side - Logo */}
+          <div className="flex items-center">
+            <Link to="/panel/canisters">
+              <img className="h-10" src={logoImg} alt="hosty.live logo" />
+            </Link>
           </div>
 
           {/* Right side - Controls */}
           <div className="flex items-center gap-2 sm:gap-4">
-            {/* Mobile Menu Button - Only on smaller screens */}
+            {/* Mobile Menu Button */}
             <Button
               variant="ghost"
               size="icon"
@@ -194,7 +187,7 @@ export function Header() {
               )}
             </Button>
 
-            {/* Desktop User Dropdown - Only on larger screens */}
+            {/* Desktop User Dropdown */}
             <div
               className="relative hidden lg:block"
               onClick={(e) => e.stopPropagation()}
@@ -202,26 +195,14 @@ export function Header() {
               <Button
                 variant="ghost"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className={`
-                  flex items-center gap-2 transition-all duration-300 ease-in-out
-                  ${
-                    isScrolled ? "h-8 px-2 sm:px-3" : "h-9 sm:h-10 px-3 sm:px-4"
-                  }
-                `}
+                className="flex items-center gap-2 h-9 px-3"
               >
-                <User
-                  className={`
-                  transition-all duration-300 ease-in-out
-                  ${isScrolled ? "h-4 w-4" : "h-5 w-5"}
-                `}
-                />
+                <User className="h-4 w-4" />
                 <span className="text-sm font-medium">Account</span>
                 <ChevronDown
-                  className={`
-                  transition-all duration-300 ease-in-out
-                  ${isScrolled ? "h-3 w-3" : "h-4 w-4"}
-                  ${isDropdownOpen ? "rotate-180" : ""}
-                `}
+                  className={`h-4 w-4 transition-transform ${
+                    isDropdownOpen ? "rotate-180" : ""
+                  }`}
                 />
               </Button>
 
@@ -247,7 +228,9 @@ export function Header() {
                     </button>
 
                     <div className="px-4 py-2 text-sm border-t">
-                      <div className="text-muted-foreground mb-1">Your principal:</div>
+                      <div className="text-muted-foreground mb-1">
+                        Your principal:
+                      </div>
                       {principal ? (
                         <div className="flex items-center gap-2 w-full max-w-full">
                           <span
@@ -256,10 +239,16 @@ export function Header() {
                           >
                             {principal}
                           </span>
-                          <CopyButton text={principal} size="icon" variant="ghost" />
+                          <CopyButton
+                            text={principal}
+                            size="icon"
+                            variant="ghost"
+                          />
                         </div>
                       ) : (
-                        <div className="text-xs text-muted-foreground">Not available</div>
+                        <div className="text-xs text-muted-foreground">
+                          Not available
+                        </div>
                       )}
                     </div>
 
@@ -313,7 +302,12 @@ export function Header() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium font-mono text-sm truncate">
-                      {principal ? `${principal.substring(0, 12)}...${principal.substring(principal.length - 8)}` : "User"}
+                      {principal
+                        ? `${principal.substring(
+                            0,
+                            12
+                          )}...${principal.substring(principal.length - 8)}`
+                        : "User"}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       Internet Identity
