@@ -2,23 +2,30 @@ import { CanisterInfo } from "../hooks/useCanisters.ts";
 
 export type Canister = CanisterInfo
 
+// Use backend enums directly as source of truth
+export type DeploymentStatus = 'PENDING' | 'BUILDING' | 'DEPLOYING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
+export type SourceType = 'ZIP' | 'GIT' | 'URL'
+
 export interface Deployment {
   id: string
   canisterId: string
-  status: 'pending' | 'building' | 'deployed' | 'failed'
+  principal: string
+  status: DeploymentStatus
   statusReason?: string
-  userId: string
-  buildCommand: string
-  outputDirectory: string
-  duration?: number
+  buildCommand?: string
+  outputDir?: string
+  envVars?: Record<string, string>
+  sourceType: SourceType
+  sourceZipUrl?: string
+  sourceGitRepo?: string
+  gitBranch?: string
+  buildServiceJobId?: string
+  buildLogs?: string
+  builtAssetsUrl?: string
+  durationMs?: number
+  deployedAt?: string
   createdAt: string
   updatedAt: string
-  buildServiceJobId?: string
-  deployedAt?: string
-  buildLogs?: string
-  sourceGitRepo?: string
-  sourceType?: 'zip' | 'git'
-  gitBranch?: string
 }
 
 export interface User {
@@ -66,31 +73,17 @@ export interface ApiCanister {
   isSystemController?: boolean
 }
 
-export enum DeploymentStatus {
-  PENDING = 'PENDING',
-  BUILDING = 'BUILDING',
-  DEPLOYING = 'DEPLOYING',
-  SUCCESS = 'SUCCESS',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-}
-
-export enum SourceType {
-  ZIP = 'ZIP',
-  GIT = 'GIT',
-  URL = 'URL',
-}
-
+// Backend response type (matches DeploymentResponseDto exactly)
 export interface ApiDeployment {
   id: string
   principal: string
   canisterId: string
-  status: DeploymentStatus | keyof typeof DeploymentStatus | string
+  status: string  // Backend sends as string (enum serialized)
   statusReason?: string
   buildCommand?: string
   outputDir?: string
   envVars?: Record<string, string>
-  sourceType: SourceType | keyof typeof SourceType | string
+  sourceType: string  // Backend sends as string (enum serialized)
   sourceZipUrl?: string
   sourceGitRepo?: string
   gitBranch?: string

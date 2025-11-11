@@ -11,17 +11,24 @@ import {
   RefreshCw,
   Upload,
   XCircle,
-  Zap
+  Zap,
+  Link as LinkIcon
 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { SortButton } from '../../components/ui/SortButton'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
+import { ConnectionStatus } from '../../components/ui/ConnectionStatus'
 import { useDeployments } from '../../hooks/useDeployments'
+import { useRealTimeDeployments } from '../../hooks/useRealTimeDeployments'
+import { useToast } from '../../hooks/useToast'
+import { getStatusVariant, getStatusLabel, isActivelyBuilding, getSourceTypeLabel, formatDuration } from '../../lib/deploymentHelpers'
+import type { DeploymentStatus } from '../../types'
 
 export function DeploymentsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { toast } = useToast()
 
   // Read initial state from URL parameters
   const initialPage = parseInt(searchParams.get('page') || '1', 10)
@@ -39,6 +46,18 @@ export function DeploymentsPage() {
   const [currentPage, setCurrentPage] = useState(initialPage)
   const [sortField, setSortField] = useState(initialSortField)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(initialSortDirection)
+
+  // Real-time WebSocket connection
+  const { connectionStatus } = useRealTimeDeployments({
+    onDeploymentUpdated: (updatedDeployment) => {
+      console.log('📦 [DeploymentsPage] Deployment updated:', updatedDeployment.id, updatedDeployment.status)
+      
+      // Show subtle toast for successful deployments
+      if (updatedDeployment.status === 'SUCCESS') {
+        toast.success('Deployment Complete', `Deployment ${updatedDeployment.id.slice(0, 7)} is now live`)
+      }
+    }
+  })
 
   const itemsPerPage = 9
   const totalPages = Math.ceil(deployments.length / itemsPerPage)
@@ -95,42 +114,30 @@ export function DeploymentsPage() {
     currentPage * itemsPerPage
   )
 
-  const getStatusBadge = (status: string) => {
-    const variants = {
-      pending: 'secondary',
-      building: 'default',
-      deployed: 'success',
-      failed: 'destructive'
-    } as const
-
-    return <Badge variant={variants[status]}>{status}</Badge>
-  }
-
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: DeploymentStatus) => {
     switch (status) {
-      case 'deployed':
+      case 'SUCCESS':
         return <CheckCircle className="h-4 w-4 text-green-500"/>
-      case 'building':
+      case 'BUILDING':
+      case 'DEPLOYING':
         return <Clock className="h-4 w-4 text-blue-500 animate-pulse"/>
-      case 'failed':
+      case 'FAILED':
+      case 'CANCELLED':
         return <XCircle className="h-4 w-4 text-red-500"/>
-      case 'pending':
+      case 'PENDING':
         return <AlertCircle className="h-4 w-4 text-yellow-500"/>
       default:
         return <Zap className="h-4 w-4"/>
     }
   }
 
-  const formatDuration = (duration?: number) => {
-    if (!duration) return 'N/A'
-    return `${(duration / 1000).toFixed(1)}s`
-  }
-
-  const getSourceIcon = (sourceType?: string) => {
+  const getSourceIcon = (sourceType: string) => {
     switch (sourceType) {
-      case 'git':
+      case 'GIT':
         return <Github className="h-4 w-4 text-blue-500"/>
-      case 'zip':
+      case 'URL':
+        return <LinkIcon className="h-4 w-4 text-purple-500"/>
+      case 'ZIP':
       default:
         return <Upload className="h-4 w-4 text-green-500"/>
     }
@@ -195,15 +202,18 @@ export function DeploymentsPage() {
             Track your deployment history and status
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={isLoading || isRefreshing}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`}/>
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          <ConnectionStatus status={connectionStatus} />
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={isLoading || isRefreshing}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading || isRefreshing ? 'animate-spin' : ''}`}/>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Sort Controls */}
@@ -227,10 +237,15 @@ export function DeploymentsPage() {
 
       {/* Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-8">
-        {paginatedDeployments.map((deployment) => (
+        {paginatedDeployments.map((deployment) => {
+          const isActive = isActivelyBuilding(deployment.status)
+          
+          return (
           <Card
             key={deployment.id}
-            className="group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20"
+            className={`group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20 ${
+              isActive && connectionStatus === 'connected' ? 'ring-2 ring-blue-500/50 shadow-blue-500/20' : ''
+            }`}
             onClick={() => navigate(`/panel/deployment/${deployment.id}`)}
           >
             <CardHeader className="pb-3">
@@ -250,11 +265,11 @@ export function DeploymentsPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
                     {getSourceIcon(deployment.sourceType)}
-                    <span className="text-xs text-muted-foreground capitalize">
-                      {deployment.sourceType || 'zip'}
+                    <span className="text-xs text-muted-foreground">
+                      {getSourceTypeLabel(deployment.sourceType)}
                     </span>
                   </div>
-                  {getStatusBadge(deployment.status)}
+                  <Badge variant={getStatusVariant(deployment.status)}>{getStatusLabel(deployment.status)}</Badge>
                 </div>
               </div>
             </CardHeader>
@@ -262,12 +277,12 @@ export function DeploymentsPage() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">Duration</p>
-                  <p className="font-semibold">{formatDuration(deployment.duration)}</p>
+                  <p className="font-semibold">{formatDuration(deployment.durationMs)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">Build</p>
                   <p className="font-mono text-xs bg-muted px-2 py-1 rounded truncate">
-                    {deployment.buildCommand}
+                    {deployment.buildCommand || 'npm run build'}
                   </p>
                 </div>
               </div>
@@ -316,7 +331,7 @@ export function DeploymentsPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+        )})}
       </div>
 
       {/* Empty State */}

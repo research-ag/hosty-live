@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ChevronRight, ChevronDown, ChevronUp, ExternalLink, Copy, CheckCircle, RefreshCw, Upload, Github } from 'lucide-react'
+import { ChevronRight, ExternalLink, RefreshCw, Upload, Github, Link as LinkIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
+import { LiveLogConsole } from '../../components/ui/LiveLogConsole'
+import { ConnectionStatus } from '../../components/ui/ConnectionStatus'
 import { useDeployment } from '../../hooks/useDeployments'
 import { useCanisters } from '../../hooks/useCanisters'
 import { useToast } from '../../hooks/useToast'
+import { useRealTimeDeployments } from '../../hooks/useRealTimeDeployments'
+import { getStatusVariant, getStatusLabel, isActivelyBuilding, getSourceTypeLabel, formatDuration } from '../../lib/deploymentHelpers'
 
 export function DeploymentPage() {
   const { id } = useParams<{ id: string }>()
@@ -19,12 +23,34 @@ export function DeploymentPage() {
   const { getCanister } = useCanisters()
   const { toast } = useToast()
   
-  const [showBuildLogs, setShowBuildLogs] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [canister, setCanister] = useState<any>(null)
   const [canisterLoading, setCanisterLoading] = useState(false)
   const [canisterError, setCanisterError] = useState<string>('')
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Real-time WebSocket connection
+  const { connectionStatus } = useRealTimeDeployments({
+    onLog: (deploymentId) => {
+      if (deploymentId === id) {
+        console.log('📝 [DeploymentPage] Received log chunk for current deployment')
+      }
+    },
+    onDeploymentUpdated: (updatedDeployment) => {
+      if (updatedDeployment.id === id) {
+        console.log('📦 [DeploymentPage] Current deployment updated:', updatedDeployment.status)
+        
+        // Show toast for status changes
+        if (updatedDeployment.status === 'SUCCESS') {
+          toast.success('Deployment Successful', 'Your deployment is now live!')
+        } else if (updatedDeployment.status === 'FAILED') {
+          toast.error('Deployment Failed', updatedDeployment.statusReason || 'Check logs for details')
+        }
+      }
+    }
+  })
+
+  // Check if deployment is currently building
+  const isBuilding = deployment ? isActivelyBuilding(deployment.status) : false
 
   // Fetch canister data when deployment data is available
   useEffect(() => {
@@ -111,39 +137,15 @@ export function DeploymentPage() {
     )
   }
 
-  const getStatusBadge = (status: string) => { 
-    const variants = {
-      pending: 'secondary',
-      building: 'default',
-      deployed: 'success',
-      failed: 'destructive'
-    } as const
-    
-    return <Badge variant={variants[status as keyof typeof variants]}>{status}</Badge>
-  }
-
-  const formatDuration = (duration?: number) => {
-    if (!duration) return 'N/A'
-    return `${(duration / 1000).toFixed(1)}s`
-  }
-
-  const getSourceIcon = (sourceType?: string) => {
+  const getSourceIcon = (sourceType: string) => {
     switch (sourceType) {
-      case 'git':
+      case 'GIT':
         return <Github className="h-5 w-5 text-blue-500" />
-      case 'zip':
+      case 'URL':
+        return <LinkIcon className="h-5 w-5 text-purple-500" />
+      case 'ZIP':
       default:
         return <Upload className="h-5 w-5 text-green-500" />
-    }
-  }
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy:', err)
     }
   }
   return (
@@ -164,13 +166,13 @@ export function DeploymentPage() {
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
               <span className="text-sm font-medium">Status:</span>
-              {getStatusBadge(deployment.status)}
+              <Badge variant={getStatusVariant(deployment.status)}>{getStatusLabel(deployment.status)}</Badge>
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-sm font-medium">Source:</span>
               <div className="flex items-center gap-2">
                 {getSourceIcon(deployment.sourceType)}
-                <span className="text-sm capitalize">{deployment.sourceType || 'zip'}</span>
+                <span className="text-sm">{getSourceTypeLabel(deployment.sourceType)}</span>
               </div>
             </div>
             {deployment.statusReason && (
@@ -181,15 +183,18 @@ export function DeploymentPage() {
             )}
           </div>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={handleRefresh}
-          disabled={deploymentLoading || canisterLoading || isRefreshing}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${deploymentLoading || canisterLoading || isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-3">
+          <ConnectionStatus status={connectionStatus} />
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={deploymentLoading || canisterLoading || isRefreshing}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${deploymentLoading || canisterLoading || isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -213,7 +218,9 @@ export function DeploymentPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">Status</label>
-              <div className="mt-1">{getStatusBadge(deployment.status)}</div>
+              <div className="mt-1">
+                <Badge variant={getStatusVariant(deployment.status)}>{getStatusLabel(deployment.status)}</Badge>
+              </div>
             </div>
             {deployment.statusReason && (
               <div>
@@ -242,19 +249,19 @@ export function DeploymentPage() {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground">Build Command</label>
-              <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.buildCommand}</p>
+              <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.buildCommand || 'npm run build'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">Output Directory</label>
-              <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.outputDirectory}</p>
+              <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.outputDir || 'dist'}</p>
             </div>
-            {deployment.sourceType === 'git' && deployment.sourceGitRepo && (
+            {deployment.sourceType === 'GIT' && deployment.sourceGitRepo && (
           <div>
             <label className="text-sm font-medium text-muted-foreground">Repository</label>
             <p className="text-sm font-mono bg-muted px-2 py-1 rounded break-all">{deployment.sourceGitRepo}</p>
           </div>
         )}
-        {deployment.sourceType === 'git' && deployment.gitBranch && (
+        {deployment.sourceType === 'GIT' && deployment.gitBranch && (
           <div>
             <label className="text-sm font-medium text-muted-foreground">Branch</label>
             <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.gitBranch}</p>
@@ -262,7 +269,7 @@ export function DeploymentPage() {
         )}
             <div>
               <label className="text-sm font-medium text-muted-foreground">Duration</label>
-              <p className="text-sm">{formatDuration(deployment.duration)}</p>
+              <p className="text-sm">{formatDuration(deployment.durationMs)}</p>
             </div>
             {deployment.buildServiceJobId && (
               <div>
@@ -274,34 +281,15 @@ export function DeploymentPage() {
         </Card>
       </div>
 
-      {/* Build Logs */}
-      {deployment.buildLogs && (
-        <Card className="mt-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Build Logs</CardTitle>
-              <Button
-                variant="ghost"
-                onClick={() => setShowBuildLogs(!showBuildLogs)}
-                className="flex items-center space-x-2"
-              >
-                <span>{showBuildLogs ? 'Hide' : 'Show'} Logs</span>
-                {showBuildLogs ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </CardHeader>
-          {showBuildLogs && (
-            <CardContent>
-              <pre className="text-sm bg-muted p-4 rounded-md overflow-auto whitespace-pre-wrap">
-                {deployment.buildLogs}
-              </pre>
-            </CardContent>
-          )}
-        </Card>
+      {/* Build Logs - Real-time Streaming */}
+      {(deployment.buildLogs || isBuilding) && (
+        <div className="mt-6">
+          <LiveLogConsole 
+            logs={deployment.buildLogs || ''} 
+            isLive={isBuilding && connectionStatus === 'connected'}
+            title="Build Logs"
+          />
+        </div>
       )}
     </div>
   )

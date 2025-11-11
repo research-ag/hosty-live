@@ -1,45 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { deploymentsApi } from '../services/api'
-import type { ApiDeployment } from '../types'
+import type { ApiDeployment, Deployment, DeploymentStatus, SourceType } from '../types'
 
-// Transform API deployment to frontend format
-function transformApiDeployment(apiDeployment: ApiDeployment) {
-  // Normalize status to UI values
-  const rawStatus = (apiDeployment.status || '').toString().toUpperCase()
-  const status = (
-    rawStatus === 'SUCCESS' ? 'deployed' :
-    rawStatus === 'BUILDING' || rawStatus === 'DEPLOYING' ? 'building' :
-    rawStatus === 'FAILED' || rawStatus === 'CANCELLED' ? 'failed' :
-    'pending'
-  ) as 'pending' | 'building' | 'deployed' | 'failed'
-
-  // Map source type to legacy union
-  const rawSource = (apiDeployment.sourceType || '').toString().toUpperCase()
-  const sourceType = (
-    rawSource === 'GIT' ? 'git' :
-    rawSource === 'ZIP' ? 'zip' :
-    undefined
-  ) as 'zip' | 'git' | undefined
-
+// Simple conversion from API response to typed deployment
+// No transformation - just type safety
+function toDeployment(apiDeployment: ApiDeployment): Deployment {
   return {
     id: apiDeployment.id,
     canisterId: apiDeployment.canisterId,
-    status,
+    principal: apiDeployment.principal,
+    status: apiDeployment.status as DeploymentStatus,
     statusReason: apiDeployment.statusReason,
-    userId: apiDeployment.principal,
-    buildCommand: apiDeployment.buildCommand || '',
-    outputDirectory: apiDeployment.outputDir || '',
-    duration: apiDeployment.durationMs,
+    buildCommand: apiDeployment.buildCommand,
+    outputDir: apiDeployment.outputDir,
+    envVars: apiDeployment.envVars,
+    sourceType: apiDeployment.sourceType as SourceType,
+    sourceZipUrl: apiDeployment.sourceZipUrl,
+    sourceGitRepo: apiDeployment.sourceGitRepo,
+    gitBranch: apiDeployment.gitBranch,
+    buildServiceJobId: apiDeployment.buildServiceJobId,
+    buildLogs: apiDeployment.buildLogs,
+    builtAssetsUrl: apiDeployment.builtAssetsUrl,
+    durationMs: apiDeployment.durationMs,
+    deployedAt: apiDeployment.deployedAt,
     createdAt: apiDeployment.createdAt,
     updatedAt: apiDeployment.updatedAt,
-    buildServiceJobId: apiDeployment.buildServiceJobId,
-    deployedAt: apiDeployment.deployedAt,
-    buildLogs: apiDeployment.buildLogs,
-    sourceGitRepo: apiDeployment.sourceGitRepo,
-    sourceType,
-    gitBranch: apiDeployment.gitBranch,
-    // Store additional API data
-    _apiData: apiDeployment
   }
 }
 
@@ -70,10 +55,10 @@ export function useDeployments() {
       })
       
       if (response.success && response.deployments && Array.isArray(response.deployments)) {
-        console.log('✅ [useDeployments.queryFn] Transforming deployments...')
-        const transformedDeployments = response.deployments.map(transformApiDeployment)
-        console.log('✅ [useDeployments.queryFn] Transformed deployments:', transformedDeployments.length)
-        return transformedDeployments
+        console.log('✅ [useDeployments.queryFn] Converting deployments...')
+        const deployments = response.deployments.map(toDeployment)
+        console.log('✅ [useDeployments.queryFn] Converted deployments:', deployments.length)
+        return deployments
       } else {
         throw new Error(response.error || 'Failed to fetch deployments')
       }
@@ -190,10 +175,10 @@ export function useDeployment(deploymentId?: string) {
       })
       
       if (response.success && response.deployment) {
-        console.log('✅ [useDeployment.queryFn] Transforming deployment...')
-        const transformedDeployment = transformApiDeployment(response.deployment)
-        console.log('✅ [useDeployment.queryFn] Transformed deployment:', transformedDeployment)
-        return transformedDeployment
+        console.log('✅ [useDeployment.queryFn] Converting deployment...')
+        const deployment = toDeployment(response.deployment)
+        console.log('✅ [useDeployment.queryFn] Converted deployment:', deployment)
+        return deployment
       } else {
         throw new Error(response.error || 'Failed to fetch deployment')
       }
