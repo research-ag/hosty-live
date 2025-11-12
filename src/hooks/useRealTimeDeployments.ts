@@ -11,13 +11,14 @@ import type {
 
 // Get WebSocket URL - remove /api path if present since WebSocket is at root
 function getWebSocketUrl(): string {
-  const apiBase =
+  let apiBase =
     (import.meta as any).env?.VITE_HOSTY_API_BASE ||
     "https://mrresearch.xyz/hosty-live-api";
 
-  // Remove '/api' suffix for WebSocket connection (it's a namespace issue)
-  // Example: http://localhost:3000/api -> http://localhost:3000
-  return apiBase.replace(/\/api\/?$/, "");
+  apiBase = apiBase.replace(/\/api\/?$/, "");
+  apiBase = apiBase.replace(/\/hosty-live-api\/?$/, "");
+
+  return apiBase;
 }
 
 const WS_URL = getWebSocketUrl();
