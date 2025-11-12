@@ -43,36 +43,6 @@ export interface Profile {
   updatedAt: string | null
 }
 
-// Free Canister Claim Result
-export interface FreeCanisterClaimResult {
-  success: boolean
-  data?: {
-    canisterNumber: number
-    canisterId: string
-    frontendUrl: string
-  }
-  error?: string
-}
-
-// API Types for Edge Functions
-export interface ApiCanister {
-  id: string
-  userId: string
-  icCanisterId: string
-  deleted: boolean
-  deletedAt?: string
-  createdAt: string
-  updatedAt: string
-  frontendUrl: string
-  cyclesBalance?: string
-  cyclesBalanceRaw?: string
-  wasmBinarySize?: string
-  moduleHash?: string
-  controllers?: string[]
-  isAssetCanister?: boolean
-  isSystemController?: boolean
-}
-
 // Backend response type (matches DeploymentResponseDto exactly)
 export interface ApiDeployment {
   id: string

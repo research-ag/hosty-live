@@ -3,7 +3,8 @@ import { Principal } from "@dfinity/principal";
 import { getStatusProxyActor } from "../api/status-proxy";
 import type { CanisterStatus } from "../api/status-proxy/status_proxy.did";
 import { getManagementActor } from "../api/management";
-import { isAssetCanister } from "../constants/knownHashes";
+import { isAssetCanister } from "../constants/knownHashes.ts";
+import { arrayBufferToHex } from "../utils/bufffer-utils.ts";
 
 export type CanisterStatusResult = {
   timestampSec: bigint;
@@ -30,12 +31,6 @@ export async function fetchCanisterStatus(
   }
   const [ts, stat] = await actor.loadState(target);
   return { timestampSec: ts, status: stat };
-}
-
-function arrayBufferToHex(buffer: Uint8Array | number[]): string {
-  return Array.from(new Uint8Array(buffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 function formatBytes(bytes: bigint): string {
@@ -179,8 +174,6 @@ export function useCanisterStatus(canisterId?: string) {
     }
   })();
 
-  const isAssetCanisterResult = isAssetCanister(moduleHash || "");
-
   const isSystemController = (controllers ?? []).includes(
     import.meta.env.VITE_BACKEND_PRINCIPAL
   );
@@ -195,8 +188,8 @@ export function useCanisterStatus(canisterId?: string) {
     deletionYearsLeft,
     wasmBinarySize,
     controllers,
-    isAssetCanister: isAssetCanisterResult,
     isSystemController,
-    pageViews: isAssetCanisterResult ? status?.query_stats.num_calls_total.toString() : undefined,
+    moduleHash,
+    pageViews: moduleHash && isAssetCanister(moduleHash) ? status?.query_stats.num_calls_total.toString() : undefined,
   };
 }

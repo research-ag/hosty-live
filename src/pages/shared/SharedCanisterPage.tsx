@@ -2,15 +2,12 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Copy, ExternalLink, Globe, Zap } from "lucide-react";
 import { Button } from "../../components/ui/Button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
 import { Modal } from "../../components/ui/Modal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { BurnInfo } from "../components/BurnInfo";
+import { useCanisterStateStatus } from "../../api/read-state.ts";
+import { isAssetCanister } from "../../constants/knownHashes.ts";
 
 function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
   if (!cyclesBalanceRaw) return <>unknown</>;
@@ -25,6 +22,7 @@ function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
 export function SharedCanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const canisterStatus = useCanisterStatus(icCanisterId);
+  const { data: canisterStateStatus, isLoading: isCanisterStateStatusLoading } = useCanisterStateStatus(icCanisterId!);
   const [copied, setCopied] = useState(false);
   const [isPreviewInteractive, setIsPreviewInteractive] = useState(false);
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
@@ -43,12 +41,12 @@ export function SharedCanisterPage() {
   };
 
   // Loading state
-  if (canisterStatus.isCanisterStatusLoading) {
+  if (canisterStatus.isCanisterStatusLoading && isCanisterStateStatusLoading) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-12">
           <div className="flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"/>
             <span className="text-lg">Loading canister...</span>
           </div>
         </div>
@@ -103,7 +101,7 @@ export function SharedCanisterPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm">
-                    <CyclesValue cyclesBalanceRaw={canisterStatus.cyclesRaw} />
+                    <CyclesValue cyclesBalanceRaw={canisterStatus.cyclesRaw}/>
                   </p>
                   <Button
                     variant="ghost"
@@ -113,41 +111,40 @@ export function SharedCanisterPage() {
                     className="h-6 w-6 p-0"
                     disabled={(canisterStatus.uptimeYearsLeft || 0) > 1}
                   >
-                    <Zap className="h-3.5 w-3.5" />
+                    <Zap className="h-3.5 w-3.5"/>
                   </Button>
                 </div>
                 <BurnInfo canisterId={icCanisterId}/>
               </div>
             </div>
-            {canisterStatus.controllers &&
-              canisterStatus.controllers.length > 0 && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Controllers
-                  </label>
-                  <div className="space-y-1">
-                    {canisterStatus.controllers.map((controller, index) => (
-                      <p
-                        key={index}
-                        className="text-xs font-mono bg-muted px-2 py-1 rounded"
-                      >
-                        {controller ===
-                          import.meta.env.VITE_BACKEND_PRINCIPAL && (
+            {!!(canisterStatus.controllers?.length || canisterStateStatus?.controllers?.length) && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Controllers
+                </label>
+                <div className="space-y-1">
+                  {(canisterStatus.controllers || canisterStateStatus!.controllers!).map((controller, index) => (
+                    <p
+                      key={index}
+                      className="text-xs font-mono bg-muted px-2 py-1 rounded"
+                    >
+                      {controller ===
+                        import.meta.env.VITE_BACKEND_PRINCIPAL && (
                           <span className="text-primary">(hosty.live)</span>
                         )}{" "}
-                        {controller}
-                      </p>
-                    ))}
-                  </div>
+                      {controller}
+                    </p>
+                  ))}
                 </div>
-              )}
-            {canisterStatus.isAssetCanister !== undefined && (
+              </div>
+            )}
+            {(canisterStatus.moduleHash || canisterStateStatus?.moduleHash) && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Asset Canister
                 </label>
                 <p className="text-sm">
-                  {canisterStatus.isAssetCanister ? "Yes" : "No"}
+                  {isAssetCanister(canisterStatus.moduleHash || canisterStateStatus!.moduleHash!) ? "Yes" : "No"}
                 </p>
               </div>
             )}
@@ -178,12 +175,13 @@ export function SharedCanisterPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
+              <Globe className="h-5 w-5"/>
               Frontend
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {canisterStatus.isAssetCanister ? (
+            {(canisterStatus.moduleHash || canisterStateStatus?.moduleHash)
+            && isAssetCanister(canisterStatus.moduleHash || canisterStateStatus!.moduleHash!) ? (
               <div className="space-y-6">
                 {/* URL Display with Actions */}
                 <div className="space-y-3">
@@ -201,7 +199,7 @@ export function SharedCanisterPage() {
                         onClick={() => window.open(frontendUrl!, "_blank")}
                         className="h-7 px-2 text-xs"
                       >
-                        <ExternalLink className="h-3 w-3 mr-1" />
+                        <ExternalLink className="h-3 w-3 mr-1"/>
                         Open
                       </Button>
                       <Button
@@ -210,7 +208,7 @@ export function SharedCanisterPage() {
                         onClick={() => copyToClipboard(frontendUrl!)}
                         className="h-7 px-2 text-xs"
                       >
-                        <Copy className="h-3 w-3 mr-1" />
+                        <Copy className="h-3 w-3 mr-1"/>
                         {copied ? "Copied!" : "Copy"}
                       </Button>
                     </div>
@@ -271,7 +269,7 @@ export function SharedCanisterPage() {
                       onClick={() => window.open(frontendUrl!, "_blank")}
                       className="h-7 px-2 text-xs"
                     >
-                      <ExternalLink className="h-3 w-3 mr-1" />
+                      <ExternalLink className="h-3 w-3 mr-1"/>
                       Open full size
                     </Button>
                   </div>
@@ -281,7 +279,7 @@ export function SharedCanisterPage() {
               /* Empty State */
               <div className="text-center py-12">
                 <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Globe className="h-8 w-8 text-muted-foreground" />
+                  <Globe className="h-8 w-8 text-muted-foreground"/>
                 </div>
                 <h3 className="text-lg font-semibold mb-2">
                   No Frontend Deployed
@@ -324,7 +322,7 @@ export function SharedCanisterPage() {
               setIsTopUpModalOpen(false);
             }}
           >
-            <ExternalLink className="h-4 w-4 mr-2" />
+            <ExternalLink className="h-4 w-4 mr-2"/>
             Go to Cycle Express
           </Button>
         </div>

@@ -29,7 +29,6 @@ export type CanisterInfo = {
   wasmBinarySize: string | undefined;
   moduleHash: string | undefined;
   controllers: string[] | undefined;
-  isAssetCanister: boolean | undefined;
 }
 
 // Transform Backend canister to frontend format
@@ -58,7 +57,6 @@ function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInf
     wasmBinarySize: undefined,
     moduleHash: undefined,
     controllers: undefined,
-    isAssetCanister: undefined,
   }
 }
 

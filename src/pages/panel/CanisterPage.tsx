@@ -40,6 +40,7 @@ import { useTCycles } from "../../hooks/useTCycles";
 import { getAssetStorageActor } from "../../api/asset-storage";
 import { getBackendActor } from "../../api/backend";
 import { BurnInfo } from "../components/BurnInfo.tsx";
+import { isAssetCanister } from "../../constants/knownHashes.ts";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -486,7 +487,7 @@ export function CanisterPage() {
     }
   };
 
-  const canDeploy = canisterStatus.isAssetCanister;
+  const canDeploy = !!canisterStatus.moduleHash && isAssetCanister(canisterStatus.moduleHash);
   const deployTooltip = !canDeploy
     ? "Deployment disabled: Canister is not an asset canister"
     : undefined;
@@ -749,13 +750,13 @@ export function CanisterPage() {
                   )}
                 </div>
               )}
-            {canisterStatus.isAssetCanister !== undefined && (
+            {canisterStatus.moduleHash && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
                   Asset Canister
                 </label>
                 <p className="text-sm">
-                  {canisterStatus.isAssetCanister ? "Yes" : "No"}
+                  {isAssetCanister(canisterStatus.moduleHash) ? "Yes" : "No"}
                 </p>
               </div>
             )}
