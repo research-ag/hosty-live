@@ -163,6 +163,7 @@ export function CanisterPage() {
     file: File;
     buildCommand: string;
     outputDir: string;
+    envVars?: Record<string, string>;
   }) => {
     if (!canister) return;
 
@@ -173,6 +174,7 @@ export function CanisterPage() {
       file: data.file,
       buildCommand: data.buildCommand,
       outputDir: data.outputDir,
+      envVars: data.envVars,
     });
 
     if (result.success) {
@@ -196,6 +198,7 @@ export function CanisterPage() {
     branch: string;
     buildCommand: string;
     outputDir: string;
+    envVars?: Record<string, string>;
   }) => {
     if (!canister) return;
 
@@ -207,6 +210,7 @@ export function CanisterPage() {
       branch: data.branch,
       buildCommand: data.buildCommand,
       outputDir: data.outputDir,
+      envVars: data.envVars,
     });
 
     if (result.success) {

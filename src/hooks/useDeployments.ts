@@ -96,13 +96,15 @@ export function useDeployments() {
     file: File;
     buildCommand: string;
     outputDir: string;
+    envVars?: Record<string, string>;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const result = await uploadDeploymentMutation.mutateAsync({
         canisterId: data.canisterId,
         zipFile: data.file,
         buildCommand: data.buildCommand,
-        outputDir: data.outputDir
+        outputDir: data.outputDir,
+        envVars: data.envVars
       })
       return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
     } catch (err) {
@@ -120,6 +122,7 @@ export function useDeployments() {
     branch: string;
     buildCommand: string;
     outputDir: string;
+    envVars?: Record<string, string>;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const result = await uploadDeploymentGitMutation.mutateAsync({
@@ -127,7 +130,8 @@ export function useDeployments() {
         gitRepoUrl: data.gitRepoUrl,
         branch: data.branch,
         buildCommand: data.buildCommand,
-        outputDir: data.outputDir
+        outputDir: data.outputDir,
+        envVars: data.envVars
       })
       return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
     } catch (err) {

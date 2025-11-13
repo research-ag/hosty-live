@@ -305,6 +305,7 @@ export const deploymentsApi = {
     zipFile: File;
     buildCommand?: string;
     outputDir?: string;
+    envVars?: Record<string, string>;
   }) {
     try {
       const accessToken = getStoredAccessToken()
@@ -321,6 +322,9 @@ export const deploymentsApi = {
       }
       if (data.outputDir) {
         formData.append('outputDir', data.outputDir)
+      }
+      if (data.envVars) {
+        formData.append('envVars', JSON.stringify(data.envVars))
       }
 
       const response = await fetch(`${API_BASE}/deployments/deploy-zip`, {
@@ -356,6 +360,7 @@ export const deploymentsApi = {
     branch: string;
     buildCommand?: string;
     outputDir?: string;
+    envVars?: Record<string, string>;
   }) {
     try {
       const accessToken = getStoredAccessToken()
@@ -376,6 +381,7 @@ export const deploymentsApi = {
           branch: data.branch,
           buildCommand: data.buildCommand,
           outputDir: data.outputDir,
+          envVars: data.envVars,
         }),
       })
 

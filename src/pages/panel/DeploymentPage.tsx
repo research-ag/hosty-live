@@ -267,6 +267,19 @@ export function DeploymentPage() {
             <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.gitBranch}</p>
           </div>
         )}
+            {deployment.envVars && Object.keys(deployment.envVars).length > 0 && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Environment Variables</label>
+                <div className="text-sm font-mono bg-muted px-3 py-2 rounded mt-1 space-y-1">
+                  {Object.entries(deployment.envVars).map(([key, value]) => (
+                    <div key={key} className="flex gap-2">
+                      <span className="text-muted-foreground">{key}=</span>
+                      <span className="break-all">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-muted-foreground">Duration</label>
               <p className="text-sm">{formatDuration(deployment.durationMs)}</p>
