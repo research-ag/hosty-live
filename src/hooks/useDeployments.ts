@@ -90,6 +90,17 @@ export function useDeployments() {
     },
   })
 
+  // Mutation for uploading deployments from URL
+  const uploadDeploymentUrlMutation = useMutation({
+    mutationFn: deploymentsApi.uploadDeploymentFromUrl,
+    onSuccess: (response) => {
+      if (response.success) {
+        // Invalidate and refetch deployments list
+        queryClient.invalidateQueries({ queryKey: ['deployments'] })
+      }
+    },
+  })
+
   // Deploy to canister function
   const deployToCanister = async (data: {
     canisterId: string;
@@ -142,6 +153,31 @@ export function useDeployments() {
     }
   }
 
+  // Deploy from URL function
+  const deployFromUrl = async (data: {
+    canisterId: string;
+    archiveUrl: string;
+    buildCommand: string;
+    outputDir: string;
+    envVars?: Record<string, string>;
+  }): Promise<{ success: boolean; error?: string; data?: any }> => {
+    try {
+      const result = await uploadDeploymentUrlMutation.mutateAsync({
+        canisterId: data.canisterId,
+        zipUrl: data.archiveUrl,
+        buildCommand: data.buildCommand,
+        outputDir: data.outputDir,
+        envVars: data.envVars
+      })
+      return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
+    } catch (err) {
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : 'Failed to deploy from URL'
+      }
+    }
+  }
+
   // Convert deployments data and error to match original interface
   const deployments = deploymentsData || []
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to fetch deployments') : ''
@@ -152,6 +188,7 @@ export function useDeployments() {
     error,
     deployToCanister,
     deployFromGit,
+    deployFromUrl,
     refreshDeployments
   }
 }

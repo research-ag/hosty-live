@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Info, AlertTriangle, Zap, Server, Upload, Github } from "lucide-react";
+import { Info, AlertTriangle, Zap, Server, Upload, Github, Link } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -8,7 +8,7 @@ import { TooltipWrapper } from "../ui/TooltipWrapper";
 import { useToast } from "../../hooks/useToast";
 import { Canister } from "../../types";
 
-type DeploymentMethod = "zip" | "git";
+type DeploymentMethod = "zip" | "git" | "url";
 
 interface DeployModalProps {
   isOpen: boolean;
@@ -26,6 +26,12 @@ interface DeployModalProps {
     outputDir: string;
     envVars?: Record<string, string>;
   }) => void;
+  onDeployFromUrl: (data: {
+    archiveUrl: string;
+    buildCommand: string;
+    outputDir: string;
+    envVars?: Record<string, string>;
+  }) => void;
   canister?: Canister | null;
   error?: string;
 }
@@ -35,6 +41,7 @@ export function DeployModal({
   onClose,
   onDeploy,
   onDeployFromGit,
+  onDeployFromUrl,
   canister,
   error,
 }: DeployModalProps) {
@@ -42,6 +49,7 @@ export function DeployModal({
     useState<DeploymentMethod>("zip");
   const [file, setFile] = useState<File | null>(null);
   const [gitRepoUrl, setGitRepoUrl] = useState("");
+  const [archiveUrl, setArchiveUrl] = useState("");
   const [branch, setBranch] = useState("main");
   const [buildCommand, setBuildCommand] = useState("npm run build");
   const [outputDir, setOutputDir] = useState("dist");
@@ -53,6 +61,7 @@ export function DeployModal({
   type PersistedDeployForm = {
     method: DeploymentMethod;
     gitRepoUrl: string;
+    archiveUrl: string;
     branch: string;
     buildCommand: string;
     outputDir: string;
@@ -122,6 +131,7 @@ export function DeployModal({
     const payload: PersistedDeployForm = {
       method: deploymentMethod,
       gitRepoUrl,
+      archiveUrl,
       branch,
       buildCommand,
       outputDir,
@@ -141,9 +151,10 @@ export function DeployModal({
       const raw = localStorage.getItem(getLsKey(canisterId));
       if (!raw) return;
       const data = JSON.parse(raw) as Partial<PersistedDeployForm>;
-      if (data.method === "zip" || data.method === "git")
+      if (data.method === "zip" || data.method === "git" || data.method === "url")
         setDeploymentMethod(data.method);
       if (typeof data.gitRepoUrl === "string") setGitRepoUrl(data.gitRepoUrl);
+      if (typeof data.archiveUrl === "string") setArchiveUrl(data.archiveUrl);
       if (typeof data.branch === "string") setBranch(data.branch);
       if (typeof data.buildCommand === "string")
         setBuildCommand(data.buildCommand);
@@ -198,7 +209,7 @@ export function DeployModal({
           outputDir,
           envVars: envVarsResult.envVars,
         });
-      } else {
+      } else if (deploymentMethod === "git") {
         if (!gitRepoUrl) {
           toast.error(
             "Please enter a repository URL",
@@ -213,6 +224,20 @@ export function DeployModal({
           outputDir,
           envVars: envVarsResult.envVars,
         });
+      } else if (deploymentMethod === "url") {
+        if (!archiveUrl) {
+          toast.error(
+            "Please enter an archive URL",
+            "A URL to the archive file is required for deployment."
+          );
+          return;
+        }
+        await onDeployFromUrl({
+          archiveUrl,
+          buildCommand,
+          outputDir,
+          envVars: envVarsResult.envVars,
+        });
       }
 
       if (!error) {
@@ -220,6 +245,7 @@ export function DeployModal({
         onClose();
         setFile(null);
         setGitRepoUrl("");
+        setArchiveUrl("");
         setBranch("main");
         setBuildCommand("npm run build");
         setOutputDir("dist");
@@ -234,6 +260,7 @@ export function DeployModal({
   const handleClose = () => {
     setFile(null);
     setGitRepoUrl("");
+    setArchiveUrl("");
     setBranch("main");
     setBuildCommand("npm run build");
     setOutputDir("dist");
@@ -294,34 +321,49 @@ export function DeployModal({
           <div>
             <div className="flex items-center gap-2 mb-3">
               <label className="block text-sm font-medium">Source type</label>
-              <TooltipWrapper content="Choose how you want to deploy your application - upload a ZIP file or connect a GitHub repository.">
+              <TooltipWrapper content="Choose how you want to deploy: upload a ZIP file, connect a GitHub repository, or provide a URL to an archive file.">
                 <Info className="h-4 w-4 text-muted-foreground cursor-help" />
               </TooltipWrapper>
             </div>
-            <div className="flex rounded-lg border p-1 bg-muted/30">
+            <div className="grid grid-cols-3 gap-1 rounded-lg border p-1 bg-muted/30">
               <button
                 type="button"
                 onClick={() => setDeploymentMethod("zip")}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
                   deploymentMethod === "zip"
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Upload className="h-4 w-4" />
-                ZIP Upload
+                <span className="hidden sm:inline">ZIP Upload</span>
+                <span className="sm:hidden">ZIP</span>
               </button>
               <button
                 type="button"
                 onClick={() => setDeploymentMethod("git")}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
                   deploymentMethod === "git"
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Github className="h-4 w-4" />
-                GitHub Repo
+                <span className="hidden sm:inline">GitHub</span>
+                <span className="sm:hidden">Git</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeploymentMethod("url")}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                  deploymentMethod === "url"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Link className="h-4 w-4" />
+                <span className="hidden sm:inline">Archive URL</span>
+                <span className="sm:hidden">URL</span>
               </button>
             </div>
           </div>
@@ -379,6 +421,30 @@ export function DeployModal({
                   className="font-mono text-sm"
                 />
               </div>
+            </div>
+          )}
+
+          {/* Archive URL */}
+          {deploymentMethod === "url" && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium">
+                  Archive URL
+                </label>
+                <TooltipWrapper content="Enter the direct URL to your archive file. Supported formats: .zip, .tar.gz, .tgz">
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipWrapper>
+              </div>
+              <Input
+                value={archiveUrl}
+                onChange={(e) => setArchiveUrl(e.target.value)}
+                placeholder="https://example.com/my-app.zip"
+                required
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Supported formats: .zip, .tar.gz, .tgz
+              </p>
             </div>
           )}
 
@@ -482,19 +548,20 @@ export function DeployModal({
               )}
               {deploymentMethod === "git" && (
                 <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-2 shrink-0"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
                   <span>
                     Make sure your repository is public and accessible
                   </span>
                 </li>
               )}
-              <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-2 shrink-0"></span>
-                <span>
-                  Ensure your ZIP file includes all necessary assets and
-                  dependencies
-                </span>
-              </li>
+              {deploymentMethod === "url" && (
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
+                  <span>
+                    Ensure the archive URL is publicly accessible and contains your built application
+                  </span>
+                </li>
+              )}
             </ul>
           </div>
 
@@ -513,6 +580,7 @@ export function DeployModal({
               disabled={
                 (deploymentMethod === "zip" && !file) ||
                 (deploymentMethod === "git" && !gitRepoUrl) ||
+                (deploymentMethod === "url" && !archiveUrl) ||
                 isDeploying
               }
               className="flex items-center justify-center gap-2"

@@ -52,7 +52,7 @@ export function getSourceTypeLabel(sourceType: SourceType): string {
     case 'GIT':
       return 'Git Repository'
     case 'URL':
-      return 'ZIP URL'
+      return 'Archive URL'
     default:
       return sourceType
   }

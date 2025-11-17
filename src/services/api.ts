@@ -409,6 +409,7 @@ export const deploymentsApi = {
     zipUrl: string;
     buildCommand?: string;
     outputDir?: string;
+    envVars?: Record<string, string>;
   }) {
     try {
       const headers = await getAuthHeaders()
@@ -420,6 +421,7 @@ export const deploymentsApi = {
           zipUrl: data.zipUrl,
           buildCommand: data.buildCommand,
           outputDir: data.outputDir,
+          envVars: data.envVars,
         })
       })
 

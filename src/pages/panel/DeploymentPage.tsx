@@ -267,6 +267,12 @@ export function DeploymentPage() {
             <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.gitBranch}</p>
           </div>
         )}
+            {deployment.sourceType === 'URL' && deployment.sourceZipUrl && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Archive URL</label>
+                <p className="text-sm font-mono bg-muted px-2 py-1 rounded break-all">{deployment.sourceZipUrl}</p>
+              </div>
+            )}
             {deployment.envVars && Object.keys(deployment.envVars).length > 0 && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Environment Variables</label>

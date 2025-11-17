@@ -58,7 +58,7 @@ export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getCanister, addController, removeController, resetCanister } = useCanisters();
-  const { deployToCanister, deployFromGit } = useDeployments();
+  const { deployToCanister, deployFromGit, deployFromUrl } = useDeployments();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -226,6 +226,40 @@ export function CanisterPage() {
         result.error || "Failed to start deployment from GitHub"
       );
       setDeployError(result.error || "Failed to start deployment from GitHub");
+    }
+  };
+
+  const handleDeployFromUrl = async (data: {
+    archiveUrl: string;
+    buildCommand: string;
+    outputDir: string;
+    envVars?: Record<string, string>;
+  }) => {
+    if (!canister) return;
+
+    setDeployError("");
+
+    const result = await deployFromUrl({
+      canisterId: canister.id, // Use internal canister ID for deployments
+      archiveUrl: data.archiveUrl,
+      buildCommand: data.buildCommand,
+      outputDir: data.outputDir,
+      envVars: data.envVars,
+    });
+
+    if (result.success) {
+      toast.success(
+        "Deployment started!",
+        "Your application is being deployed from the archive URL. Check the deployments page for progress."
+      );
+      // Navigate to deployments page to see the new deployment
+      navigate("/panel/deployments");
+    } else {
+      toast.error(
+        "Deployment failed",
+        result.error || "Failed to start deployment from URL"
+      );
+      setDeployError(result.error || "Failed to start deployment from URL");
     }
   };
 
@@ -932,6 +966,7 @@ export function CanisterPage() {
         onClose={() => setIsDeployModalOpen(false)}
         onDeploy={handleDeploy}
         onDeployFromGit={handleDeployFromGit}
+        onDeployFromUrl={handleDeployFromUrl}
         canister={canister}
         error={deployError}
       />
