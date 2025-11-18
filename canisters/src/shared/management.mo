@@ -11,6 +11,7 @@ module {
       settings : { controllers : ?[Principal] };
     }) -> async ();
     install_code : (InstallCodeArgs) -> async ();
+    deposit_cycles : ({ canister_id : Principal }) -> async ();
   };
 
   public type CanisterStatus = {

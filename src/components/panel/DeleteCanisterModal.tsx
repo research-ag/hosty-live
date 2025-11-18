@@ -1,29 +1,35 @@
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
-import { useToast } from '../../hooks/useToast'
 import { Canister } from '../../types'
 
 interface DeleteCanisterModalProps {
   isOpen: boolean
   onClose: () => void
-  onConfirmDelete: () => void
   canister: Canister | null
-  isLoading?: boolean
+  onConfirmDelete: () => void
+  onConfirmDonate: () => void
+  isDeleting?: boolean
+  isDonating?: boolean
   error?: string
 }
 
-export function DeleteCanisterModal({ 
-  isOpen, 
-  onClose, 
-  onConfirmDelete, 
-  canister, 
-  isLoading = false, 
-  error 
-}: DeleteCanisterModalProps) {
-  const { toast } = useToast()
+export function DeleteCanisterModal(
+  {
+    isOpen,
+    onClose,
+    onConfirmDelete,
+    onConfirmDonate,
+    canister,
+    isDeleting = false,
+    isDonating = false,
+    error
+  }: DeleteCanisterModalProps) {
 
   const handleConfirm = () => {
     onConfirmDelete()
+  }
+  const handleDonate = () => {
+    onConfirmDonate()
   }
 
   return (
@@ -34,23 +40,33 @@ export function DeleteCanisterModal({
             {error}
           </div>
         )}
-        
+
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete canister <strong>{canister?.id}</strong>? 
-          This action cannot be undone.
+          Are you sure you want to delete canister <strong>{canister?.id}</strong>?
+          This action cannot be undone. Consider donating your canister instead.
         </p>
         <div className="flex justify-end space-x-3">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isDeleting || isDonating}>
             Cancel
           </Button>
-          <Button type="button" variant="destructive" onClick={handleConfirm} disabled={isLoading}>
-            {isLoading ? (
+          <Button type="button" variant="destructive" onClick={handleDonate} disabled={isDeleting || isDonating}>
+            {isDonating ? (
               <div className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"/>
+                Donating...
+              </div>
+            ) : (
+              'Donate'
+            )}
+          </Button>
+          <Button type="button" variant="destructive" onClick={handleConfirm} disabled={isDeleting || isDonating}>
+            {isDeleting ? (
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"/>
                 Deleting...
               </div>
             ) : (
-              'Delete Canister'
+              'Delete'
             )}
           </Button>
         </div>

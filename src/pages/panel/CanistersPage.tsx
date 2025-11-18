@@ -16,7 +16,7 @@ import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
 import { getBackendActor } from "../../api/backend";
-import type { Canister, Profile } from "../../types";
+import { Canister } from "../../types";
 
 function CyclesCell({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -30,26 +30,18 @@ function CyclesCell({ canisterId }: { canisterId: string }) {
   }
 }
 
-function NotControlledIndicator({ canisterId }: { canisterId: string }) {
-  const canisterStatus = useCanisterStatus(canisterId);
-
-  if (canisterStatus.isCanisterStatusLoading) {
+function RentedIndicator({ canister }: { canister: Canister }) {
+  if (!canister.rentedUntil) {
     return null;
   }
-
-  return null;
-
-  // return (
-  //   canisterStatus.isSystemController === false && (
-  //     <div className="absolute top-0 left-0 right-0 h-3 bg-red-500/10 flex items-center justify-center z-10">
-  //       <span className="text-[8px] font-medium text-red-600 tracking-[4px]">
-  //         {canisterStatus.canisterStatusError
-  //           ? "unexpected error occured"
-  //           : "not controlled by hosty.live"}
-  //       </span>
-  //     </div>
-  //   )
-  // );
+  const hoursLeft = (new Date(canister.rentedUntil).getTime() - Date.now()) / 1000 / 60 / 60;
+  return (
+    <div className="absolute top-0 left-0 right-0 h-3 bg-red-500/10 flex items-center justify-center z-10">
+        <span className="text-[8px] font-medium text-red-600 tracking-[4px]">
+          {"Ownership expires in " + hoursLeft.toFixed(0) + " hours"}
+        </span>
+    </div>
+  );
 }
 
 export function CanistersPage() {
@@ -73,8 +65,9 @@ export function CanistersPage() {
     isLoading: canistersLoading,
     error: canistersError,
     createCanister,
-    claimFreeCanister,
+    rentCanister,
     deleteCanister,
+    donateCanister,
     refreshCanisters,
     creationMessage,
     resetCreationStatus,
@@ -91,6 +84,7 @@ export function CanistersPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDonating, setIsDonating] = useState(false);
   const [actionError, setActionError] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [sortField, setSortField] = useState<keyof Canister>(initialSortField);
@@ -98,50 +92,22 @@ export function CanistersPage() {
     initialSortDirection
   );
 
-  // Free canister state
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isClaimingFree, setIsClaimingFree] = useState(false);
+  const [canRent, setCanRent] = useState<boolean>(false);
 
   const itemsPerPage = 9;
   const totalPages = Math.ceil(canisters.length / itemsPerPage);
 
-  const loadProfile = async () => {
+  const loadCanRent = async () => {
+    setCanRent(false);
     const backend = await getBackendActor();
-    const opt = await backend.getProfile();
-    if (opt.length) {
-      const p = opt[0];
-      const toIso = (ns: bigint) => new Date(Number(ns / 1_000_000n)).toISOString();
-      const mapped: Profile = {
-        userId: p.userId.toText(),
-        username: p.username.length ? p.username[0] : null,
-        freeCanisterClaimedAt: p.freeCanisterClaimedAt.length ? toIso(p.freeCanisterClaimedAt[0]) : null,
-        createdAt: toIso(p.createdAt),
-        updatedAt: toIso(p.updatedAt),
-      };
-      setProfile(mapped);
-    } else {
-      setProfile({
-        userId: principal || "2vxsx-fae",
-        username: null,
-        freeCanisterClaimedAt: null,
-        createdAt: null,
-        updatedAt: null,
-      });
-    }
+    const result = await backend.canRentCanister();
+    setCanRent(result);
   };
 
-  // Fetch user profile to check if free canister is available
   useEffect(() => {
     (async () => {
-      setIsLoadingProfile(true);
-      try {
-        await loadProfile();
-      } catch (_) {
-        setProfile(null);
-      } finally {
-        setIsLoadingProfile(false);
-      }
+      await loadCanRent();
     })().then();
   }, [principal]);
 
@@ -269,16 +235,40 @@ export function CanistersPage() {
     }
   };
 
-  const handleClaimFreeCanister = async () => {
+  const handleDonateCanister = async () => {
+    if (canisterToDelete) {
+      setIsDonating(true);
+      setActionError("");
+
+      const result = await donateCanister(canisterToDelete.id);
+
+      if (result.success) {
+        toast.success(
+          "Canister donated",
+          "Your canister has been successfully donated."
+        );
+        setIsDeleteModalOpen(false);
+      } else {
+        toast.error(
+          "Failed to donate canister",
+          result.error || "There was an error donating your canister."
+        );
+        setActionError(result.error || "Failed to donate canister");
+      }
+      setCanisterToDelete(null);
+      setIsDonating(false);
+    }
+  };
+
+  const handleRentFreeCanister = async () => {
     setIsClaimingFree(true);
     try {
-      const result = await claimFreeCanister();
+      const result = await rentCanister();
       if (result.success) {
-        toast.success("Success!", `Free canister created: ${result.data?.id}`);
-        // Refresh canisters list and profile
+        toast.success("Success!", `Canister rented: ${result.data?.id}`);
         await refreshCanisters();
         try {
-          await loadProfile();
+          await loadCanRent();
         } catch (_) {
           // pass
         }
@@ -379,15 +369,14 @@ export function CanistersPage() {
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          {/* Free Canister Button */}
-          {!isLoadingProfile && profile && !profile.freeCanisterClaimedAt && (
+          {canRent && (
             <TooltipWrapper
               className="cursor-pointer"
-              content="Start free: Get your first canister instantly"
+              content="Start free: Rent a canister instantly"
               showArrow={false}
             >
               <Button
-                onClick={handleClaimFreeCanister}
+                onClick={handleRentFreeCanister}
                 disabled={isClaimingFree}
                 variant="default"
                 className="flex-1 sm:flex-initial bg-green-600 hover:bg-green-700"
@@ -400,7 +389,7 @@ export function CanistersPage() {
                 ) : (
                   <>
                     <Gift className="mr-2 h-4 w-4"/>
-                    Free Canister
+                    Rent a free canister
                   </>
                 )}
               </Button>
@@ -456,8 +445,7 @@ export function CanistersPage() {
             className="relative group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20 h-full flex flex-col"
             onClick={() => navigate(`/panel/canister/${canister.id}`)}
           >
-            {/* Control Status Indicator */}
-            <NotControlledIndicator canisterId={canister.id}/>
+            <RentedIndicator canister={canister}/>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -553,7 +541,7 @@ export function CanistersPage() {
                     <Eye className="h-3 w-3"/>
                     View
                   </Button>
-                  <Button
+                  {!canister.ownedBySystem && (<Button
                     variant="ghost"
                     size="sm"
                     onClick={(e) => {
@@ -565,7 +553,7 @@ export function CanistersPage() {
                   >
                     <Trash2 className="h-3 w-3"/>
                     Delete
-                  </Button>
+                  </Button>)}
                 </div>
                 {canister.frontendUrl && (
                   <Button
@@ -666,9 +654,11 @@ export function CanistersPage() {
       <DeleteCanisterModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirmDelete={handleDeleteCanister}
         canister={canisterToDelete}
-        isLoading={isDeleting}
+        isDeleting={isDeleting}
+        onConfirmDelete={handleDeleteCanister}
+        isDonating={isDonating}
+        onConfirmDonate={handleDonateCanister}
         error={actionError}
       />
 
