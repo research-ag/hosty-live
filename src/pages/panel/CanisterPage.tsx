@@ -814,11 +814,13 @@ export function CanisterPage() {
                 </p>
               </div>
             )} */}
-            <div className="pt-2 space-x-2">
+            <div className="pt-2" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <Button
                 variant="destructive"
                 disabled={!principal || !canisterStatus.controllers?.includes(principal)}
                 onClick={() => setIsResetOpen(true)}
+                className="w-full sm:w-auto"
+                style={{ minWidth: "11rem" }}
               >
                 <AlertCircle className="mr-2 h-4 w-4"/>
                 Reset canister
@@ -829,6 +831,7 @@ export function CanisterPage() {
                   disabled={!principal || !canisterStatus.controllers?.includes(principal)}
                   onClick={() => setIsDonateOpen(true)}
                   className="w-full sm:w-auto"
+                  style={{ minWidth: "11rem" }}
                 >
                   <Gift className="mr-2 h-4 w-4"/>
                   Donate canister
