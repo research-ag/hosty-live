@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
+  Gift,
   Globe,
   LockKeyhole,
   LockKeyholeOpen,
@@ -25,7 +26,7 @@ import { DeployModal } from "../../components/panel/DeployModal";
 import { TransferOwnershipModal } from "../../components/panel/TransferOwnershipModal";
 import { CustomDomainModal } from "../../components/panel/CustomDomainModal";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
-import { CanisterInfo, useCanisters } from "../../hooks/useCanisters";
+import { useCanisters } from "../../hooks/useCanisters";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDeployments } from "../../hooks/useDeployments";
 import { useToast } from "../../hooks/useToast";
@@ -38,9 +39,10 @@ import { getStatusProxyActor, statusProxyCanisterId, } from "../../api/status-pr
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
 import { getAssetStorageActor } from "../../api/asset-storage";
-import { getBackendActor } from "../../api/backend";
+import { backendCanisterId, getBackendActor } from "../../api/backend";
 import { BurnInfo } from "../components/BurnInfo.tsx";
 import { isAssetCanister } from "../../constants/knownHashes.ts";
+import { Canister } from "../../types/index.ts";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -57,7 +59,7 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
 export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getCanister, addController, removeController, resetCanister } = useCanisters();
+  const { getCanister, addController, removeController, resetCanister, donateCanister } = useCanisters();
   const { deployToCanister, deployFromGit } = useDeployments();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -85,7 +87,7 @@ export function CanisterPage() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
   const [_, setCopied] = useState(false);
-  const [canister, setCanister] = useState<CanisterInfo | null>(null);
+  const [canister, setCanister] = useState<Canister | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [deployError, setDeployError] = useState<string>("");
@@ -112,6 +114,10 @@ export function CanisterPage() {
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState<string>("");
+  // Donate canister dialog state
+  const [isDonateOpen, setIsDonateOpen] = useState(false);
+  const [isDonating, setIsDonating] = useState(false);
+  const [donateError, setDonateError] = useState<string>("");
 
   const fetchImmutability = async () => {
     try {
@@ -243,6 +249,13 @@ export function CanisterPage() {
       );
       return;
     }
+    if (userPrincipal === backendCanisterId && canister.ownedBySystem) {
+      toast.error(
+        "Forbidden",
+        "You can't remove hosty.live from controllers if canister is owned by the system."
+      );
+      return;
+    }
 
     setRemoveTarget(userPrincipal);
     setIsRemoveConfirmOpen(true);
@@ -274,7 +287,11 @@ export function CanisterPage() {
     try {
       setIsResetting(true);
       setResetError("");
-      const res = await resetCanister(canister.id, canister.userIds.map(ps => Principal.fromText(ps)));
+      const owners = canister.userIds.map(ps => Principal.fromText(ps));
+      if (canister.ownedBySystem) {
+        owners.push(Principal.fromText(backendCanisterId));
+      }
+      const res = await resetCanister(canister.id, owners);
       if (res.success) {
         toast.success("Canister reset", "The canister was reset to defaults.");
         setIsResetOpen(false);
@@ -291,6 +308,29 @@ export function CanisterPage() {
       setResetError(e?.message || String(e));
     } finally {
       setIsResetting(false);
+    }
+  };
+
+  const confirmDonateCanister = async () => {
+    if (!canister) return;
+    try {
+      setIsDonating(true);
+      setDonateError("");
+      const res = await donateCanister(canister.id);
+      if (res.success) {
+        toast.success("Canister donated", "This canister was donated to the pool and may be used by others.");
+        setIsDonateOpen(false);
+        // Redirect to canisters page since you no longer own it
+        navigate("/panel/canisters");
+      } else {
+        toast.error("Failed to donate canister", res.error || "Unknown error");
+        setDonateError(res.error || "Unknown error");
+      }
+    } catch (e: any) {
+      toast.error("Failed to donate canister", e?.message || String(e));
+      setDonateError(e?.message || String(e));
+    } finally {
+      setIsDonating(false);
     }
   };
 
@@ -557,7 +597,7 @@ export function CanisterPage() {
           <Button
             variant="outline"
             onClick={() => setIsTransferModalOpen(true)}
-            disabled={!principal || !canisterStatus.controllers?.includes(principal)}
+            disabled={!principal || canister.ownedBySystem || !canisterStatus.controllers?.includes(principal)}
             className="w-full sm:w-auto"
           >
             <UserCheck className="mr-2 h-4 w-4"/>
@@ -681,7 +721,7 @@ export function CanisterPage() {
                           className="flex items-center justify-between gap-2 bg-muted px-2 py-1 rounded"
                         >
                           <div className="text-xs font-mono">
-                            {controller === import.meta.env.VITE_BACKEND_PRINCIPAL && (
+                            {controller === backendCanisterId && (
                               <span className="text-primary">(hosty.live) </span>
                             )}
                             {isSelf && (
@@ -696,7 +736,7 @@ export function CanisterPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              disabled={isSelf || isProxy || isRemovingController || (!!principal && !canisterStatus.controllers?.includes(principal))}
+                              disabled={isSelf || isProxy || (canister.ownedBySystem && controller === backendCanisterId) || isRemovingController || (!!principal && !canisterStatus.controllers?.includes(principal))}
                               onClick={() => handleRemoveController(controller)}
                               title={
                                 isSelf
@@ -718,7 +758,7 @@ export function CanisterPage() {
                     <Button
                       variant="outline"
                       onClick={() => setShowMakeImmutableModal(true)}
-                      disabled={(!!principal && !canisterStatus.controllers?.includes(principal))}
+                      disabled={(!!principal && !canisterStatus.controllers?.includes(principal)) || canister.ownedBySystem}
                       className="w-full sm:w-auto"
                     >
                       <LockKeyhole className="mr-2 h-4 w-4"/>
@@ -774,7 +814,7 @@ export function CanisterPage() {
                 </p>
               </div>
             )} */}
-            <div className="pt-2">
+            <div className="pt-2 space-x-2">
               <Button
                 variant="destructive"
                 disabled={!principal || !canisterStatus.controllers?.includes(principal)}
@@ -783,6 +823,17 @@ export function CanisterPage() {
                 <AlertCircle className="mr-2 h-4 w-4"/>
                 Reset canister
               </Button>
+              {!canister.ownedBySystem && (
+                <Button
+                  variant="destructive"
+                  disabled={!principal || !canisterStatus.controllers?.includes(principal)}
+                  onClick={() => setIsDonateOpen(true)}
+                  className="w-full sm:w-auto"
+                >
+                  <Gift className="mr-2 h-4 w-4"/>
+                  Donate canister
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1025,6 +1076,34 @@ export function CanisterPage() {
           if (!isResetting) {
             setIsResetOpen(false);
             setResetError("");
+          }
+        }}
+        className="[&_.btn-confirm]:bg-destructive"
+      />
+
+      <ConfirmDialog
+        isOpen={isDonateOpen}
+        title="Donate this canister?"
+        description={(
+          <>
+            <p className="text-sm">
+              Donation will give this canister to the system so it can be used by other users who need it.
+            </p>
+            {!!donateError && (
+              <div className="mt-3 p-2 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 rounded text-xs">
+                {donateError}
+              </div>
+            )}
+          </>
+        )}
+        confirmLabel="Donate"
+        cancelLabel="Cancel"
+        isLoading={isDonating}
+        onConfirm={confirmDonateCanister}
+        onCancel={() => {
+          if (!isDonating) {
+            setIsDonateOpen(false);
+            setDonateError("");
           }
         }}
         className="[&_.btn-confirm]:bg-destructive"

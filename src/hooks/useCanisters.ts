@@ -1,64 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Response } from '../types'
+import { Canister, mapCanister, mapProfile, Response } from '../types'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
 import { Principal } from "@dfinity/principal";
 import { getAssetStorageActor } from "../api/asset-storage";
 import { getAuthClient } from "./useInternetIdentity.ts";
-import { getBackendActor } from "../api/backend";
-import type { CanisterInfo as BackendCanisterInfo } from "../api/backend/backend.did";
+import { backendCanisterId, getBackendActor } from "../api/backend";
 import { init as assetStorageInit } from "../api/asset-storage/asset_storage.did";
 import { IDL } from "@dfinity/candid";
 import defaultPage from "../constants/default-page.ts";
 import { canister_status_result } from "../api/management/management.did";
-
-export type CanisterInfo = {
-  id: string;
-  alias: string;
-  description: string | null;
-  cycles: number;
-  status: 'active' | 'inactive';
-  frontendUrl: string;
-  createdAt: string;
-  deployedAt: string | undefined;
-  deletedAt: string | undefined;
-  userIds: string[];
-  cyclesBalance: string | undefined;
-  cyclesBalanceRaw: string | undefined;
-  wasmBinarySize: string | undefined;
-  moduleHash: string | undefined;
-  controllers: string[] | undefined;
-}
-
-// Transform Backend canister to frontend format
-function transformBackendCanisterToFrontend(b: BackendCanisterInfo): CanisterInfo {
-  const icId = b.canisterId.toText();
-  const createdAt = new Date(Number(b.createdAt / 1_000_000n)).toISOString();
-  const deployedAt = b.deployedAt.length
-    ? new Date(Number(b.deployedAt[0] / 1_000_000n)).toISOString()
-    : undefined;
-  const deletedAt = b.deletedAt.length
-    ? new Date(Number(b.deletedAt[0] / 1_000_000n)).toISOString()
-    : undefined;
-  return {
-    id: icId,
-    alias: b.alias[0] || `Canister ${icId.slice(0, 5)}`,
-    description: b.description[0] || null,
-    cycles: 0,
-    deployedAt,
-    status: 'active',
-    frontendUrl: b.frontendUrl,
-    createdAt: createdAt,
-    deletedAt,
-    userIds: b.userIds.map(p => p.toText()),
-    cyclesBalance: undefined,
-    cyclesBalanceRaw: undefined,
-    wasmBinarySize: undefined,
-    moduleHash: undefined,
-    controllers: undefined,
-  }
-}
 
 export function useCanisters() {
   const queryClient = useQueryClient()
@@ -76,8 +28,12 @@ export function useCanisters() {
     queryFn: async () => {
       console.log('🚀 [useCanisters.queryFn] Starting fetch via backend canister...')
       const backend = await getBackendActor();
-      const list = await backend.listCanisters();
-      const transformedCanisters = list.map(transformBackendCanisterToFrontend);
+      const [canisters, profile] = await Promise.all([backend.listCanisters(), backend.getProfile()])
+      let transformedCanisters = canisters.map(c => mapCanister(c));
+      const transformedProfile = profile.length ? mapProfile(profile[0]) : null;
+      if (transformedProfile?.rentedCanister) {
+        transformedCanisters = [transformedProfile.rentedCanister, ...transformedCanisters];
+      }
       console.log('✅ [useCanisters.queryFn] Transformed canisters:', transformedCanisters.length)
       return transformedCanisters
     },
@@ -158,7 +114,7 @@ export function useCanisters() {
       const backend = await getBackendActor();
       const registered = await backend.registerCanister(Principal.fromText(canisterId));
 
-      return transformBackendCanisterToFrontend(registered)
+      return mapCanister(registered)
     },
     onSuccess: (_) => {
       setCreationMessage('Your canister is ready!')
@@ -175,29 +131,12 @@ export function useCanisters() {
     }
   })
 
-  // Mutation for claiming free canister
-  const claimFreeCanisterMutation = useMutation({
+  const rentCanisterMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/assetstorage.wasm.gz");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-      }
-      const wasmBinary = new Uint8Array(await response.arrayBuffer())
-      const management = await getManagementActor()
-      const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
-      const buildSystemPrincipal = Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL)
-
       const backend = await getBackendActor()
-      const result = await backend.claimFreeCanister()
+      const result = await backend.rentCanister()
       if ("ok" in result) {
-        const canisterInfo = result['ok'];
-        try {
-          await performInitialCanisterSetup(canisterInfo.canisterId.toText(), management, wasmBinary, [myPrincipal], buildSystemPrincipal);
-        } catch (err) {
-          // TODO implement a way to setup canister again later
-          console.error(err);
-        }
-        return transformBackendCanisterToFrontend(canisterInfo);
+        return mapCanister(result['ok']);
       } else {
         throw new Error(result['err']);
       }
@@ -209,7 +148,7 @@ export function useCanisters() {
       queryClient.invalidateQueries({ queryKey: ['cycles'] })
     },
     onError: (err) => {
-      setCreationMessage(err instanceof Error ? err.message : 'Failed to claim free canister canister')
+      setCreationMessage(err instanceof Error ? err.message : 'Failed to rent a canister')
     },
     onSettled: () => {
     }
@@ -230,7 +169,7 @@ export function useCanisters() {
     },
     onSuccess: ({ canisterDbId }) => {
       // Optimistically remove from cache
-      queryClient.setQueryData(['canisters'], (oldData: CanisterInfo[]) => {
+      queryClient.setQueryData(['canisters'], (oldData: Canister[]) => {
         if (!oldData) return oldData
         return oldData.filter((c) => c.id !== canisterDbId)
       })
@@ -240,7 +179,7 @@ export function useCanisters() {
   })
 
   // Get single canister with caching
-  const getCanister = async (icCanisterId: string, skipCache?: boolean): Promise<Response<CanisterInfo>> => {
+  const getCanister = async (icCanisterId: string, skipCache?: boolean): Promise<Response<Canister>> => {
     try {
       console.log('🔍 [useCanisters.getCanister] Getting canister by IC ID:', icCanisterId)
 
@@ -255,7 +194,7 @@ export function useCanisters() {
       const backend = await getBackendActor();
       const b = await backend.getCanister(Principal.fromText(icCanisterId));
 
-      const transformedCanister = transformBackendCanisterToFrontend(b)
+      const transformedCanister = mapCanister(b)
       console.log('✅ [useCanisters.getCanister] Transformed canister:', transformedCanister)
 
       // Update cache with the new data
@@ -273,7 +212,7 @@ export function useCanisters() {
   }
 
   // Wrapper functions to maintain the same interface
-  const createCanister = async (): Promise<{ success: boolean; error?: string; data?: CanisterInfo }> => {
+  const createCanister = async (): Promise<{ success: boolean; error?: string; data?: Canister }> => {
     try {
       const result = await createCanisterMutation.mutateAsync()
       return { success: true, data: result }
@@ -286,14 +225,14 @@ export function useCanisters() {
   }
 
   // Wrapper functions to maintain the same interface
-  const claimFreeCanister = async (): Promise<{ success: boolean; error?: string; data?: CanisterInfo }> => {
+  const rentCanister = async (): Promise<{ success: boolean; error?: string; data?: Canister }> => {
     try {
-      const result = await claimFreeCanisterMutation.mutateAsync()
+      const result = await rentCanisterMutation.mutateAsync()
       return { success: true, data: result }
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to claim free canister'
+        error: err instanceof Error ? err.message : 'Failed to rent a canister'
       }
     }
   }
@@ -549,6 +488,32 @@ export function useCanisters() {
     }
   };
 
+  const donateCanister = async (
+    canisterId: string,
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const addControllerRes = await addController(canisterId, backendCanisterId);
+      if (!addControllerRes.success) {
+        return addControllerRes;
+      }
+      const backend = await getBackendActor();
+      const res = await backend.donateCanister(Principal.fromText(canisterId));
+      if (res && 'ok' in res) {
+        return { success: true };
+      }
+      const errMsg = res && 'err' in res ? (res.err as any) : 'Donation failed';
+      return { success: false, error: typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg) };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to donate canister',
+      };
+    } finally {
+      // After donating, this canister should disappear from the owner list
+      await queryClient.invalidateQueries({ queryKey: ['canisters'] });
+    }
+  };
+
   const importCanister = async (
     canisterId: string,
     opts: { reset: boolean }
@@ -638,7 +603,7 @@ export function useCanisters() {
     isLoading,
     error,
     createCanister,
-    claimFreeCanister,
+    rentCanister,
     deleteCanister,
     addController,
     removeController,
@@ -650,5 +615,6 @@ export function useCanisters() {
     },
     resetCanister,
     importCanister,
+    donateCanister,
   }
 }

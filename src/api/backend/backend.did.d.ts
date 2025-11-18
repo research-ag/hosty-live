@@ -11,24 +11,29 @@ export interface CanisterInfo {
   'frontendUrl' : string,
   'deletedAt' : [] | [bigint],
   'canisterId' : Principal,
+  'ownedBySystem' : boolean,
 }
 export interface ProfileInfo {
   'username' : [] | [string],
   'userId' : Principal,
   'createdAt' : bigint,
   'updatedAt' : bigint,
-  'freeCanisterClaimedAt' : [] | [bigint],
+  'rentedCanister' : [] | [[CanisterInfo, bigint]],
 }
 export type Result = { 'ok' : CanisterInfo } |
   { 'err' : string };
+export type Result_1 = { 'ok' : null } |
+  { 'err' : string };
 export interface _SERVICE {
-  'claimFreeCanister' : ActorMethod<[], Result>,
+  'canRentCanister' : ActorMethod<[], boolean>,
   'deleteCanister' : ActorMethod<[Principal], undefined>,
+  'donateCanister' : ActorMethod<[Principal], Result_1>,
   'getCanister' : ActorMethod<[Principal], CanisterInfo>,
   'getProfile' : ActorMethod<[], [] | [ProfileInfo]>,
   'listCanisters' : ActorMethod<[], Array<CanisterInfo>>,
   'onCanisterDeployed' : ActorMethod<[Principal], undefined>,
   'registerCanister' : ActorMethod<[Principal], CanisterInfo>,
+  'rentCanister' : ActorMethod<[], Result>,
   'updateCanister' : ActorMethod<
     [
       Principal,
