@@ -10,13 +10,15 @@ interface CustomDomainProps {
 
 const getDomainStatusColor = (status: string) => {
   switch (status) {
-    case "active":
+    case "registered":
       return "bg-green-500";
+    case "registering":
+      return "bg-blue-500";
     case "not_configured":
-    case "registration_pending":
-      return "bg-yellow-500";
     case "dns_invalid":
-    case "registration_failed":
+      return "bg-yellow-500";
+    case "failed":
+    case "expired":
       return "bg-red-500";
     default:
       return "bg-gray-400";
@@ -25,16 +27,18 @@ const getDomainStatusColor = (status: string) => {
 
 const getDomainStatusName = (status: string) => {
   switch (status) {
-    case "active":
-      return "Active";
+    case "registered":
+      return "Registered";
+    case "registering":
+      return "Registering";
     case "not_configured":
       return "Not configured";
-    case "registration_pending":
-      return "Registration pending";
     case "dns_invalid":
       return "DNS invalid";
-    case "registration_failed":
-      return "Registration failed";
+    case "failed":
+      return "Failed";
+    case "expired":
+      return "Expired";
     default:
       return status;
   }

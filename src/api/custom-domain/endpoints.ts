@@ -77,18 +77,17 @@ export interface CustomDomainCheckResult {
   status:
     | "not_configured"
     | "dns_invalid"
-    | "registration_pending"
-    | "registration_failed"
-    | "active";
-  dnsCheck: {
-    alias: { status: string; ips?: string[] };
-    txt: { status: string; values?: string[] };
-    cname: { status: string; values?: string[] };
+    | "registering"
+    | "registered"
+    | "expired"
+    | "failed";
+  validationResult: {
+    validation_status: "valid" | "invalid";
+    canister_id?: string;
   } | null;
   registrationStatus: {
-    state: string;
-    name?: string;
-    canister?: string;
+    registration_status: "registering" | "registered" | "expired" | "failed";
+    canister_id?: string;
   } | null;
   errorMessage: string | null;
 }
@@ -104,110 +103,99 @@ export const checkCustomDomain = queryEndpoint({
         payload.canisterId
       );
 
-      // return {
-      //   domain,
-      //   status: "dns_invalid",
-      //   dnsCheck: null,
-      //   registrationStatus: null,
-      //   errorMessage: `DNS configuration issues: ... (here errors description)`,
-      // };
-
       if (!domain) {
         return {
           domain: null,
           status: "not_configured",
-          dnsCheck: null,
+          validationResult: null,
           registrationStatus: null,
           errorMessage: null,
         };
       }
 
-      const [aliasResult, txtResult, cnameResult] = await Promise.all([
-        apiService.validateAliasRecord(domain),
-        apiService.validateCanisterIdRecord(domain, payload.canisterId),
-        apiService.validateAcmeChallengeRecord(domain),
-      ]);
-
-      const dnsCheck = {
-        alias: aliasResult,
-        txt: txtResult,
-        cname: cnameResult,
-      };
-
-      const dnsInvalid =
-        aliasResult.status !== "valid" ||
-        txtResult.status !== "valid" ||
-        cnameResult.status !== "valid";
-
-      if (dnsInvalid) {
-        const errorMessages: string[] = [];
-
-        if (aliasResult.status !== "valid")
-          errorMessages.push(`ALIAS record: ${aliasResult.status}`);
-        if (txtResult.status !== "valid")
-          errorMessages.push(`TXT record: ${txtResult.status}`);
-        if (cnameResult.status !== "valid")
-          errorMessages.push(`CNAME record: ${cnameResult.status}`);
-
-        return {
-          domain,
-          status: "dns_invalid",
-          dnsCheck,
-          registrationStatus: null,
-          errorMessage: `DNS configuration issues: ${errorMessages.join(", ")}`,
-        };
-      }
-
+      // Check registration status using new API
       try {
-        const registrationResponse = await apiService.registerDomain(domain);
+        const statusResponse = await apiService.checkRegistrationStatus(domain);
 
-        if (registrationResponse.id) {
-          const registrationStatus = await apiService.checkRegistrationStatus(
-            registrationResponse.id
-          );
+        if (statusResponse.status === "success" && statusResponse.data) {
+          const regStatus = statusResponse.data.registration_status;
+          const registeredCanisterId = statusResponse.data.canister_id;
 
-          if (registrationStatus.state === "Available") {
+          // Verify canister ID matches
+          if (
+            registeredCanisterId &&
+            registeredCanisterId !== payload.canisterId
+          ) {
             return {
               domain,
-              status: "active",
-              dnsCheck,
-              registrationStatus,
-              errorMessage: null,
+              status: "failed",
+              validationResult: null,
+              registrationStatus: {
+                registration_status: regStatus || "registering",
+                canister_id: registeredCanisterId,
+              },
+              errorMessage: `Domain registered to different canister: ${registeredCanisterId}`,
             };
-          } else if (registrationStatus.state === "Failed") {
+          }
+
+          return {
+            domain,
+            status: regStatus || "registering",
+            validationResult: null,
+            registrationStatus: {
+              registration_status: regStatus || "registering",
+              canister_id: registeredCanisterId,
+            },
+            errorMessage: null,
+          };
+        }
+      } catch (_statusError) {
+        // Domain not yet registered, try validation
+        try {
+          const validationResponse = await apiService.validateDomain(domain);
+
+          if (
+            validationResponse.status === "success" &&
+            validationResponse.data
+          ) {
             return {
               domain,
-              status: "registration_failed",
-              dnsCheck,
-              registrationStatus,
-              errorMessage: `Registration failed: ${registrationStatus.state}`,
+              status: "dns_invalid",
+              validationResult: {
+                validation_status: validationResponse.data.validation_status,
+                canister_id: validationResponse.data.canister_id,
+              },
+              registrationStatus: null,
+              errorMessage: null,
             };
           } else {
             return {
               domain,
-              status: "registration_pending",
-              dnsCheck,
-              registrationStatus,
-              errorMessage: `Registration in progress: ${registrationStatus.state}`,
+              status: "dns_invalid",
+              validationResult: null,
+              registrationStatus: null,
+              errorMessage:
+                validationResponse.errors || validationResponse.message,
             };
           }
+        } catch (validationError) {
+          return {
+            domain,
+            status: "dns_invalid",
+            validationResult: null,
+            registrationStatus: null,
+            errorMessage:
+              validationError instanceof Error
+                ? validationError.message
+                : "Validation failed",
+          };
         }
-      } catch (_registrationError) {
-        // If registration call fails, assume it might already be registered
-        // This is a fallback - ideally we'd store registration IDs
-        return {
-          domain,
-          status: "registration_pending",
-          dnsCheck,
-          registrationStatus: null,
-          errorMessage: "Unable to verify registration status",
-        };
       }
 
       return {
         domain,
-        status: "registration_pending",
-        dnsCheck,
+        status: "not_configured",
+        validationResult: null,
         registrationStatus: null,
         errorMessage: null,
       };
@@ -215,7 +203,7 @@ export const checkCustomDomain = queryEndpoint({
       return {
         domain: null,
         status: "not_configured",
-        dnsCheck: null,
+        validationResult: null,
         registrationStatus: null,
         errorMessage:
           error instanceof Error ? error.message : "Unknown error occurred",

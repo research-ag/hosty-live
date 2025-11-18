@@ -208,33 +208,78 @@ export const checkNamecheapDns = async (
 
 // @
 
-export interface RegistrationsResponse {
-  name: string;
-  canister: string;
-  state: string;
+// New API Types
+export interface DomainValidationResponse {
+  status: "success" | "error";
+  message: string;
+  data?: {
+    domain: string;
+    canister_id: string;
+    validation_status: "valid" | "invalid";
+  };
+  errors?: string;
 }
 
-export interface RegisterDomainResponse {
-  id: string;
+export interface DomainRegistrationResponse {
+  status: "success" | "error";
+  message: string;
+  data?: {
+    domain: string;
+    canister_id: string;
+    registration_status?: "registering" | "registered" | "expired" | "failed";
+  };
+  errors?: string;
 }
 
-export const registerDomain = async (domain: string) => {
-  const data = await makeRequest.auto<RegisterDomainResponse>({
-    url: "https://icp0.io/registrations",
-    method: "POST",
-    data: { name: domain },
+// Validate domain configuration before registration
+export const validateDomain = async (domain: string): Promise<DomainValidationResponse> => {
+  const data = await makeRequest.auto<DomainValidationResponse>({
+    url: `https://icp0.io/custom-domains/v1/${domain}/validate`,
+    method: "GET",
     headers: resetHeaders,
   });
 
   return data;
 };
 
-export const checkRegistrationStatus = async (
-  requestId: string
-): Promise<RegistrationsResponse> => {
-  const data = await makeRequest.auto<RegistrationsResponse>({
-    url: `https://icp0.io/registrations/${requestId}`,
+// Register domain with new API
+export const registerDomain = async (domain: string): Promise<DomainRegistrationResponse> => {
+  const data = await makeRequest.auto<DomainRegistrationResponse>({
+    url: `https://icp0.io/custom-domains/v1/${domain}`,
+    method: "POST",
+    headers: resetHeaders,
+  });
+
+  return data;
+};
+
+// Check domain registration status
+export const checkRegistrationStatus = async (domain: string): Promise<DomainRegistrationResponse> => {
+  const data = await makeRequest.auto<DomainRegistrationResponse>({
+    url: `https://icp0.io/custom-domains/v1/${domain}`,
     method: "GET",
+    headers: resetHeaders,
+  });
+
+  return data;
+};
+
+// Update domain mapping to different canister
+export const updateDomain = async (domain: string): Promise<DomainRegistrationResponse> => {
+  const data = await makeRequest.auto<DomainRegistrationResponse>({
+    url: `https://icp0.io/custom-domains/v1/${domain}`,
+    method: "PATCH",
+    headers: resetHeaders,
+  });
+
+  return data;
+};
+
+// Remove domain registration
+export const removeDomain = async (domain: string): Promise<DomainRegistrationResponse> => {
+  const data = await makeRequest.auto<DomainRegistrationResponse>({
+    url: `https://icp0.io/custom-domains/v1/${domain}`,
+    method: "DELETE",
     headers: resetHeaders,
   });
 

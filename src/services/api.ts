@@ -123,8 +123,8 @@ export const authApi = {
 
 // Custom domain API
 export const customDomainApi = {
-  // Add custom domain to canister
-  async addDomain(canisterId: string, domain: string, skipUpload: boolean) {
+  // Add custom domain to canister (new API)
+  async addDomain(canisterId: string, domain: string) {
     if (!isValidDomain(domain)) {
       return {
         success: false,
@@ -132,43 +132,45 @@ export const customDomainApi = {
       }
     }
     try {
-      // Upload .well-known/ic-domains file (unless skipped)
-      if (!skipUpload) {
-        const assetManager = new AssetManager({
-          canisterId: Principal.fromText(canisterId),
-          agent: getAgent(),
-        });
-        await assetManager.delete("/.well-known/ic-domains");
-        await assetManager.store(new TextEncoder().encode(domain), {
-          fileName: ".well-known/ic-domains",
-          contentType: "text/plain",
-          contentEncoding: "identity",
-        });
-      }
-
-      // Register domain with IC gateways
-      const response = await fetch("https://icp0.io/registrations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: domain }),
+      // Upload .well-known/ic-domains file
+      const assetManager = new AssetManager({
+        canisterId: Principal.fromText(canisterId),
+        agent: getAgent(),
       });
+      await assetManager.delete("/.well-known/ic-domains");
+      await assetManager.store(new TextEncoder().encode(domain), {
+        fileName: ".well-known/ic-domains",
+        contentType: "text/plain",
+        contentEncoding: "identity",
+      });
+
+      // Register domain with IC gateways using new API
+      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}`, {
+        method: "POST",
+      });
+      
       if (!response.ok) {
-        const error = await response.text();
+        const errorData = await response.json().catch(() => ({ errors: 'Unknown error' }));
         return {
           success: false,
-          error: `Domain registration failed: ${error}`
+          error: `Domain registration failed: ${errorData.errors || errorData.message}`
         }
       }
+      
       const result = await response.json();
+      
+      // Update backend database with domain association
       const backend = await getBackendActor();
       await backend.updateCanister(Principal.fromText(canisterId), {
         alias: [],
         description: [],
         frontendUrl: [domain]
       });
+      
       return {
         success: true,
-        requestId: result.id,
+        domain: result.data?.domain,
+        registrationStatus: result.data?.registration_status,
       };
     } catch (err) {
       return {
@@ -197,21 +199,92 @@ export const customDomainApi = {
     }
   },
 
-  // Check domain registration status
-  async checkRegistrationStatus(requestId: string) {
+  // Check domain registration status using new API
+  async checkRegistrationStatus(domain: string) {
     try {
-      const response = await fetch(`https://icp0.io/registrations/${requestId}`)
+      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}`)
 
       if (!response.ok) {
-        return { success: false, error: 'Registration not found' }
+        const errorData = await response.json().catch(() => ({ errors: 'Registration not found' }));
+        return { 
+          success: false, 
+          error: errorData.errors || errorData.message || 'Registration not found' 
+        }
       }
 
       const data = await response.json()
-      return { success: true, data }
+      return { 
+        success: true, 
+        data: {
+          domain: data.data?.domain,
+          canisterId: data.data?.canister_id,
+          status: data.data?.registration_status,
+          message: data.message,
+        }
+      }
     } catch (err) {
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Failed to check status'
+      }
+    }
+  },
+
+  // Validate domain before registration using new API
+  async validateDomain(domain: string) {
+    try {
+      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}/validate`)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ errors: 'Validation failed' }));
+        return { 
+          success: false, 
+          error: errorData.errors || errorData.message || 'Validation failed' 
+        }
+      }
+
+      const data = await response.json()
+      return { 
+        success: true, 
+        data: {
+          domain: data.data?.domain,
+          canisterId: data.data?.canister_id,
+          validationStatus: data.data?.validation_status,
+          message: data.message,
+        }
+      }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to validate domain'
+      }
+    }
+  },
+
+  // Remove domain registration using new API
+  async removeDomain(domain: string) {
+    try {
+      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ errors: 'Failed to remove domain' }));
+        return { 
+          success: false, 
+          error: errorData.errors || errorData.message || 'Failed to remove domain' 
+        }
+      }
+
+      const data = await response.json()
+      return { 
+        success: true,
+        message: data.message,
+      }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to remove domain'
       }
     }
   }

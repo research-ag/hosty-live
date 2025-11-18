@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Globe,
   Info,
-  ExternalLink,
   CheckCircle,
   AlertCircle,
   Loader2,
@@ -54,9 +53,8 @@ export function CustomDomainModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingInitial, setIsLoadingInitial] = useState(false);
   const [error, setError] = useState("");
-  const [requestId, setRequestId] = useState("");
+  const [success, setSuccess] = useState("");
   const [registrationStatus, setRegistrationStatus] = useState<any>(null);
-  const [dnsSuccess, setDnsSuccess] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [showDnsCheck, setShowDnsCheck] = useState(false);
 
@@ -180,9 +178,8 @@ export function CustomDomainModal({
       setRegisterDomain(domainFromIcDomains ?? "");
       setInitialDomain(domainFromIcDomains ?? "");
       setError("");
-      setRequestId("");
+      setSuccess("");
       setRegistrationStatus(null);
-      setDnsSuccess(false);
       setIsCheckingStatus(false);
       setShowDnsCheck(false);
 
@@ -191,6 +188,7 @@ export function CustomDomainModal({
         fetchCurrentDomain();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, canister?.id]);
 
   useEffect(() => {
@@ -215,23 +213,31 @@ export function CustomDomainModal({
         setRegisterDomain(currentDomain);
         setInitialDomain(currentDomain);
       }
-    } catch (err) {
+    } catch (_err) {
       // Silently fail, just use empty string
     } finally {
       setIsLoadingInitial(false);
     }
   };
 
-  const checkRegistrationStatus = async (reqId: string) => {
+  const checkRegistrationStatus = async (domain: string) => {
     setIsCheckingStatus(true);
     try {
-      const result = await customDomainApi.checkRegistrationStatus(reqId);
-      if (result.success) {
+      const result = await customDomainApi.checkRegistrationStatus(domain);
+      if (result.success && result.data) {
         setRegistrationStatus(result.data);
+        
+        // Show success message for registered domains
+        if (result.data.status === "registered") {
+          setError(""); // Clear any errors
+          setSuccess("Domain successfully registered and active!");
+        }
       } else {
+        setSuccess(""); // Clear any status messages
         setError(result.error || "Failed to check registration status");
       }
-    } catch (err) {
+    } catch (_err) {
+      setSuccess(""); // Clear any status messages
       setError("Failed to check registration status");
     } finally {
       setIsCheckingStatus(false);
@@ -249,67 +255,101 @@ export function CustomDomainModal({
 
     setIsLoading(true);
     setError("");
-    setRequestId("");
+    setSuccess("");
     setRegistrationStatus(null);
-    setDnsSuccess(false);
 
-    const isCheckStatus =
-      !!initialDomain &&
-      registerDomain === initialDomain &&
-      isValidDomain(initialDomain);
+    const hasExistingDomain = !!initialDomain && isValidDomain(initialDomain);
+    const isDifferentDomain = registerDomain !== initialDomain;
 
     try {
-      const [aliasResult, txtResult, cnameResult] = await Promise.all([
-        customDomainApiV2.validateAliasRecord.fetch(queryClient, {
-          domain: registerDomain,
-        }),
-        customDomainApiV2.validateCanisterIdRecord.fetch(queryClient, {
-          domain: registerDomain,
-          expectedCanisterId: canister.id,
-        }),
-        customDomainApiV2.validateAcmeChallengeRecord.fetch(queryClient, {
-          domain: registerDomain,
-        }),
-      ]);
-
-      const dnsInvalid =
-        aliasResult.status !== "valid" ||
-        txtResult.status !== "valid" ||
-        cnameResult.status !== "valid";
-
-      if (dnsInvalid) {
-        const errorMessages: string[] = [];
-
-        if (aliasResult.status !== "valid")
-          errorMessages.push(`ALIAS record: ${aliasResult.status}`);
-        if (txtResult.status !== "valid")
-          errorMessages.push(`TXT record: ${txtResult.status}`);
-        if (cnameResult.status !== "valid")
-          errorMessages.push(`CNAME record: ${cnameResult.status}`);
-
-        throw new Error(`DNS pre-check error: ${errorMessages.join(", ")}`);
+      // STEP 1: Check if domain is already registered to prevent conflicts
+      const existingRegistration = await customDomainApi.checkRegistrationStatus(registerDomain);
+      
+      if (existingRegistration.success && existingRegistration.data) {
+        const registeredCanisterId = existingRegistration.data.canisterId;
+        const registrationStatus = existingRegistration.data.status;
+        
+        // Domain is registered to a DIFFERENT canister
+        if (registeredCanisterId && registeredCanisterId !== canister.id) {
+          throw new Error(
+            `This domain is already registered to canister ${registeredCanisterId}. ` +
+            `Each domain can only be registered to one canister at a time. ` +
+            `Please use a different domain or remove it from the other canister first.`
+          );
+        }
+        
+        // Domain is registered to THIS canister
+        if (registeredCanisterId === canister.id) {
+          if (registrationStatus === "registered") {
+            setSuccess("Domain is already registered to this canister!");
+            setRegistrationStatus(existingRegistration.data);
+            setIsLoading(false);
+            return;
+          }
+          // If status is not "registered" (e.g., "registering", "failed", "expired"), continue to re-register
+        }
       }
 
-      setDnsSuccess(true);
+      // STEP 2: Validate DNS configuration
+      const validationResult = await customDomainApi.validateDomain(registerDomain);
 
-      const result = await customDomainApi.addDomain(
-        canister.id,
-        registerDomain,
-        isCheckStatus
-      );
+      if (!validationResult.success) {
+        throw new Error(`DNS validation failed: ${validationResult.error}`);
+      }
 
-      queryClient.invalidateQueries({
-        queryKey: ["alias-record-validation-res", registerDomain],
+      if (validationResult.data?.validationStatus !== "valid") {
+        throw new Error("DNS configuration is not valid. Please check your DNS records and try again.");
+      }
+
+      // STEP 2.5: Verify canister ID in DNS matches this canister
+      const canisterIdCheck = await customDomainApiV2.validateCanisterIdRecord.fetch(queryClient, {
+        domain: registerDomain,
+        expectedCanisterId: canister.id,
       });
-      queryClient.invalidateQueries({
-        queryKey: [
-          "canister-id-record-validation-res",
-          registerDomain,
+
+      if (canisterIdCheck.status !== "valid") {
+        throw new Error(
+          `DNS TXT record _canister-id.${registerDomain} must contain ${canister.id}. ` +
+          `Current status: ${canisterIdCheck.status}`
+        );
+      }
+
+      // STEP 3: Handle domain registration/update
+      if (hasExistingDomain && isDifferentDomain) {
+        // SCENARIO: Changing to a different domain
+        // Remove old domain from IC
+        await customDomainApi.removeDomain(initialDomain);
+        
+        // Register new domain
+        const result = await customDomainApi.addDomain(
           canister.id,
-        ],
+          registerDomain
+        );
+
+        if (!result.success) {
+          throw new Error(result.error || "Failed to register new domain");
+        }
+      } else {
+        // SCENARIO: New domain or re-registering same domain
+        const result = await customDomainApi.addDomain(
+          canister.id,
+          registerDomain
+        );
+
+        if (!result.success) {
+          throw new Error(result.error || "Failed to register domain");
+        }
+      }
+
+      // Invalidate queries to refresh UI
+      queryClient.invalidateQueries({
+        queryKey: ["alias-record-validation-res"],
       });
       queryClient.invalidateQueries({
-        queryKey: ["acme-challenge-record-validation-res", registerDomain],
+        queryKey: ["canister-id-record-validation-res"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["acme-challenge-record-validation-res"],
       });
       queryClient.invalidateQueries({
         queryKey: ["domain-from-ic-domains", canister.id],
@@ -318,16 +358,14 @@ export function CustomDomainModal({
         queryKey: ["domain-check-result", canister.id],
       });
 
-      if (result.success && result.requestId) {
-        setRequestId(result.requestId);
-        // Immediately check status
-        await checkRegistrationStatus(result.requestId);
-      } else {
-        setError(result.error || "Failed to register domain");
-      }
+      setSuccess("Domain registration submitted successfully!");
+      
+      // Check status immediately
+      await checkRegistrationStatus(registerDomain);
     } catch (err) {
+      setSuccess(""); // Clear any status messages
       setError(
-        err instanceof Error ? err.message : "Failed to register domain"
+        err instanceof Error ? err.message : "Failed to process domain"
       );
     } finally {
       setIsLoading(false);
@@ -339,13 +377,6 @@ export function CustomDomainModal({
     !isValidDomain(registerDomain) ||
     isLoading ||
     isLoadingInitial;
-  const isCheckStatus =
-    initialDomain &&
-    registerDomain === initialDomain &&
-    isValidDomain(initialDomain);
-  const submitButtonText = isCheckStatus
-    ? "Register Domain (check)"
-    : "Register Domain";
 
   const displayDomain = domain || "<domain>";
 
@@ -850,10 +881,10 @@ export function CustomDomainModal({
                 {isLoading ? (
                   <div className="flex items-center">
                     <Loader2 className="animate-spin rounded-full h-4 w-4 mr-2" />
-                    {isCheckStatus ? "Checking..." : "Registering..."}
+                    Registering...
                   </div>
                 ) : (
-                  submitButtonText
+                  "Register Domain"
                 )}
               </Button>
 
@@ -863,15 +894,14 @@ export function CustomDomainModal({
                 </div>
               )}
 
-              {dnsSuccess && (
+              {success && (
                 <div className="p-3 break-all text-sm text-green-800 bg-green-100 border border-green-300 rounded-md">
-                  DNS pre-check successful! All required records are properly
-                  configured.
+                  {success}
                 </div>
               )}
 
               {/* Registration Status */}
-              {requestId && (
+              {registrationStatus && (
                 <div className="mt-4 p-4 border rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <Globe className="h-4 w-4" />
@@ -883,34 +913,37 @@ export function CustomDomainModal({
                     )}
                   </div>
 
-                  {registrationStatus ? (
-                    <div className="space-y-2">
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Domain:</span>{" "}
-                        {registrationStatus.name}
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Canister:</span>{" "}
-                        {registrationStatus.canister}
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Status:</span>{" "}
-                        <span
-                          className={`font-medium ${
-                            registrationStatus.state === "Available"
-                              ? "text-green-600"
-                              : "text-yellow-600"
-                          }`}
-                        >
-                          {registrationStatus.state}
-                        </span>
-                      </div>
+                  <div className="space-y-2">
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Domain:</span>{" "}
+                      {registrationStatus.domain}
                     </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground">
-                      Request ID: {requestId}
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Canister:</span>{" "}
+                      {registrationStatus.canisterId}
                     </div>
-                  )}
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Status:</span>{" "}
+                      <span
+                        className={`font-medium ${
+                          registrationStatus.status === "registered"
+                            ? "text-green-600"
+                            : registrationStatus.status === "registering"
+                            ? "text-blue-600"
+                            : registrationStatus.status === "failed"
+                            ? "text-red-600"
+                            : "text-yellow-600"
+                        }`}
+                      >
+                        {registrationStatus.status}
+                      </span>
+                    </div>
+                    {registrationStatus.message && (
+                      <div className="text-xs text-muted-foreground mt-2">
+                        {registrationStatus.message}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </form>
