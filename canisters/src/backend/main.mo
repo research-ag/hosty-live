@@ -110,7 +110,7 @@ persistent actor class Backend() = self {
   let canisterIdMap : Map.Map<Principal, Nat> = Map.empty();
 
   // list of system-owned canisters, that can be rented by users
-  let canistersPool : Queue.Queue<Nat> = Queue.empty();
+  var canistersPool : Queue.Queue<Nat> = Queue.empty();
   // users who own rent canisters
   let renters : Queue.Queue<Principal> = Queue.empty();
   var maxRentals : Nat = 100;
@@ -352,6 +352,45 @@ persistent actor class Backend() = self {
     Queue.size(renters) < maxRentals and not Queue.isEmpty(canistersPool) and Option.isNull(getOrCreateProfile_(caller).rentedCanister);
   };
 
+  private func setupUserOwnership_(cid : Principal, user : Principal) : async* () {
+    let futures : List.List<async ()> = List.empty();
+    List.add(
+      futures,
+      Management.getActor().update_settings({
+        canister_id = cid;
+        settings = {
+          controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self), user];
+        };
+      }),
+    );
+    List.add(
+      futures,
+      Assets.getAssetActor(cid).grant_permission({
+        permission = #Prepare;
+        to_principal = user;
+      }),
+    );
+    List.add(
+      futures,
+      Assets.getAssetActor(cid).grant_permission({
+        permission = #Commit;
+        to_principal = user;
+      }),
+    );
+    for (bp in CONSTANTS.BUILDER_PRINCIPALS.values()) {
+      List.add(
+        futures,
+        Assets.getAssetActor(cid).grant_permission({
+          permission = #Commit;
+          to_principal = bp;
+        }),
+      );
+    };
+    for (f in List.values(futures)) {
+      await f;
+    };
+  };
+
   public shared ({ caller }) func rentCanister() : async R.Result<CanisterInfo, Text> {
     let profile = getOrCreateProfile_(caller);
     switch (profile.rentedCanister) {
@@ -365,42 +404,7 @@ persistent actor class Backend() = self {
     let cid = List.at(canisters, cidx).canisterId;
 
     try {
-      let futures : List.List<async ()> = List.empty();
-      List.add(
-        futures,
-        Management.getActor().update_settings({
-          canister_id = cid;
-          settings = {
-            controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self), caller];
-          };
-        }),
-      );
-      List.add(
-        futures,
-        Assets.getAssetActor(cid).grant_permission({
-          permission = #Prepare;
-          to_principal = caller;
-        }),
-      );
-      List.add(
-        futures,
-        Assets.getAssetActor(cid).grant_permission({
-          permission = #Commit;
-          to_principal = caller;
-        }),
-      );
-      for (bp in CONSTANTS.BUILDER_PRINCIPALS.values()) {
-        List.add(
-          futures,
-          Assets.getAssetActor(cid).grant_permission({
-            permission = #Commit;
-            to_principal = bp;
-          }),
-        );
-      };
-      for (f in List.values(futures)) {
-        await f;
-      };
+      await* setupUserOwnership_(cid, caller);
     } catch (err) {
       Queue.pushBack(canistersPool, cidx);
       return #err(Error.message(err));
@@ -602,6 +606,43 @@ persistent actor class Backend() = self {
     };
     takeRentedCanistersBackSchedule.stop();
     takeRentedCanistersBackSchedule.start<system>();
+  };
+
+  public shared ({ caller }) func undoDonation(cid : Principal, userId : Principal) : async () {
+    if (not Principal.isController(caller)) {
+      throw Error.reject("Permission denied");
+    };
+    if (not Map.containsKey(profiles, Principal.compare, userId)) {
+      throw Error.reject("User profile not found");
+    };
+    let ?cidx = Map.get(canisterIdMap, Principal.compare, cid) else throw Error.reject("Unknown canister id");
+    let canisterData = List.at(canisters, cidx);
+
+    if (not canisterData.ownedBySystem) {
+      throw Error.reject("Canister is not owned by system");
+    };
+    if (not Queue.contains(canistersPool, Nat.equal, cidx)) {
+      throw Error.reject("Canister is already rented by someone. Try again later");
+    };
+
+    canistersPool := Queue.filter(canistersPool, func(idx) = idx != cidx);
+    try {
+      await* setupUserOwnership_(cid, userId);
+    } catch (err) {
+      Queue.pushBack(canistersPool, cidx);
+      throw err;
+    };
+    canisterData.ownedBySystem := false;
+    canisterData.userIds := [userId];
+    let userCanisters = switch (Map.get(userCanistersMap, Principal.compare, userId)) {
+      case (?list) list;
+      case (null) {
+        let list : List.List<Nat> = List.empty();
+        Map.add(userCanistersMap, Principal.compare, userId, list);
+        list;
+      };
+    };
+    List.add(userCanisters, cidx);
   };
 
 };
