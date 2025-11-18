@@ -13,9 +13,12 @@ import Queue "mo:core/Queue";
 import R "mo:core/Result";
 import Text "mo:core/Text";
 
+import PT "mo:promtracker";
+
 import Management "../shared/management";
 import Assets "./assets";
 import Scheduler "../shared/scheduler";
+import Http "../shared/tiny_http";
 
 // (
 //   with migration = func(
@@ -177,6 +180,15 @@ persistent actor class Backend() = self {
       };
     };
   };
+
+  transient let pt = PT.PromTracker("", 65);
+  pt.addSystemValues();
+
+  ignore pt.addPullValue("num_profiles", "", func() = Map.size(profiles));
+  ignore pt.addPullValue("num_canisters", "", func() = List.size(canisters));
+  ignore pt.addPullValue("num_canisters_in_pool", "", func() = Queue.size(canistersPool));
+  ignore pt.addPullValue("num_canisters_rent", "", func() = Queue.size(renters));
+  ignore pt.addPullValue("max_canisters_rentals", "", func() = maxRentals);
 
   public query ({ caller }) func getProfile() : async ?ProfileInfo {
     let ?p = Map.get(profiles, Principal.compare, caller) else return null;
@@ -566,6 +578,17 @@ persistent actor class Backend() = self {
     },
   );
   takeRentedCanistersBackSchedule.start<system>();
+
+  public query func http_request(req : Http.Request) : async Http.Response {
+    let ?path = Text.split(req.url, #char '?').next() else return Http.render400();
+    let labels = "canister=\"" # PT.shortName(self) # "\"";
+    switch (req.method, path) {
+      case ("GET", "/metrics") {
+        Http.renderPlainText(pt.renderExposition(labels));
+      };
+      case (_) Http.render400();
+    };
+  };
 
   public shared ({ caller }) func setAssetsModule(hash : Blob, wasm : Blob) : async () {
     if (not Principal.isController(caller)) {
