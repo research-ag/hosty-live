@@ -17,56 +17,56 @@ import Management "../shared/management";
 import Assets "./assets";
 import Scheduler "../shared/scheduler";
 
-(
-  with migration = func(
-    old : {
-      profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; var freeCanisterClaimedAt : ?Nat64; createdAt : Nat64; var updatedAt : Nat64 }>;
-      canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
-      userCanistersMap : Map.Map<Principal, List.List<Nat>>;
-      canisterIdMap : Map.Map<Principal, Nat>;
-    }
-  ) : {
-    profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; createdAt : Nat64; var updatedAt : Nat64; var rentedCanister : ?(canisterIndex : Nat, rentUntil : Nat64) }>;
-    canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
-    userCanistersMap : Map.Map<Principal, List.List<Nat>>;
-    canisterIdMap : Map.Map<Principal, Nat>;
-    canistersPool : Queue.Queue<Nat>;
-    renters : Queue.Queue<Principal>;
-    var assetsModule : (Blob, Blob);
-  } {
-    {
-      profiles = Map.map<Principal, { userId : Principal; var username : ?Text; var freeCanisterClaimedAt : ?Nat64; createdAt : Nat64; var updatedAt : Nat64 }, { userId : Principal; var username : ?Text; createdAt : Nat64; var updatedAt : Nat64; var rentedCanister : ?(canisterIndex : Nat, rentUntil : Nat64) }>(
-        old.profiles,
-        func(_, p) = {
-          userId = p.userId;
-          var username = p.username;
-          createdAt = p.createdAt;
-          var updatedAt = p.updatedAt;
-          var rentedCanister = null;
-        },
-      );
-      canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
-        old.canisters,
-        func(c) = {
-          canisterId = c.canisterId;
-          var alias = c.alias;
-          var description = c.description;
-          var userIds = c.userIds;
-          var frontendUrl = c.frontendUrl;
-          var ownedBySystem = false;
-          createdAt = c.createdAt;
-          var deployedAt = c.deployedAt;
-          var deletedAt = c.deletedAt;
-        },
-      );
-      userCanistersMap = old.userCanistersMap;
-      canisterIdMap = old.canisterIdMap;
-      canistersPool = Queue.empty();
-      renters = Queue.empty();
-      var assetsModule = (Assets.HOSTY_ASSETS_MODULE_HASH, Assets.HOSTY_ASSETS_MODULE);
-    };
-  }
-)
+// (
+//   with migration = func(
+//     old : {
+//       profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; var freeCanisterClaimedAt : ?Nat64; createdAt : Nat64; var updatedAt : Nat64 }>;
+//       canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//       userCanistersMap : Map.Map<Principal, List.List<Nat>>;
+//       canisterIdMap : Map.Map<Principal, Nat>;
+//     }
+//   ) : {
+//     profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; createdAt : Nat64; var updatedAt : Nat64; var rentedCanister : ?(canisterIndex : Nat, rentUntil : Nat64) }>;
+//     canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//     userCanistersMap : Map.Map<Principal, List.List<Nat>>;
+//     canisterIdMap : Map.Map<Principal, Nat>;
+//     canistersPool : Queue.Queue<Nat>;
+//     renters : Queue.Queue<Principal>;
+//     var assetsModule : (Blob, Blob);
+//   } {
+//     {
+//       profiles = Map.map<Principal, { userId : Principal; var username : ?Text; var freeCanisterClaimedAt : ?Nat64; createdAt : Nat64; var updatedAt : Nat64 }, { userId : Principal; var username : ?Text; createdAt : Nat64; var updatedAt : Nat64; var rentedCanister : ?(canisterIndex : Nat, rentUntil : Nat64) }>(
+//         old.profiles,
+//         func(_, p) = {
+//           userId = p.userId;
+//           var username = p.username;
+//           createdAt = p.createdAt;
+//           var updatedAt = p.updatedAt;
+//           var rentedCanister = null;
+//         },
+//       );
+//       canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
+//         old.canisters,
+//         func(c) = {
+//           canisterId = c.canisterId;
+//           var alias = c.alias;
+//           var description = c.description;
+//           var userIds = c.userIds;
+//           var frontendUrl = c.frontendUrl;
+//           var ownedBySystem = false;
+//           createdAt = c.createdAt;
+//           var deployedAt = c.deployedAt;
+//           var deletedAt = c.deletedAt;
+//         },
+//       );
+//       userCanistersMap = old.userCanistersMap;
+//       canisterIdMap = old.canisterIdMap;
+//       canistersPool = Queue.empty();
+//       renters = Queue.empty();
+//       var assetsModule = (Assets.HOSTY_ASSETS_MODULE_HASH, Assets.HOSTY_ASSETS_MODULE);
+//     };
+//   }
+// )
 persistent actor class Backend() = self {
 
   transient let CONSTANTS = {
