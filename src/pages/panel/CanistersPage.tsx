@@ -67,6 +67,7 @@ export function CanistersPage() {
     createCanister,
     rentCanister,
     deleteCanister,
+    donateCanister,
     refreshCanisters,
     creationMessage,
     resetCreationStatus,
@@ -83,6 +84,7 @@ export function CanistersPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDonating, setIsDonating] = useState(false);
   const [actionError, setActionError] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [sortField, setSortField] = useState<keyof Canister>(initialSortField);
@@ -230,6 +232,31 @@ export function CanistersPage() {
 
       setCanisterToDelete(null);
       setIsDeleting(false);
+    }
+  };
+
+  const handleDonateCanister = async () => {
+    if (canisterToDelete) {
+      setIsDonating(true);
+      setActionError("");
+
+      const result = await donateCanister(canisterToDelete.id);
+
+      if (result.success) {
+        toast.success(
+          "Canister donated",
+          "Your canister has been successfully donated."
+        );
+        setIsDeleteModalOpen(false);
+      } else {
+        toast.error(
+          "Failed to donate canister",
+          result.error || "There was an error donating your canister."
+        );
+        setActionError(result.error || "Failed to donate canister");
+      }
+      setCanisterToDelete(null);
+      setIsDonating(false);
     }
   };
 
@@ -514,7 +541,7 @@ export function CanistersPage() {
                     <Eye className="h-3 w-3"/>
                     View
                   </Button>
-                  <Button
+                  {!canister.ownedBySystem && (<Button
                     variant="ghost"
                     size="sm"
                     onClick={(e) => {
@@ -526,7 +553,7 @@ export function CanistersPage() {
                   >
                     <Trash2 className="h-3 w-3"/>
                     Delete
-                  </Button>
+                  </Button>)}
                 </div>
                 {canister.frontendUrl && (
                   <Button
@@ -627,9 +654,11 @@ export function CanistersPage() {
       <DeleteCanisterModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirmDelete={handleDeleteCanister}
         canister={canisterToDelete}
-        isLoading={isDeleting}
+        isDeleting={isDeleting}
+        onConfirmDelete={handleDeleteCanister}
+        isDonating={isDonating}
+        onConfirmDonate={handleDonateCanister}
         error={actionError}
       />
 

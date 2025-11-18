@@ -338,6 +338,9 @@ persistent actor class Backend() = self {
 
   public shared ({ caller }) func deleteCanister(cid : Principal) : async () {
     let ?(_, canisterData) = getCanister_(cid) else throw Error.reject("Not found");
+    if (canisterData.ownedBySystem) {
+      throw Error.reject("Permission denied");
+    };
     switch (Array.indexOf(canisterData.userIds, Principal.equal, caller)) {
       case (null) throw Error.reject("Permission denied");
       case (_) {};
@@ -422,7 +425,7 @@ persistent actor class Backend() = self {
     #ok(freezeCanisterData_(newCanisterData));
   };
 
-  private func setupSystemOwnership_(cidx : Nat, updateInternalState : () -> ()) : async* R.Result<(), Text> {
+  private func setupSystemOwnership_(cidx : Nat) : async* () {
     let canisterData = List.at(canisters, cidx);
     let cid = canisterData.canisterId;
     Prim.debugPrint("updating canister controllers...");
@@ -434,7 +437,7 @@ persistent actor class Backend() = self {
         };
       });
     } catch (err) {
-      return #err("Cannot update controllers of the canister: " # Error.message(err));
+      throw Error.reject("Cannot update controllers of the canister: " # Error.message(err));
     };
 
     Prim.debugPrint("updating internal registry state...");
@@ -444,8 +447,11 @@ persistent actor class Backend() = self {
     };
     canisterData.userIds := [];
     Queue.pushBack(canistersPool, cidx);
-    updateInternalState();
+  };
 
+  private func preparePoolCanister_(cidx : Nat) : async () {
+    let canisterData = List.at(canisters, cidx);
+    let cid = canisterData.canisterId;
     Prim.debugPrint("loading canister status...");
     let canisterStatus = await Management.getActor().canister_status({
       canister_id = cid;
@@ -508,8 +514,6 @@ persistent actor class Backend() = self {
     } else {
       Prim.debugPrint("no cycles to take out");
     };
-
-    #ok();
   };
 
   public shared ({ caller }) func donateCanister(cid : Principal) : async R.Result<(), Text> {
@@ -523,57 +527,45 @@ persistent actor class Backend() = self {
       case (?_) {};
     };
     Prim.debugPrint("DONATING CANISTER " # (debug_show cid) # "...");
-    await* setupSystemOwnership_(
-      cidx,
-      func() {
-        canisterData.ownedBySystem := true;
-      },
-    );
+    await* setupSystemOwnership_(cidx);
+    canisterData.ownedBySystem := true;
+    let _ = preparePoolCanister_(cidx);
+    #ok();
   };
 
   transient let takeRentedCanistersBackSchedule = Scheduler.Scheduler(
     CONSTANTS.RENT_TAKEBACK_INTERVAL,
     0,
     func(_ : Nat) : async* () {
-      Prim.debugPrint("Starting take rented canisters routine...");
       while (true) {
-        let ?renter = Queue.peekFront(renters) else {
-          Prim.debugPrint("Queue is empty. Exiting");
+        let ?renter = Queue.peekFront(renters) else return;
+        let ?profile = Map.get(profiles, Principal.compare, renter) else {
+          ignore Queue.popFront(renters);
           return;
         };
-        Map.get(profiles, Principal.compare, renter)
-        |> Option.chain(_, func(p) = p.rentedCanister)
-        |> (
-          switch (_) {
-            case (?(cidx, rentUntil)) {
-              if (rentUntil < Prim.time()) {
-                ignore Queue.popFront(renters);
+        let ?(cidx, rentUntil) = profile.rentedCanister else {
+          ignore Queue.popFront(renters);
+          return;
+        };
+        if (rentUntil < Prim.time()) {
+          ignore Queue.popFront(renters);
 
-                Prim.debugPrint("RETURNING BACK CANISTER " # Principal.toText(List.at(canisters, cidx).canisterId) # "...");
-                let res = await* setupSystemOwnership_(
-                  cidx,
-                  func() {
-                    getOrCreateProfile_(renter).rentedCanister := null;
-                  },
-                );
-                switch (res) {
-                  case (#ok) {};
-                  case (#err err) {
-                    Prim.debugPrint("Cannot take the canister " # Principal.toText(List.at(canisters, cidx).canisterId) # " back: " # err);
-                    Queue.pushBack(renters, renter);
-                  };
-                };
-              } else {
-                Prim.debugPrint("Not expired yet. Exiting");
-                return;
-              };
-            };
-            case (null) {
-              // can never happen. Remove from queue for not blocking it if still happens
-              ignore Queue.popFront(renters);
-            };
-          }
-        );
+          Prim.debugPrint("RETURNING BACK CANISTER " # Principal.toText(List.at(canisters, cidx).canisterId) # "...");
+          try {
+            await* setupSystemOwnership_(cidx);
+          } catch (err) {
+            Prim.debugPrint("Cannot take the canister " # Principal.toText(List.at(canisters, cidx).canisterId) # " back: " # Error.message(err));
+            Queue.pushBack(renters, renter);
+          };
+          profile.rentedCanister := null;
+          try {
+            await preparePoolCanister_(cidx);
+          } catch (err) {
+            Prim.debugPrint("Could not prepare canister for pool: " # Error.message(err));
+          };
+        } else {
+          return;
+        };
       };
     },
   );

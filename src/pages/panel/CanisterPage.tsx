@@ -1061,6 +1061,7 @@ export function CanisterPage() {
             </p>
             <ul className="list-disc pl-5 text-sm mt-2 space-y-1">
               <li>Controllers set to you and the status-proxy canister</li>
+              <li>Asset wasm module re-installed</li>
               <li>Asset permissions cleared and default grants reapplied</li>
               <li>Default index.html deployed to the asset canister</li>
             </ul>
