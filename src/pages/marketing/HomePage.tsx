@@ -21,9 +21,14 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/Card";
-import logoImg from "../../assets/logo.png";
+import { ThemeToggle } from "../../components/shared/ThemeToggle";
+import { useThemeStore } from "../../stores/themeStore";
+import logoLight from "../../assets/hosty-live-logo-light.png";
+import logoDark from "../../assets/hosty-live-logo-dark.png";
 
 export function HomePage() {
+  const theme = useThemeStore((state) => state.theme);
+  
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -31,10 +36,16 @@ export function HomePage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <img className="h-16" src={logoImg} alt="hosty.live logo" />
+              <img 
+                key={theme}
+                className="h-16" 
+                src={theme === 'dark' ? logoDark : logoLight} 
+                alt="hosty.live logo" 
+              />
             </div>
-            <div className="flex items-center gap-1 sm:gap-2 lg:gap-4">
-              <Link to="/panel" className="hidden sm:block">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <ThemeToggle variant="icon" />
+              <Link to="/panel">
                 <Button
                   size="sm"
                   className="text-xs sm:text-sm lg:text-base px-3 sm:px-4 lg:px-6"

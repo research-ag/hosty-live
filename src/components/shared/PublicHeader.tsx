@@ -1,9 +1,12 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import logoImg from "../../assets/logo.png";
+import { useThemeStore } from "../../stores/themeStore";
+import logoLight from "../../assets/hosty-live-logo-light.png";
+import logoDark from "../../assets/hosty-live-logo-dark.png";
 
 export function PublicHeader() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const theme = useThemeStore((state) => state.theme);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,10 +34,11 @@ export function PublicHeader() {
         {/* Left side - Logo */}
         <div className="flex items-center gap-3 sm:gap-5">
           <div className="flex items-center gap-3 sm:gap-5">
-            <Link to="/">
+            <Link to="/" className="transition-opacity hover:opacity-80">
               <img
+                key={theme}
                 className={`${isScrolled ? "h-10" : "h-12"}`}
-                src={logoImg}
+                src={theme === 'dark' ? logoDark : logoLight}
                 alt="hosty.live logo"
               />
             </Link>

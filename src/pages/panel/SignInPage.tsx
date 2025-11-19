@@ -4,7 +4,9 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { useAuth } from '../../hooks/useAuth'
-import logoImg from '../../assets/logo.png'
+import { useThemeStore } from '../../stores/themeStore'
+import logoLight from '../../assets/hosty-live-logo-light.png'
+import logoDark from '../../assets/hosty-live-logo-dark.png'
 
 // Internet Computer Logo SVG Component
 const ICPLogo = ({ className }: { className?: string }) => (
@@ -67,6 +69,7 @@ export function SignInPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { login, isLoading } = useAuth()
+  const theme = useThemeStore((state) => state.theme)
   const [error, setError] = useState('')
 
   // Get the intended destination from location state
@@ -93,7 +96,12 @@ export function SignInPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={logoImg} alt="hosty.live" className="h-16" />
+            <img 
+              key={theme}
+              src={theme === 'dark' ? logoDark : logoLight} 
+              alt="hosty.live" 
+              className="h-16" 
+            />
           </div>
           <CardTitle className="text-2xl">Welcome to hosty.live</CardTitle>
           <p className="text-muted-foreground">Sign in with Internet Identity to continue</p>

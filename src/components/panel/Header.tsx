@@ -12,9 +12,10 @@ import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "../ui/Button";
 import { ThemeToggle } from "../shared/ThemeToggle";
-import { useTheme } from "../../hooks/useTheme";
+import { useThemeStore } from "../../stores/themeStore";
 import { useAuth } from "../../hooks/useAuth";
-import logoImg from "../../assets/logo.png";
+import logoLight from "../../assets/hosty-live-logo-light.png";
+import logoDark from "../../assets/hosty-live-logo-dark.png";
 import { Server, Zap, Coins } from "lucide-react";
 import { CopyButton } from "../ui/CopyButton";
 
@@ -83,7 +84,8 @@ const navigation = [
 
 export function Header() {
   const location = useLocation();
-  const { theme, toggleTheme } = useTheme();
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const { principal, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -149,7 +151,7 @@ export function Header() {
     // Default to startsWith for other cases
     return location.pathname.startsWith(href);
   };
-
+  console.log("=== theme", theme);
   return (
     <>
       <header
@@ -165,13 +167,26 @@ export function Header() {
         <div className="flex items-center justify-between h-full px-4 sm:px-6">
           {/* Left side - Logo */}
           <div className="flex items-center">
-            <Link to="/panel/canisters">
-              <img className="h-10" src={logoImg} alt="hosty.live logo" />
+            <Link
+              to="/panel/canisters"
+              className="transition-opacity hover:opacity-80"
+            >
+              <img
+                key={theme}
+                className="h-10"
+                src={theme === "dark" ? logoDark : logoLight}
+                alt="hosty.live logo"
+              />
             </Link>
           </div>
 
           {/* Right side - Controls */}
           <div className="flex items-center gap-2 sm:gap-4">
+            {/* Theme Toggle - Desktop */}
+            <div className="hidden lg:block">
+              <ThemeToggle variant="icon" />
+            </div>
+
             {/* Mobile Menu Button */}
             <Button
               variant="ghost"

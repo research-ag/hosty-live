@@ -33,7 +33,7 @@ export function Sidebar() {
     return location.pathname.startsWith(href)
   }
   return (
-    <aside className="hidden lg:flex h-full w-64 flex-col bg-card">
+    <aside className="hidden lg:flex h-full w-64 flex-col bg-background">
       {/* Main navigation content */}
       <nav className="flex-1 px-4 py-6 space-y-2">
         {navigation.map((item) => {
