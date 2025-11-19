@@ -130,9 +130,11 @@ Each canister created by hosty.live also has a public page. Its URL can be obtai
 If this URL is published then anyone can see information about the canister such as, for example, the cycle balance.
 This is mainly done so that immutable canisters can be monitored and topped-up by the public.
 
-## Example repos
+## Examples
 
-Here is a list of GitHub repo URLs that can be used to try out deploment.
+### GitHub repos
+
+Here is a list of GitHub repo URLs that can be used to try out deployment.
 Note that you can deploy the hosty.live frontend itself through hosty.live into your own canister.
 
 |URL|branch|build command|output directory|comment|
@@ -143,3 +145,12 @@ Note that you can deploy the hosty.live frontend itself through hosty.live into 
 |https://github.com/tejachundru/react-vite-starter.git|main|npm run build|dist||
 |https://github.com/xiaoluoboding/vue3-starter.git|main|npm run build|dist||
 |https://github.com/emptydiagram/svelte-counter.git|canon|npm run build|public||
+
+### Archive URLs
+
+Here is a list of Archive URLs that can be used to try out deployment.
+
+|URL|build command|output directory|comment|
+|---|---|---|---|
+|https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.zip|npm run build|dist|ICRC-1 web wallet|
+|https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.tar.gz|npm run build|dist|ICRC-1 web wallet|
