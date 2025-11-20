@@ -1,7 +1,7 @@
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 
 export function BurnInfo({ canisterId }: { canisterId: string }) {
-  const { isCanisterStatusLoading, burnTcPerYear, uptimeYearsLeft, deletionYearsLeft } =
+  const { isCanisterStatusLoading, burnTcPerYear, uptimeYearsLeft, deletionYearsLeft, uploadBytesLeft } =
     useCanisterStatus(canisterId);
   if (isCanisterStatusLoading)
     return <p className="text-xs text-muted-foreground">…</p>;
@@ -25,6 +25,10 @@ export function BurnInfo({ canisterId }: { canisterId: string }) {
       <div>
         Years left until deletion:{" "}
         {deletionYearsLeft !== undefined ? formatNum(deletionYearsLeft, 2) : "unknown"}
+      </div>
+      <div>
+        Upload bytes left:{" "}
+        {uploadBytesLeft ?? "unknown"}
       </div>
     </div>
   );

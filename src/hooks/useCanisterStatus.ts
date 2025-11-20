@@ -136,6 +136,11 @@ export function useCanisterStatus(canisterId?: string) {
     }
   })();
 
+  const uploadBytesLeft = (() => {
+    if (!status) return undefined;
+    return formatBytes(status.cycles / 2000n);
+  })();
+
   const uptimeYearsLeft = (() => {
     try {
       return Number(deletionYearsLeft) - Number(freezingThreshold) / (365 * 24 * 60 * 60);
@@ -196,6 +201,7 @@ export function useCanisterStatus(canisterId?: string) {
     burnTcPerYear,
     uptimeYearsLeft,
     deletionYearsLeft,
+    uploadBytesLeft,
     wasmBinarySize,
     wasmMemorySize,
     controllers,
