@@ -43,7 +43,7 @@ function formatBytes(bytes: bigint): string {
   if (bytes >= kb) {
     return `${(bytes / kb).toString()} KB`;
   }
-  return `${bytes.toString()} bytes`;
+  return `${(Number(bytes) / Number(kb)).toFixed(2)} KB`;
 }
 
 export function useCanisterStatus(canisterId?: string) {
@@ -154,6 +154,16 @@ export function useCanisterStatus(canisterId?: string) {
     }
   })();
 
+  const wasmMemorySize = (() => {
+    try {
+      const size = status?.memory_metrics.wasm_memory_size;
+      if (!size) return undefined;
+      return formatBytes(size);
+    } catch {
+      return undefined;
+    }
+  })();
+
   const moduleHash = (() => {
     try {
       if ((status?.module_hash?.length || 0) === 0) return undefined;
@@ -187,6 +197,7 @@ export function useCanisterStatus(canisterId?: string) {
     uptimeYearsLeft,
     deletionYearsLeft,
     wasmBinarySize,
+    wasmMemorySize,
     controllers,
     isSystemController,
     moduleHash,

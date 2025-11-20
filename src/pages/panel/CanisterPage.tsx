@@ -731,14 +731,6 @@ export function CanisterPage() {
                 {new Date(canister.deployedAt).toLocaleString()}
               </p>
             </div>)}
-            {canisterStatus.wasmBinarySize && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  Wasm Size
-                </label>
-                <p className="text-sm">{canisterStatus.wasmBinarySize}</p>
-              </div>
-            )}
             {canisterStatus.controllers &&
               canisterStatus.controllers.length > 0 && (
                 <div>
@@ -836,6 +828,22 @@ export function CanisterPage() {
                 <p className="text-sm">
                   {isAssetCanister(canisterStatus.moduleHash) ? "Yes" : "No"}
                 </p>
+              </div>
+            )}
+            {canisterStatus.wasmBinarySize && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Wasm Size
+                </label>
+                <p className="text-sm">{canisterStatus.wasmBinarySize}</p>
+              </div>
+            )}
+            {canisterStatus.wasmMemorySize && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Memory Size
+                </label>
+                <p className="text-sm">{canisterStatus.wasmMemorySize}</p>
               </div>
             )}
             {/* {canisterStatus.isSystemController !== undefined && (
