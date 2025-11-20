@@ -12,11 +12,10 @@ import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "../ui/Button";
 import { ThemeToggle } from "../shared/ThemeToggle";
-import { useThemeStore } from "../../stores/themeStore";
 import { useAuth } from "../../hooks/useAuth";
-import logoLight from "../../assets/hosty-live-logo-light.png";
-import logoDark from "../../assets/hosty-live-logo-dark.png";
+import { useThemeStore } from "../../stores/themeStore";
 import { Server, Zap, Coins } from "lucide-react";
+import { ThemeLogo } from "../shared/ThemeLogo";
 import { CopyButton } from "../ui/CopyButton";
 
 // Internet Computer Logo SVG Component
@@ -151,7 +150,7 @@ export function Header() {
     // Default to startsWith for other cases
     return location.pathname.startsWith(href);
   };
-  console.log("=== theme", theme);
+
   return (
     <>
       <header
@@ -171,12 +170,7 @@ export function Header() {
               to="/panel/canisters"
               className="transition-opacity hover:opacity-80"
             >
-              <img
-                key={theme}
-                className="h-10"
-                src={theme === "dark" ? logoDark : logoLight}
-                alt="hosty.live logo"
-              />
+              <ThemeLogo className="h-10" />
             </Link>
           </div>
 
