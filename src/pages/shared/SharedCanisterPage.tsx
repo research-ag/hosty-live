@@ -22,10 +22,12 @@ function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
 export function SharedCanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const canisterStatus = useCanisterStatus(icCanisterId);
+
   const { data: canisterStateStatus, isLoading: isCanisterStateStatusLoading } = useCanisterStateStatus(icCanisterId!);
   const [copied, setCopied] = useState(false);
   const [isPreviewInteractive, setIsPreviewInteractive] = useState(false);
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+  const showLongUptimeWarning = typeof canisterStatus.uptimeYearsLeft === "number" && canisterStatus.uptimeYearsLeft > 10;
 
   // Generate frontend URL from IC canister ID
   const frontendUrl = icCanisterId ? `https://${icCanisterId}.icp0.io` : null;
@@ -109,7 +111,6 @@ export function SharedCanisterPage() {
                     onClick={() => setIsTopUpModalOpen(true)}
                     title="Top up"
                     className="h-6 w-6 p-0"
-                    disabled={(canisterStatus.uptimeYearsLeft || 0) > 1}
                   >
                     <Zap className="h-3.5 w-3.5"/>
                   </Button>
@@ -300,10 +301,17 @@ export function SharedCanisterPage() {
         className="max-w-md"
       >
         <div className="space-y-4">
+
           <div className="rounded-md border bg-muted/30 p-3 text-sm">
             <div className="text-xs text-muted-foreground mb-1">Canister</div>
             <div className="font-mono text-xs break-all">{icCanisterId}</div>
           </div>
+
+          {showLongUptimeWarning && (
+            <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+              The canister has more than 10 years of uptime left. Are you sure you want to top up?
+            </div>
+          )}
 
           <div className="text-sm text-muted-foreground">
             Top up this canister with cycles using Cycle Express. You can pay
