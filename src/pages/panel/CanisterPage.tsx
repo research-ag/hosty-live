@@ -519,17 +519,21 @@ export function CanisterPage() {
   };
 
   const handleUpdateAlias = async (newAlias: string) => {
-    if (!icCanisterId) return;
+    if (!icCanisterId || !canister) return;
+    const prev = canister;
+    const trimmed = (newAlias ?? '').trim();
+    const nextAlias = trimmed === '' ? undefined : trimmed;
+    setCanister({ ...canister, alias: nextAlias ?? '' });
+    setIsEditAliasOpen(false);
     try {
       const backend = await getBackendActor();
       const payload: any = { alias: [], description: [], frontendUrl: [] };
-      const trimmed = (newAlias ?? '').trim();
       payload.alias = trimmed === '' ? [[]] : [[trimmed]];
       await backend.updateCanister(Principal.fromText(icCanisterId), payload);
       toast.success("Alias updated");
-      await fetchCanister();
       queryClient.invalidateQueries({ queryKey: ['canisters'] }).then();
     } catch (e: any) {
+      setCanister(prev);
       console.error("Failed to update alias", e);
       toast.error("Failed to update alias", e?.message || String(e));
       throw e;
@@ -537,17 +541,21 @@ export function CanisterPage() {
   };
 
   const handleUpdateDescription = async (newDesc: string) => {
-    if (!icCanisterId) return;
+    if (!icCanisterId || !canister) return;
+    const prev = canister;
+    const trimmed = (newDesc ?? '').trim();
+    const nextDesc = trimmed === '' ? undefined : trimmed;
+    setCanister({ ...canister, description: nextDesc || null });
+    setIsEditDescriptionOpen(false);
     try {
       const backend = await getBackendActor();
       const payload: any = { alias: [], description: [], frontendUrl: [] };
-      const trimmed = (newDesc ?? '').trim();
       payload.description = trimmed === '' ? [[]] : [[trimmed]];
       await backend.updateCanister(Principal.fromText(icCanisterId), payload);
       toast.success("Description updated");
-      await fetchCanister();
       queryClient.invalidateQueries({ queryKey: ['canisters'] }).then();
     } catch (e: any) {
+      setCanister(prev);
       console.error("Failed to update description", e);
       toast.error("Failed to update description", e?.message || String(e));
       throw e;
