@@ -274,6 +274,16 @@ export function DeploymentsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {deployment.isDryRun && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                    <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                      Test Build (Dry-Run)
+                    </span>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">Duration</p>

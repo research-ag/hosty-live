@@ -27,6 +27,7 @@ export interface Deployment {
   deployedAt?: string
   createdAt: string
   updatedAt: string
+  isDryRun?: boolean
 }
 
 export interface User {
@@ -127,6 +128,7 @@ export interface ApiDeployment {
   deployedAt?: string
   createdAt: string
   updatedAt: string
+  isDryRun?: boolean
 }
 
 export interface DeploymentsListResponseDto {

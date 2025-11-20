@@ -25,6 +25,7 @@ function toDeployment(apiDeployment: ApiDeployment): Deployment {
     deployedAt: apiDeployment.deployedAt,
     createdAt: apiDeployment.createdAt,
     updatedAt: apiDeployment.updatedAt,
+    isDryRun: apiDeployment.isDryRun,
   }
 }
 
@@ -108,6 +109,7 @@ export function useDeployments() {
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const result = await uploadDeploymentMutation.mutateAsync({
@@ -115,7 +117,8 @@ export function useDeployments() {
         zipFile: data.file,
         buildCommand: data.buildCommand,
         outputDir: data.outputDir,
-        envVars: data.envVars
+        envVars: data.envVars,
+        isDryRun: data.isDryRun
       })
       return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
     } catch (err) {
@@ -134,6 +137,7 @@ export function useDeployments() {
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const result = await uploadDeploymentGitMutation.mutateAsync({
@@ -142,7 +146,8 @@ export function useDeployments() {
         branch: data.branch,
         buildCommand: data.buildCommand,
         outputDir: data.outputDir,
-        envVars: data.envVars
+        envVars: data.envVars,
+        isDryRun: data.isDryRun
       })
       return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
     } catch (err) {
@@ -160,6 +165,7 @@ export function useDeployments() {
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const result = await uploadDeploymentUrlMutation.mutateAsync({
@@ -167,7 +173,8 @@ export function useDeployments() {
         zipUrl: data.archiveUrl,
         buildCommand: data.buildCommand,
         outputDir: data.outputDir,
-        envVars: data.envVars
+        envVars: data.envVars,
+        isDryRun: data.isDryRun
       })
       return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
     } catch (err) {

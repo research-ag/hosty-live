@@ -244,7 +244,14 @@ export function DeploymentPage() {
       {/* General Info */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold mb-2" title={deployment.id}>Deployment {deployment.id.slice(0, 7)}</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-2xl font-semibold" title={deployment.id}>Deployment {deployment.id.slice(0, 7)}</h1>
+            {deployment.isDryRun && (
+              <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700">
+                Dry-Run
+              </Badge>
+            )}
+          </div>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
               <span className="text-sm font-medium">Status:</span>
@@ -298,6 +305,13 @@ export function DeploymentPage() {
             <CardTitle>General Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {deployment.isDryRun && (
+              <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <span className="font-semibold">Test Build:</span> This was a dry-run deployment. The build process was executed, but no actual deployment to the canister was performed.
+                </p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-muted-foreground">Canister</label>
               <div className="mt-1 space-y-2">
