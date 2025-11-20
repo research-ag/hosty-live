@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
+import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 
 interface TopUpCanisterModalProps {
   isOpen: boolean;
@@ -26,6 +27,9 @@ export function TopUpCanisterModal({
   const [error, setError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState<string>("");
+
+  const { uptimeYearsLeft } = useCanisterStatus(canisterId);
+  const showLongUptimeWarning = typeof uptimeYearsLeft === "number" && uptimeYearsLeft > 10;
 
   useEffect(() => {
     if (!isOpen) {
@@ -128,6 +132,12 @@ export function TopUpCanisterModal({
             )}
           </div>
         </div>
+
+        {showLongUptimeWarning && (
+          <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+            The canister has more than 10 years of uptime left. Are you sure you want to top up?
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="text-sm font-medium">Deposit from cycle balance</div>
