@@ -417,7 +417,7 @@ export function DeployModal({
                       <div className="flex flex-wrap gap-2">
                         {examples.filter(e => 'git' in e.kind).map((ex, idx) => {
                           const repoPath = ex.url.replace('https://github.com/', '');
-                          const topLine = (ex.description && ex.description[0]) ? ex.description[0] : repoPath;
+                          const topLine = ex.description.length ? ex.description : repoPath;
                           return (
                             <button
                               key={`git-${idx}`}
@@ -428,6 +428,7 @@ export function DeployModal({
                                 setBranch((ex.kind && (ex.kind as any)['git']) || 'main');
                                 setBuildCommand(ex.buildCommand);
                                 setOutputDir(ex.outputDir);
+                                setEnvVarsText(ex.envVars || "");
                                 setPendingScrollTo('git');
                               }}
                               className={`px-2 py-1 rounded border text-xs bg-background hover:bg-muted transition flex items-start gap-2 text-left`}
@@ -457,7 +458,7 @@ export function DeployModal({
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {examples.filter(e => 'archive' in e.kind).map((ex, idx) => {
-                          const topLine = (ex.description && ex.description[0]) ? ex.description[0] : 'Archive';
+                          const topLine = ex.description.length ? ex.description : 'Archive';
                           return (
                             <button
                               key={`arc-${idx}`}
@@ -467,6 +468,7 @@ export function DeployModal({
                                 setArchiveUrl(ex.url);
                                 setBuildCommand(ex.buildCommand);
                                 setOutputDir(ex.outputDir);
+                                setEnvVarsText(ex.envVars || "");
                                 setPendingScrollTo('url');
                               }}
                               className={`px-2 py-1 rounded border text-xs bg-background hover:bg-muted transition flex items-start gap-2 text-left`}

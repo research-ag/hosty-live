@@ -18,7 +18,8 @@ export interface DeploymentExample {
   'url': string,
   'kind': { 'git': string } |
     { 'archive': null },
-  'description': [] | [string],
+  'description': string,
+  'envVars': string,
   'buildCommand': string,
   'outputDir': string,
 }

@@ -23,10 +23,14 @@ import Http "../shared/tiny_http";
 // (
 //   with migration = func(
 //     old : {
-//       profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; var freeCanisterClaimedAt : ?Nat64; createdAt : Nat64; var updatedAt : Nat64 }>;
-//       canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//       profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; createdAt : Nat64; var updatedAt : Nat64; var rentedCanister : ?(canisterIndex : Nat, rentUntil : Nat64) }>;
+//       canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
 //       userCanistersMap : Map.Map<Principal, List.List<Nat>>;
 //       canisterIdMap : Map.Map<Principal, Nat>;
+//       canistersPool : Queue.Queue<Nat>;
+//       renters : Queue.Queue<Principal>;
+//       var assetsModule : (Blob, Blob);
+//       deploymentExamples : List.List<{ kind : { #git : Text; #archive }; url : Text; buildCommand : Text; outputDir : Text; envVars : Text; description : Text }>;
 //     }
 //   ) : {
 //     profiles : Map.Map<Principal, { userId : Principal; var username : ?Text; createdAt : Nat64; var updatedAt : Nat64; var rentedCanister : ?(canisterIndex : Nat, rentUntil : Nat64) }>;
@@ -36,37 +40,11 @@ import Http "../shared/tiny_http";
 //     canistersPool : Queue.Queue<Nat>;
 //     renters : Queue.Queue<Principal>;
 //     var assetsModule : (Blob, Blob);
+//     deploymentExamples : List.List<{ kind : { #git : Text; #archive }; url : Text; buildCommand : Text; outputDir : Text; envVars : Text; description : Text }>;
 //   } {
 //     {
-//       profiles = Map.map<Principal, { userId : Principal; var username : ?Text; var freeCanisterClaimedAt : ?Nat64; createdAt : Nat64; var updatedAt : Nat64 }, { userId : Principal; var username : ?Text; createdAt : Nat64; var updatedAt : Nat64; var rentedCanister : ?(canisterIndex : Nat, rentUntil : Nat64) }>(
-//         old.profiles,
-//         func(_, p) = {
-//           userId = p.userId;
-//           var username = p.username;
-//           createdAt = p.createdAt;
-//           var updatedAt = p.updatedAt;
-//           var rentedCanister = null;
-//         },
-//       );
-//       canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
-//         old.canisters,
-//         func(c) = {
-//           canisterId = c.canisterId;
-//           var alias = c.alias;
-//           var description = c.description;
-//           var userIds = c.userIds;
-//           var frontendUrl = c.frontendUrl;
-//           var ownedBySystem = false;
-//           createdAt = c.createdAt;
-//           var deployedAt = c.deployedAt;
-//           var deletedAt = c.deletedAt;
-//         },
-//       );
-//       userCanistersMap = old.userCanistersMap;
-//       canisterIdMap = old.canisterIdMap;
-//       canistersPool = Queue.empty();
-//       renters = Queue.empty();
-//       var assetsModule = (Assets.HOSTY_ASSETS_MODULE_HASH, Assets.HOSTY_ASSETS_MODULE);
+//       old with
+//       var assetsModule = old.assetsModule;
 //     };
 //   }
 // )
@@ -108,7 +86,8 @@ persistent actor class Backend() = self {
     url : Text;
     buildCommand : Text;
     outputDir : Text;
-    description : ?Text;
+    envVars : Text;
+    description : Text;
   };
 
   let profiles : Map.Map<Principal, Profile> = Map.empty();
@@ -135,35 +114,40 @@ persistent actor class Backend() = self {
           url = "https://github.com/research-ag/hosty-live";
           buildCommand = "npm run build";
           outputDir = "dist";
-          description = ?"Hosty.live frontend itself!";
+          description = "Hosty.live frontend itself!";
+          envVars = "";
         },
         {
           kind = #git("main");
           url = "https://github.com/research-ag/wallet";
           buildCommand = "npm run build";
           outputDir = "dist";
-          description = ?"ICRC-1 web wallet";
+          description = "ICRC-1 web wallet";
+          envVars = "";
         },
         {
           kind = #git("main");
           url = "https://github.com/itkrivoshei/Vanilla-Js-ToDoList.git";
           buildCommand = "true";
           outputDir = "./";
-          description = ?"Pure assets, no building";
+          description = "Pure assets, no building";
+          envVars = "";
         },
         {
           kind = #archive;
           url = "https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.zip";
           buildCommand = "npm run build";
           outputDir = "dist";
-          description = ?"ICRC-1 web wallet (zip)";
+          description = "ICRC-1 web wallet (zip)";
+          envVars = "";
         },
         {
           kind = #archive;
           url = "https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.tar.gz";
           buildCommand = "npm run build";
           outputDir = "dist";
-          description = ?"ICRC-1 web wallet (tar.gz)";
+          description = "ICRC-1 web wallet (tar.gz)";
+          envVars = "";
         },
       ]).values(),
     );
