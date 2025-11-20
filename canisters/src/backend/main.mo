@@ -103,6 +103,14 @@ persistent actor class Backend() = self {
     var rentedCanister : ?(canisterIndex : Nat, rentUntil : Nat64);
   };
 
+  type DeploymentExample = {
+    kind : { #git : Text; #archive };
+    url : Text;
+    buildCommand : Text;
+    outputDir : Text;
+    description : ?Text;
+  };
+
   let profiles : Map.Map<Principal, Profile> = Map.empty();
 
   let canisters : List.List<CanisterData> = List.empty();
@@ -116,6 +124,50 @@ persistent actor class Backend() = self {
   var maxRentals : Nat = 100;
 
   var assetsModule : (hash : Blob, wasm : Blob) = (Assets.HOSTY_ASSETS_MODULE_HASH, Assets.HOSTY_ASSETS_MODULE);
+
+  let deploymentExamples : List.List<DeploymentExample> = List.empty();
+  if (List.size(deploymentExamples) == 0) {
+    List.addAll<DeploymentExample>(
+      deploymentExamples,
+      ([
+        {
+          kind = #git("main");
+          url = "https://github.com/research-ag/hosty-live";
+          buildCommand = "npm run build";
+          outputDir = "dist";
+          description = ?"Hosty.live frontend itself!";
+        },
+        {
+          kind = #git("main");
+          url = "https://github.com/research-ag/wallet";
+          buildCommand = "npm run build";
+          outputDir = "dist";
+          description = ?"ICRC-1 web wallet";
+        },
+        {
+          kind = #git("main");
+          url = "https://github.com/itkrivoshei/Vanilla-Js-ToDoList.git";
+          buildCommand = "true";
+          outputDir = "./";
+          description = ?"Pure assets, no building";
+        },
+        {
+          kind = #archive;
+          url = "https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.zip";
+          buildCommand = "npm run build";
+          outputDir = "dist";
+          description = ?"ICRC-1 web wallet (zip)";
+        },
+        {
+          kind = #archive;
+          url = "https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.tar.gz";
+          buildCommand = "npm run build";
+          outputDir = "dist";
+          description = ?"ICRC-1 web wallet (tar.gz)";
+        },
+      ]).values(),
+    );
+  };
 
   type ProfileInfo = {
     userId : Principal;
@@ -208,6 +260,20 @@ persistent actor class Backend() = self {
       profile.updatedAt := Prim.time();
     };
     freezeProfile_(profile);
+  };
+
+  // deployment examples API
+  public query func listDeploymentExamples() : async [DeploymentExample] {
+    deploymentExamples
+    |> List.values(_)
+    |> Iter.toArray(_);
+  };
+
+  public shared func addDeploymentExample(example : DeploymentExample) : async () {
+    if (Text.size(example.url) == 0 or Text.size(example.outputDir) == 0 or Text.size(example.buildCommand) == 0) {
+      throw Error.reject("Invalid example: missing required fields");
+    };
+    List.add(deploymentExamples, example);
   };
 
   // canisters api

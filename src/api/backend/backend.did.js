@@ -1,4 +1,11 @@
 export const idlFactory = ({ IDL }) => {
+  const DeploymentExample = IDL.Record({
+    'url' : IDL.Text,
+    'kind' : IDL.Variant({ 'git' : IDL.Text, 'archive' : IDL.Null }),
+    'description' : IDL.Opt(IDL.Text),
+    'buildCommand' : IDL.Text,
+    'outputDir' : IDL.Text,
+  });
   const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const CanisterInfo = IDL.Record({
     'alias' : IDL.Opt(IDL.Text),
@@ -20,12 +27,18 @@ export const idlFactory = ({ IDL }) => {
   });
   const Result = IDL.Variant({ 'ok' : CanisterInfo, 'err' : IDL.Text });
   return IDL.Service({
+    'addDeploymentExample' : IDL.Func([DeploymentExample], [], []),
     'canRentCanister' : IDL.Func([], [IDL.Bool], ['query']),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'donateCanister' : IDL.Func([IDL.Principal], [Result_1], []),
     'getCanister' : IDL.Func([IDL.Principal], [CanisterInfo], ['query']),
     'getProfile' : IDL.Func([], [IDL.Opt(ProfileInfo)], ['query']),
     'listCanisters' : IDL.Func([], [IDL.Vec(CanisterInfo)], ['query']),
+    'listDeploymentExamples' : IDL.Func(
+        [],
+        [IDL.Vec(DeploymentExample)],
+        ['query'],
+    ),
     'onCanisterDeployed' : IDL.Func([IDL.Principal], [], []),
     'registerCanister' : IDL.Func([IDL.Principal], [CanisterInfo], []),
     'rentCanister' : IDL.Func([], [Result], []),

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Info, AlertTriangle, Zap, Server, Upload, Github, Link } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { AlertTriangle, Github, Info, Link, Server, Upload, Zap, ChevronRight } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -7,6 +7,8 @@ import { FileUploader } from "../ui/FileUploader";
 import { TooltipWrapper } from "../ui/TooltipWrapper";
 import { useToast } from "../../hooks/useToast";
 import { Canister } from "../../types";
+import { getBackendActor } from "../../api/backend";
+import type { DeploymentExample } from "../../api/backend/backend.did";
 
 type DeploymentMethod = "zip" | "git" | "url";
 
@@ -37,14 +39,14 @@ interface DeployModalProps {
 }
 
 export function DeployModal({
-  isOpen,
-  onClose,
-  onDeploy,
-  onDeployFromGit,
-  onDeployFromUrl,
-  canister,
-  error,
-}: DeployModalProps) {
+                              isOpen,
+                              onClose,
+                              onDeploy,
+                              onDeployFromGit,
+                              onDeployFromUrl,
+                              canister,
+                              error,
+                            }: DeployModalProps) {
   const [deploymentMethod, setDeploymentMethod] =
     useState<DeploymentMethod>("zip");
   const [file, setFile] = useState<File | null>(null);
@@ -57,6 +59,16 @@ export function DeployModal({
   const [envVarsError, setEnvVarsError] = useState("");
   const [isDeploying, setIsDeploying] = useState(false);
   const { toast } = useToast();
+
+  // Deployment examples from backend
+  const [examples, setExamples] = useState<DeploymentExample[]>([]);
+  const [loadingExamples, setLoadingExamples] = useState(false);
+  const [examplesError, setExamplesError] = useState<string | undefined>(undefined);
+  const [examplesOpen, setExamplesOpen] = useState(false);
+  // Refs for scrolling to sections
+  const gitUrlSectionRef = useRef<HTMLDivElement | null>(null);
+  const archiveUrlSectionRef = useRef<HTMLDivElement | null>(null);
+  const [pendingScrollTo, setPendingScrollTo] = useState<null | 'git' | 'url'>(null);
 
   type PersistedDeployForm = {
     method: DeploymentMethod;
@@ -165,6 +177,59 @@ export function DeployModal({
       // Ignore localStorage errors
     }
   }, [isOpen, canister?.id]);
+
+  // Load examples when modal opens
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!isOpen) return;
+      setLoadingExamples(true);
+      setExamplesError(undefined);
+      try {
+        const actor = await getBackendActor();
+        const data = await actor.listDeploymentExamples();
+        if (!cancelled) setExamples(data);
+      } catch (e) {
+        console.error('[DeployModal] Failed to load examples', e);
+        if (!cancelled) setExamplesError('Failed to load examples');
+      } finally {
+        if (!cancelled) setLoadingExamples(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true
+    };
+  }, [isOpen]);
+
+  // Smooth scroll to target section after selecting an example
+  useEffect(() => {
+    if (!pendingScrollTo) return;
+
+    const wantGit = pendingScrollTo === 'git';
+    const wantUrl = pendingScrollTo === 'url';
+
+    const methodReady = (wantGit && deploymentMethod === 'git') || (wantUrl && deploymentMethod === 'url');
+    if (!methodReady) return;
+
+    const targetEl = wantGit ? gitUrlSectionRef.current : archiveUrlSectionRef.current;
+    if (!targetEl) return;
+
+    // Defer to next frame to ensure DOM is painted
+    const id = window.requestAnimationFrame(() => {
+      try {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const input = targetEl.querySelector('input') as HTMLInputElement | null;
+        if (input) {
+          input.focus({ preventScroll: true } as any);
+        }
+      } finally {
+        setPendingScrollTo(null);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(id);
+  }, [pendingScrollTo, deploymentMethod]);
 
   useEffect(() => {
     if (!envVarsText.trim()) {
@@ -283,7 +348,7 @@ export function DeployModal({
           <div className="bg-muted/30 border border-border/50 rounded-lg p-3 sm:p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-                <Server className="h-4 w-4 text-primary" />
+                <Server className="h-4 w-4 text-primary"/>
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium text-sm">Target Canister</h3>
@@ -317,12 +382,126 @@ export function DeployModal({
             </div>
           )}
 
+          <div className="border rounded-md bg-muted/20">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between p-3 sm:p-4"
+              onClick={() => setExamplesOpen(v => !v)}
+            >
+              <div className="flex items-center gap-2">
+                <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${examplesOpen ? 'rotate-90' : ''}`}/>
+                <label className="block text-sm font-medium">Examples</label>
+                <TooltipWrapper content="Click to expand. Inside, click an example to prefill the form.">
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
+                </TooltipWrapper>
+              </div>
+              {loadingExamples && (
+                <span className="text-xs text-muted-foreground">Loading…</span>
+              )}
+            </button>
+            {examplesOpen && (
+              <div className="px-3 sm:px-4 pb-3 sm:pb-4">
+                {!!examplesError && (
+                  <div className="text-xs text-destructive mb-2">{examplesError}</div>
+                )}
+                {!loadingExamples && examples.length === 0 && (
+                  <div className="text-xs text-muted-foreground">No examples available</div>
+                )}
+                {examples.length > 0 && (
+                  <div className="space-y-3">
+                    {/* GitHub */}
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                        <Github className="h-3 w-3"/> GitHub Repositories
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {examples.filter(e => 'git' in e.kind).map((ex, idx) => {
+                          const repoPath = ex.url.replace('https://github.com/', '');
+                          const topLine = (ex.description && ex.description[0]) ? ex.description[0] : repoPath;
+                          return (
+                            <button
+                              key={`git-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                setDeploymentMethod('git');
+                                setGitRepoUrl(ex.url);
+                                setBranch((ex.kind && (ex.kind as any)['git']) || 'main');
+                                setBuildCommand(ex.buildCommand);
+                                setOutputDir(ex.outputDir);
+                                setPendingScrollTo('git');
+                              }}
+                              className={`px-2 py-1 rounded border text-xs bg-background hover:bg-muted transition flex items-start gap-2 text-left`}
+                            >
+                              <div className="flex flex-col">
+                                <span className="truncate max-w-[220px]">{topLine}</span>
+                                <span className="font-mono text-muted-foreground truncate max-w-[220px]">{ex.url}</span>
+                              </div>
+                              <a
+                                className="text-muted-foreground hover:text-foreground ml-auto"
+                                href={ex.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Link className="h-3 w-3"/>
+                              </a>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {/* Archives */}
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                        <Link className="h-3 w-3"/> Archives
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {examples.filter(e => 'archive' in e.kind).map((ex, idx) => {
+                          const topLine = (ex.description && ex.description[0]) ? ex.description[0] : 'Archive';
+                          return (
+                            <button
+                              key={`arc-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                setDeploymentMethod('url');
+                                setArchiveUrl(ex.url);
+                                setBuildCommand(ex.buildCommand);
+                                setOutputDir(ex.outputDir);
+                                setPendingScrollTo('url');
+                              }}
+                              className={`px-2 py-1 rounded border text-xs bg-background hover:bg-muted transition flex items-start gap-2 text-left`}
+                            >
+                              <div className="flex flex-col">
+                                <span className="truncate max-w-[260px]">{topLine}</span>
+                                <span className="font-mono text-muted-foreground truncate max-w-[260px]">{ex.url}</span>
+                              </div>
+                              <a
+                                className="text-muted-foreground hover:text-foreground ml-auto"
+                                href={ex.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Link className="h-3 w-3"/>
+                              </a>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Deployment Method Tabs */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <label className="block text-sm font-medium">Source type</label>
-              <TooltipWrapper content="Choose how you want to deploy: upload a ZIP file, connect a GitHub repository, or provide a URL to an archive file.">
-                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              <TooltipWrapper
+                content="Choose how you want to deploy: upload a ZIP file, connect a GitHub repository, or provide a URL to an archive file.">
+                <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
               </TooltipWrapper>
             </div>
             <div className="grid grid-cols-3 gap-1 rounded-lg border p-1 bg-muted/30">
@@ -335,7 +514,7 @@ export function DeployModal({
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Upload className="h-4 w-4" />
+                <Upload className="h-4 w-4"/>
                 <span className="hidden sm:inline">ZIP Upload</span>
                 <span className="sm:hidden">ZIP</span>
               </button>
@@ -348,7 +527,7 @@ export function DeployModal({
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Github className="h-4 w-4" />
+                <Github className="h-4 w-4"/>
                 <span className="hidden sm:inline">GitHub</span>
                 <span className="sm:hidden">Git</span>
               </button>
@@ -361,12 +540,13 @@ export function DeployModal({
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Link className="h-4 w-4" />
+                <Link className="h-4 w-4"/>
                 <span className="hidden sm:inline">Archive URL</span>
                 <span className="sm:hidden">URL</span>
               </button>
             </div>
           </div>
+
           {/* ZIP File Upload */}
           {deploymentMethod === "zip" && (
             <div>
@@ -374,8 +554,9 @@ export function DeployModal({
                 <label className="block text-sm font-medium">
                   Application Package
                 </label>
-                <TooltipWrapper content="Upload a ZIP file containing your built frontend application. The ZIP should include all necessary files and assets for your web application.">
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                <TooltipWrapper
+                  content="Upload a ZIP file containing your built frontend application. The ZIP should include all necessary files and assets for your web application.">
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
                 </TooltipWrapper>
               </div>
               <FileUploader
@@ -389,13 +570,14 @@ export function DeployModal({
           {/* GitHub Repository */}
           {deploymentMethod === "git" && (
             <div className="space-y-4">
-              <div>
+              <div ref={gitUrlSectionRef}>
                 <div className="flex items-center gap-2 mb-2">
                   <label className="block text-sm font-medium">
                     GitHub Repository URL
                   </label>
-                  <TooltipWrapper content="Enter the URL of your public GitHub repository. The repository should contain your frontend application source code.">
-                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  <TooltipWrapper
+                    content="Enter the URL of your public GitHub repository. The repository should contain your frontend application source code.">
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
                   </TooltipWrapper>
                 </div>
                 <Input
@@ -409,8 +591,9 @@ export function DeployModal({
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <label className="block text-sm font-medium">Branch</label>
-                  <TooltipWrapper content="The branch to deploy from. Usually 'main' or 'master' for production deployments.">
-                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                  <TooltipWrapper
+                    content="The branch to deploy from. Usually 'main' or 'master' for production deployments.">
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
                   </TooltipWrapper>
                 </div>
                 <Input
@@ -426,13 +609,14 @@ export function DeployModal({
 
           {/* Archive URL */}
           {deploymentMethod === "url" && (
-            <div>
+            <div ref={archiveUrlSectionRef}>
               <div className="flex items-center gap-2 mb-2">
                 <label className="block text-sm font-medium">
                   Archive URL
                 </label>
-                <TooltipWrapper content="Enter the direct URL to your archive file. Supported formats: .zip, .tar.gz, .tgz">
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                <TooltipWrapper
+                  content="Enter the direct URL to your archive file. Supported formats: .zip, .tar.gz, .tgz">
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
                 </TooltipWrapper>
               </div>
               <Input
@@ -452,8 +636,9 @@ export function DeployModal({
           <div>
             <div className="flex items-center gap-2 mb-2">
               <label className="block text-sm font-medium">Build Command</label>
-              <TooltipWrapper content="The command used to build your application. This should generate production-ready files in your output directory.">
-                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              <TooltipWrapper
+                content="The command used to build your application. This should generate production-ready files in your output directory.">
+                <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
               </TooltipWrapper>
             </div>
             <Input
@@ -471,8 +656,9 @@ export function DeployModal({
               <label className="block text-sm font-medium">
                 Output Directory
               </label>
-              <TooltipWrapper content="The directory containing the built files after running the build command. Common examples: dist, build, out, public.">
-                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              <TooltipWrapper
+                content="The directory containing the built files after running the build command. Common examples: dist, build, out, public.">
+                <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
               </TooltipWrapper>
             </div>
             <Input
@@ -490,8 +676,9 @@ export function DeployModal({
               <label className="block text-sm font-medium">
                 Environment Variables (Optional)
               </label>
-              <TooltipWrapper content="Add environment variables that will be available during the build process. Use the .env file format with KEY=value pairs.">
-                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              <TooltipWrapper
+                content="Add environment variables that will be available during the build process. Use the .env file format with KEY=value pairs.">
+                <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
               </TooltipWrapper>
             </div>
             <textarea
@@ -515,9 +702,10 @@ export function DeployModal({
           </div>
 
           {/* Important Notes */}
-          <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 sm:p-4">
+          <div
+            className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 sm:p-4">
             <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400"/>
               <h4 className="font-medium text-sm sm:text-base text-amber-800 dark:text-amber-200">
                 Notes
               </h4>
@@ -587,13 +775,13 @@ export function DeployModal({
             >
               {isDeploying ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"/>
                   <span className="hidden sm:inline">Deploying...</span>
                   <span className="sm:hidden">Deploy...</span>
                 </>
               ) : (
                 <>
-                  <Zap className="h-4 w-4" />
+                  <Zap className="h-4 w-4"/>
                   <span className="hidden sm:inline">Deploy Application</span>
                   <span className="sm:hidden">Deploy</span>
                 </>
