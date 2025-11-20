@@ -510,12 +510,12 @@ export function CanistersPage() {
                 </div>
               </div>
 
-              {canister.deployedAt && (<div>
+              <div>
                 <p className="text-muted-foreground text-xs font-medium mb-1">
                   Last Deployment
                 </p>
                 <p className="text-sm">
-                  {new Date(canister.deployedAt).toLocaleDateString(
+                  {canister.deployedAt ? new Date(canister.deployedAt).toLocaleDateString(
                     undefined,
                     {
                       year: "numeric",
@@ -524,9 +524,9 @@ export function CanistersPage() {
                       hour: "2-digit",
                       minute: "2-digit",
                     }
-                  )}
+                  ) : '-'}
                 </p>
-              </div>)}
+              </div>
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div className="flex items-center gap-2">
                   <Button
