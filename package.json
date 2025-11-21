@@ -13,10 +13,10 @@
   "dependencies": {
     "@dfinity/agent": "3.4.3",
     "@dfinity/assets": "^3.4.1",
-    "@dfinity/auth-client": "^3.4.1",
     "@dfinity/candid": "3.4.3",
     "@dfinity/identity": "3.4.3",
     "@dfinity/principal": "3.4.3",
+    "@icp-sdk/auth": "^4.2.0",
     "@icp-sdk/core": "^4.2.3",
     "@radix-ui/react-tooltip": "^1.0.7",
     "@supabase/supabase-js": "^2.39.0",

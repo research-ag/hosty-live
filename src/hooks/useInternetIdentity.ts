@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AuthClient } from "@dfinity/auth-client";
+import { AuthClient } from "@icp-sdk/auth/client";
 import { HttpAgent } from "@icp-sdk/core/agent";
 import { DelegationIdentity } from "@icp-sdk/core/identity";
 
