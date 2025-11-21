@@ -170,6 +170,7 @@ export function CanisterPage() {
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) => {
     if (!canister) return;
 
@@ -181,21 +182,24 @@ export function CanisterPage() {
       buildCommand: data.buildCommand,
       outputDir: data.outputDir,
       envVars: data.envVars,
+      isDryRun: data.isDryRun,
     });
 
     if (result.success) {
       toast.success(
-        "Deployment started!",
-        "Your application is being deployed. Check the deployments page for progress."
+        data.isDryRun ? "Test build started!" : "Deployment started!",
+        data.isDryRun 
+          ? "Your build is being tested. Check the deployments page for progress."
+          : "Your application is being deployed. Check the deployments page for progress."
       );
       // Navigate to deployments page to see the new deployment
       navigate("/panel/deployments");
     } else {
       toast.error(
-        "Deployment failed",
-        result.error || "Failed to start deployment"
+        data.isDryRun ? "Test build failed" : "Deployment failed",
+        result.error || (data.isDryRun ? "Failed to start test build" : "Failed to start deployment")
       );
-      setDeployError(result.error || "Failed to start deployment");
+      setDeployError(result.error || (data.isDryRun ? "Failed to start test build" : "Failed to start deployment"));
     }
   };
 
@@ -205,6 +209,7 @@ export function CanisterPage() {
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) => {
     if (!canister) return;
 
@@ -217,21 +222,24 @@ export function CanisterPage() {
       buildCommand: data.buildCommand,
       outputDir: data.outputDir,
       envVars: data.envVars,
+      isDryRun: data.isDryRun,
     });
 
     if (result.success) {
       toast.success(
-        "Deployment started!",
-        "Your application is being deployed from GitHub. Check the deployments page for progress."
+        data.isDryRun ? "Test build started!" : "Deployment started!",
+        data.isDryRun
+          ? "Your build is being tested from GitHub. Check the deployments page for progress."
+          : "Your application is being deployed from GitHub. Check the deployments page for progress."
       );
       // Navigate to deployments page to see the new deployment
       navigate("/panel/deployments");
     } else {
       toast.error(
-        "Deployment failed",
-        result.error || "Failed to start deployment from GitHub"
+        data.isDryRun ? "Test build failed" : "Deployment failed",
+        result.error || (data.isDryRun ? "Failed to start test build from GitHub" : "Failed to start deployment from GitHub")
       );
-      setDeployError(result.error || "Failed to start deployment from GitHub");
+      setDeployError(result.error || (data.isDryRun ? "Failed to start test build from GitHub" : "Failed to start deployment from GitHub"));
     }
   };
 
@@ -240,6 +248,7 @@ export function CanisterPage() {
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) => {
     if (!canister) return;
 
@@ -251,21 +260,24 @@ export function CanisterPage() {
       buildCommand: data.buildCommand,
       outputDir: data.outputDir,
       envVars: data.envVars,
+      isDryRun: data.isDryRun,
     });
 
     if (result.success) {
       toast.success(
-        "Deployment started!",
-        "Your application is being deployed from the archive URL. Check the deployments page for progress."
+        data.isDryRun ? "Test build started!" : "Deployment started!",
+        data.isDryRun
+          ? "Your build is being tested from the archive URL. Check the deployments page for progress."
+          : "Your application is being deployed from the archive URL. Check the deployments page for progress."
       );
       // Navigate to deployments page to see the new deployment
       navigate("/panel/deployments");
     } else {
       toast.error(
-        "Deployment failed",
-        result.error || "Failed to start deployment from URL"
+        data.isDryRun ? "Test build failed" : "Deployment failed",
+        result.error || (data.isDryRun ? "Failed to start test build from URL" : "Failed to start deployment from URL")
       );
-      setDeployError(result.error || "Failed to start deployment from URL");
+      setDeployError(result.error || (data.isDryRun ? "Failed to start test build from URL" : "Failed to start deployment from URL"));
     }
   };
 

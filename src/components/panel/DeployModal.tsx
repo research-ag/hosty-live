@@ -20,6 +20,7 @@ interface DeployModalProps {
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) => void;
   onDeployFromGit: (data: {
     gitRepoUrl: string;
@@ -27,12 +28,14 @@ interface DeployModalProps {
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) => void;
   onDeployFromUrl: (data: {
     archiveUrl: string;
     buildCommand: string;
     outputDir: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) => void;
   canister?: Canister | null;
   error?: string;
@@ -58,6 +61,7 @@ export function DeployModal({
   const [envVarsText, setEnvVarsText] = useState("");
   const [envVarsError, setEnvVarsError] = useState("");
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isDryRun, setIsDryRun] = useState(false);
   const { toast } = useToast();
 
   // Deployment examples from backend
@@ -78,6 +82,7 @@ export function DeployModal({
     buildCommand: string;
     outputDir: string;
     envVarsText: string;
+    isDryRun: boolean;
   };
 
   const parseEnvVars = (
@@ -148,6 +153,7 @@ export function DeployModal({
       buildCommand,
       outputDir,
       envVarsText,
+      isDryRun,
     };
     try {
       localStorage.setItem(getLsKey(canisterId), JSON.stringify(payload));
@@ -173,6 +179,7 @@ export function DeployModal({
       if (typeof data.outputDir === "string") setOutputDir(data.outputDir);
       if (typeof data.envVarsText === "string")
         setEnvVarsText(data.envVarsText);
+      if (typeof data.isDryRun === "boolean") setIsDryRun(data.isDryRun);
     } catch {
       // Ignore localStorage errors
     }
@@ -273,6 +280,7 @@ export function DeployModal({
           buildCommand,
           outputDir,
           envVars: envVarsResult.envVars,
+          isDryRun,
         });
       } else if (deploymentMethod === "git") {
         if (!gitRepoUrl) {
@@ -288,6 +296,7 @@ export function DeployModal({
           buildCommand,
           outputDir,
           envVars: envVarsResult.envVars,
+          isDryRun,
         });
       } else if (deploymentMethod === "url") {
         if (!archiveUrl) {
@@ -302,6 +311,7 @@ export function DeployModal({
           buildCommand,
           outputDir,
           envVars: envVarsResult.envVars,
+          isDryRun,
         });
       }
 
@@ -316,6 +326,7 @@ export function DeployModal({
         setOutputDir("dist");
         setEnvVarsText("");
         setEnvVarsError("");
+        setIsDryRun(false);
       }
     } finally {
       setIsDeploying(false);
@@ -331,6 +342,7 @@ export function DeployModal({
     setOutputDir("dist");
     setEnvVarsText("");
     setEnvVarsError("");
+    setIsDryRun(false);
     setDeploymentMethod("zip");
     onClose();
   };
@@ -706,6 +718,35 @@ export function DeployModal({
             </p>
           </div>
 
+          {/* Dry-Run Option */}
+          <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/50">
+            <div className="flex items-start gap-3">
+              <input
+                id="isDryRun"
+                type="checkbox"
+                checked={isDryRun}
+                onChange={(e) => setIsDryRun(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <label htmlFor="isDryRun" className="text-sm font-medium cursor-pointer">
+                    Dry-Run (Test Build Only)
+                  </label>
+                  <TooltipWrapper
+                    content="Test your build configuration without deploying to the Internet Computer. This validates your project builds correctly without spending cycles or affecting your live canister."
+                  >
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
+                  </TooltipWrapper>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, the build process will run but deployment to the canister will be skipped. 
+                  Use this to verify your configuration works before committing to an actual deployment.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Important Notes */}
           <div
             className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/50 rounded-lg p-3 sm:p-4">
@@ -716,20 +757,32 @@ export function DeployModal({
               </h4>
             </div>
             <ul className="space-y-1 sm:space-y-2 text-xs sm:text-sm text-amber-700 dark:text-amber-300">
-              <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
-                <span>
-                  This deployment will replace the current version of your
-                  application
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
-                <span>
-                  The canister may be briefly unavailable during the deployment
-                  process
-                </span>
-              </li>
+              {!isDryRun && (
+                <>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
+                    <span>
+                      This deployment will replace the current version of your
+                      application
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
+                    <span>
+                      The canister may be briefly unavailable during the deployment
+                      process
+                    </span>
+                  </li>
+                </>
+              )}
+              {isDryRun && (
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
+                  <span>
+                    Dry-run mode: Your build will be tested but nothing will be deployed to the canister
+                  </span>
+                </li>
+              )}
               {deploymentMethod === "zip" && (
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
@@ -781,14 +834,14 @@ export function DeployModal({
               {isDeploying ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"/>
-                  <span className="hidden sm:inline">Deploying...</span>
-                  <span className="sm:hidden">Deploy...</span>
+                  <span className="hidden sm:inline">{isDryRun ? 'Testing Build...' : 'Deploying...'}</span>
+                  <span className="sm:hidden">{isDryRun ? 'Testing...' : 'Deploy...'}</span>
                 </>
               ) : (
                 <>
                   <Zap className="h-4 w-4"/>
-                  <span className="hidden sm:inline">Deploy Application</span>
-                  <span className="sm:hidden">Deploy</span>
+                  <span className="hidden sm:inline">{isDryRun ? 'Test Build' : 'Deploy Application'}</span>
+                  <span className="sm:hidden">{isDryRun ? 'Test' : 'Deploy'}</span>
                 </>
               )}
             </Button>

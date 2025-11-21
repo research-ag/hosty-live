@@ -379,6 +379,7 @@ export const deploymentsApi = {
     buildCommand?: string;
     outputDir?: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) {
     try {
       const accessToken = getStoredAccessToken()
@@ -398,6 +399,9 @@ export const deploymentsApi = {
       }
       if (data.envVars) {
         formData.append('envVars', JSON.stringify(data.envVars))
+      }
+      if (data.isDryRun !== undefined) {
+        formData.append('isDryRun', data.isDryRun.toString())
       }
 
       const response = await fetch(`${API_BASE}/deployments/deploy-zip`, {
@@ -434,6 +438,7 @@ export const deploymentsApi = {
     buildCommand?: string;
     outputDir?: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) {
     try {
       const accessToken = getStoredAccessToken()
@@ -455,6 +460,7 @@ export const deploymentsApi = {
           buildCommand: data.buildCommand,
           outputDir: data.outputDir,
           envVars: data.envVars,
+          isDryRun: data.isDryRun,
         }),
       })
 
@@ -483,6 +489,7 @@ export const deploymentsApi = {
     buildCommand?: string;
     outputDir?: string;
     envVars?: Record<string, string>;
+    isDryRun?: boolean;
   }) {
     try {
       const headers = await getAuthHeaders()
@@ -495,6 +502,7 @@ export const deploymentsApi = {
           buildCommand: data.buildCommand,
           outputDir: data.outputDir,
           envVars: data.envVars,
+          isDryRun: data.isDryRun,
         })
       })
 
