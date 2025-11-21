@@ -1,4 +1,4 @@
-import {Actor} from "@dfinity/agent";
+import {Actor} from "@icp-sdk/core/agent";
 import {idlFactory} from "./status_proxy.did.js";
 import {getAgent} from "../../hooks/useInternetIdentity.js";
 

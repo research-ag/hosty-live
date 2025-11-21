@@ -1,7 +1,7 @@
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import { getAgent } from "../hooks/useInternetIdentity.ts";
 import { useQuery } from "@tanstack/react-query";
-import { Certificate, LookupPathStatus } from "@dfinity/agent";
+import { Certificate, LookupPathStatus } from "@icp-sdk/core/agent";
 import { decodeFirst, TagDecoder } from "cborg";
 import { arrayBufferToHex } from "../utils/bufffer-utils.ts";
 

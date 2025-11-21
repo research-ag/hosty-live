@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Principal } from '@dfinity/principal'
+import { Principal } from '@icp-sdk/core/principal'
 import { getTCyclesLedgerActor } from '../api/tcycles-ledger'
 import { getAuthClient } from "./useInternetIdentity.ts";
 import { bigIntReplacer } from "../utils/json_bigints.ts";

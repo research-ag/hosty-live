@@ -1,6 +1,6 @@
 // Base API configuration
 import { AssetManager } from "@dfinity/assets";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import { getAgent } from "../hooks/useInternetIdentity.ts";
 import { getBackendActor } from "../api/backend";
 import { isValidDomain } from "../utils/domains.ts";

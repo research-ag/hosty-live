@@ -1,4 +1,4 @@
-import {Actor} from "@dfinity/agent";
+import {Actor} from "@icp-sdk/core/agent";
 import {idlFactory} from "./auth_canister.did.js";
 import {getAgent} from "../../hooks/useInternetIdentity.js";
 

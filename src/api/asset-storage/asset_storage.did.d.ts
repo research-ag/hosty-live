@@ -1,6 +1,6 @@
-import type { Principal } from 'npm:@dfinity/principal';
-import type { ActorMethod } from 'npm:@dfinity/agent';
-import type { IDL } from 'npm:@dfinity/candid';
+import type { Principal } from 'npm:@icp-sdk/core/principal';
+import type { ActorMethod } from 'npm:@icp-sdk/core/agent';
+import type { IDL } from 'npm:@icp-sdk/core/candid';
 
 export type AssetCanisterArgs = { 'Upgrade' : UpgradeArgs } |
   { 'Init' : InitArgs };

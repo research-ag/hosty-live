@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import { getStatusProxyActor } from "../api/status-proxy";
 import type { CanisterStatus } from "../api/status-proxy/status_proxy.did";
 import { getManagementActor } from "../api/management";

@@ -3,12 +3,12 @@ import { useState } from 'react'
 import { Canister, mapCanister, mapProfile, Response } from '../types'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import { getAssetStorageActor } from "../api/asset-storage";
 import { getAuthClient } from "./useInternetIdentity.ts";
 import { backendCanisterId, getBackendActor } from "../api/backend";
 import { init as assetStorageInit } from "../api/asset-storage/asset_storage.did";
-import { IDL } from "@dfinity/candid";
+import { IDL } from "@icp-sdk/core/candid";
 import defaultPage from "../constants/default-page.ts";
 import { canister_status_result } from "../api/management/management.did";
 

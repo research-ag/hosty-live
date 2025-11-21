@@ -1,4 +1,4 @@
-import type { ActorSubclass } from '@dfinity/agent'
+import type { ActorSubclass } from '@icp-sdk/core/agent'
 
 import { _SERVICE } from './tcycles_ledger.did'
 

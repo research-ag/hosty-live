@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AuthClient } from "@dfinity/auth-client";
-import { HttpAgent } from "@dfinity/agent";
-import { DelegationIdentity } from "@dfinity/identity";
+import { HttpAgent } from "@icp-sdk/core/agent";
+import { DelegationIdentity } from "@icp-sdk/core/identity";
 
 export type IIState = {
   principal?: string;

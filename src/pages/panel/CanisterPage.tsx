@@ -34,7 +34,7 @@ import { customDomainApi } from "../../api";
 import { CustomDomain } from "../../components/ui/CustomDomain";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { useAuth } from "../../hooks/useAuth";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import { getStatusProxyActor, statusProxyCanisterId, } from "../../api/status-proxy";
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useTCycles } from "../../hooks/useTCycles";
