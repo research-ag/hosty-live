@@ -33,17 +33,22 @@ export async function fetchCanisterStatus(
   return { timestampSec: ts, status: stat };
 }
 
-function formatBytes(bytes: bigint): string {
-  const kb = 1024n;
-  const mb = kb * 1024n;
+function formatBytes(bytesBigint: bigint): string {
+  const formatNumber = (num: number): string => {
+    const intPart = num.toFixed(0);
+    if (intPart.length >= 3) return intPart;
+    if (intPart === '0') return num.toFixed(3);
+    return num.toFixed(3 - intPart.length);
+  };
+
+  const bytes = Number(bytesBigint);
+  const kb = 1024;
+  const mb = kb * 1024;
 
   if (bytes >= mb) {
-    return `${(bytes / mb).toString()} MB`;
+    return `${formatNumber(bytes / mb)} MB`;
   }
-  if (bytes >= kb) {
-    return `${(bytes / kb).toString()} KB`;
-  }
-  return `${(Number(bytes) / Number(kb)).toFixed(2)} KB`;
+  return `${formatNumber(bytes / kb)} KB`;
 }
 
 export function useCanisterStatus(canisterId?: string) {
