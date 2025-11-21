@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from "react";
-import { AlertTriangle, Github, Info, Link, Server, Upload, Zap, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, ChevronRight, Github, Info, Link, Server, Upload, Zap } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -389,7 +389,8 @@ export function DeployModal({
               onClick={() => setExamplesOpen(v => !v)}
             >
               <div className="flex items-center gap-2">
-                <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${examplesOpen ? 'rotate-90' : ''}`}/>
+                <ChevronRight
+                  className={`h-4 w-4 text-muted-foreground transition-transform ${examplesOpen ? 'rotate-90' : ''}`}/>
                 <label className="block text-sm font-medium">Examples</label>
                 <TooltipWrapper content="Click to expand. Inside, click an example to prefill the form.">
                   <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
@@ -411,10 +412,11 @@ export function DeployModal({
                   <div className="space-y-3">
                     {/* GitHub */}
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                      <div
+                        className="text-xs uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
                         <Github className="h-3 w-3"/> GitHub Repositories
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2" style={{ maxHeight: '20rem', overflowY: 'auto' }}>
                         {examples.filter(e => 'git' in e.kind).map((ex, idx) => {
                           const repoPath = ex.url.replace('https://github.com/', '');
                           const topLine = ex.description.length ? ex.description : repoPath;
@@ -453,10 +455,11 @@ export function DeployModal({
                     </div>
                     {/* Archives */}
                     <div>
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
+                      <div
+                        className="text-xs uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-2">
                         <Link className="h-3 w-3"/> Archives
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2" style={{ maxHeight: '20rem', overflowY: 'auto' }}>
                         {examples.filter(e => 'archive' in e.kind).map((ex, idx) => {
                           const topLine = ex.description.length ? ex.description : 'Archive';
                           return (
