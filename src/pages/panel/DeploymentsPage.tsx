@@ -284,6 +284,16 @@ export function DeploymentsPage() {
                   </div>
                 </div>
               )}
+              {deployment.pureAssets && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
+                    <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
+                      Pure Assets (No Build)
+                    </span>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">Duration</p>

@@ -22,6 +22,7 @@ export interface DeploymentExample {
   'envVars': string,
   'buildCommand': string,
   'outputDir': string,
+  'pureAssets'?: boolean,
 }
 
 export interface ProfileInfo {

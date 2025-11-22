@@ -312,6 +312,13 @@ export function DeploymentPage() {
                 </p>
               </div>
             )}
+            {deployment.pureAssets && (
+              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-3">
+                <p className="text-sm text-purple-700 dark:text-purple-300">
+                  <span className="font-semibold">Pure Assets:</span> This deployment used pre-built assets. No build process or dependency installation was performed.
+                </p>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-muted-foreground">Canister</label>
               <div className="mt-1 space-y-2">
@@ -355,13 +362,17 @@ export function DeploymentPage() {
             <CardTitle>Technical Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!deployment.pureAssets && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Build Command</label>
+                <p
+                  className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.buildCommand || 'npm run build'}</p>
+              </div>
+            )}
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Build Command</label>
-              <p
-                className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.buildCommand || 'npm run build'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Output Directory</label>
+              <label className="text-sm font-medium text-muted-foreground">
+                {deployment.pureAssets ? 'Assets Directory' : 'Output Directory'}
+              </label>
               <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.outputDir || 'dist'}</p>
             </div>
             {deployment.sourceType === 'GIT' && deployment.sourceGitRepo && (

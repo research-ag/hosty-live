@@ -28,6 +28,7 @@ export interface Deployment {
   createdAt: string
   updatedAt: string
   isDryRun?: boolean
+  pureAssets?: boolean
 }
 
 export interface User {
@@ -129,6 +130,7 @@ export interface ApiDeployment {
   createdAt: string
   updatedAt: string
   isDryRun?: boolean
+  pureAssets?: boolean
 }
 
 export interface DeploymentsListResponseDto {

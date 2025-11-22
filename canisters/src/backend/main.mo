@@ -88,6 +88,7 @@ persistent actor class Backend() = self {
     outputDir : Text;
     envVars : Text;
     description : Text;
+    pureAssets : Bool;
   };
 
   let profiles : Map.Map<Principal, Profile> = Map.empty();
@@ -116,6 +117,7 @@ persistent actor class Backend() = self {
           outputDir = "dist";
           description = "Hosty.live frontend itself!";
           envVars = "";
+          pureAssets = false;
         },
         {
           kind = #git("main");
@@ -124,14 +126,16 @@ persistent actor class Backend() = self {
           outputDir = "dist";
           description = "ICRC-1 web wallet";
           envVars = "";
+          pureAssets = false;
         },
         {
           kind = #git("main");
-          url = "https://github.com/itkrivoshei/Vanilla-Js-ToDoList.git";
+          url = "https://github.com/itkrivoshei/Vanilla-Js-ToDoList";
           buildCommand = "true";
           outputDir = "./";
           description = "Pure assets, no building";
           envVars = "";
+          pureAssets = true;
         },
         {
           kind = #archive;
@@ -140,6 +144,7 @@ persistent actor class Backend() = self {
           outputDir = "dist";
           description = "ICRC-1 web wallet (zip)";
           envVars = "";
+          pureAssets = false;
         },
         {
           kind = #archive;
@@ -148,6 +153,7 @@ persistent actor class Backend() = self {
           outputDir = "dist";
           description = "ICRC-1 web wallet (tar.gz)";
           envVars = "";
+          pureAssets = false;
         },
       ]).values(),
     );

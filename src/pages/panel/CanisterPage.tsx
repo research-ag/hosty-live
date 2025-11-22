@@ -171,6 +171,7 @@ export function CanisterPage() {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) => {
     if (!canister) return;
 
@@ -183,6 +184,7 @@ export function CanisterPage() {
       outputDir: data.outputDir,
       envVars: data.envVars,
       isDryRun: data.isDryRun,
+      pureAssets: data.pureAssets,
     });
 
     if (result.success) {
@@ -210,6 +212,7 @@ export function CanisterPage() {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) => {
     if (!canister) return;
 
@@ -223,6 +226,7 @@ export function CanisterPage() {
       outputDir: data.outputDir,
       envVars: data.envVars,
       isDryRun: data.isDryRun,
+      pureAssets: data.pureAssets,
     });
 
     if (result.success) {
@@ -249,6 +253,7 @@ export function CanisterPage() {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) => {
     if (!canister) return;
 
@@ -261,6 +266,7 @@ export function CanisterPage() {
       outputDir: data.outputDir,
       envVars: data.envVars,
       isDryRun: data.isDryRun,
+      pureAssets: data.pureAssets,
     });
 
     if (result.success) {

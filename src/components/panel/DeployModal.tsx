@@ -21,6 +21,7 @@ interface DeployModalProps {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) => void;
   onDeployFromGit: (data: {
     gitRepoUrl: string;
@@ -29,6 +30,7 @@ interface DeployModalProps {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) => void;
   onDeployFromUrl: (data: {
     archiveUrl: string;
@@ -36,6 +38,7 @@ interface DeployModalProps {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) => void;
   canister?: Canister | null;
   error?: string;
@@ -62,6 +65,7 @@ export function DeployModal({
   const [envVarsError, setEnvVarsError] = useState("");
   const [isDeploying, setIsDeploying] = useState(false);
   const [isDryRun, setIsDryRun] = useState(false);
+  const [pureAssets, setPureAssets] = useState(false);
   const { toast } = useToast();
 
   // Deployment examples from backend
@@ -83,6 +87,7 @@ export function DeployModal({
     outputDir: string;
     envVarsText: string;
     isDryRun: boolean;
+    pureAssets: boolean;
   };
 
   const parseEnvVars = (
@@ -154,6 +159,7 @@ export function DeployModal({
       outputDir,
       envVarsText,
       isDryRun,
+      pureAssets,
     };
     try {
       localStorage.setItem(getLsKey(canisterId), JSON.stringify(payload));
@@ -180,6 +186,7 @@ export function DeployModal({
       if (typeof data.envVarsText === "string")
         setEnvVarsText(data.envVarsText);
       if (typeof data.isDryRun === "boolean") setIsDryRun(data.isDryRun);
+      if (typeof data.pureAssets === "boolean") setPureAssets(data.pureAssets);
     } catch {
       // Ignore localStorage errors
     }
@@ -195,6 +202,7 @@ export function DeployModal({
       try {
         const actor = await getBackendActor();
         const data = await actor.listDeploymentExamples();
+        console.log('[DeployModal] Loaded examples:', data);
         if (!cancelled) setExamples(data);
       } catch (e) {
         console.error('[DeployModal] Failed to load examples', e);
@@ -281,6 +289,7 @@ export function DeployModal({
           outputDir,
           envVars: envVarsResult.envVars,
           isDryRun,
+          pureAssets,
         });
       } else if (deploymentMethod === "git") {
         if (!gitRepoUrl) {
@@ -297,6 +306,7 @@ export function DeployModal({
           outputDir,
           envVars: envVarsResult.envVars,
           isDryRun,
+          pureAssets,
         });
       } else if (deploymentMethod === "url") {
         if (!archiveUrl) {
@@ -312,6 +322,7 @@ export function DeployModal({
           outputDir,
           envVars: envVarsResult.envVars,
           isDryRun,
+          pureAssets,
         });
       }
 
@@ -327,6 +338,7 @@ export function DeployModal({
         setEnvVarsText("");
         setEnvVarsError("");
         setIsDryRun(false);
+        setPureAssets(false);
       }
     } finally {
       setIsDeploying(false);
@@ -343,6 +355,7 @@ export function DeployModal({
     setEnvVarsText("");
     setEnvVarsError("");
     setIsDryRun(false);
+    setPureAssets(false);
     setDeploymentMethod("zip");
     onClose();
   };
@@ -437,12 +450,19 @@ export function DeployModal({
                               key={`git-${idx}`}
                               type="button"
                               onClick={() => {
+                                console.log('[DeployModal] Clicked example:', ex);
+                                console.log('[DeployModal] pureAssets value:', ex.pureAssets);
                                 setDeploymentMethod('git');
                                 setGitRepoUrl(ex.url);
                                 setBranch((ex.kind && (ex.kind as any)['git']) || 'main');
                                 setBuildCommand(ex.buildCommand);
                                 setOutputDir(ex.outputDir);
                                 setEnvVarsText(ex.envVars || "");
+                                // Handle pureAssets field (with fallback for old backend data)
+                                const isPure = ex.pureAssets === true || 
+                                              (ex.pureAssets === undefined && ex.description?.toLowerCase().includes('pure assets'));
+                                setPureAssets(isPure);
+                                console.log('[DeployModal] Set pureAssets to:', isPure);
                                 setPendingScrollTo('git');
                               }}
                               className={`px-2 py-1 rounded border text-xs bg-background hover:bg-muted transition flex items-start gap-2 text-left`}
@@ -479,11 +499,16 @@ export function DeployModal({
                               key={`arc-${idx}`}
                               type="button"
                               onClick={() => {
+                                console.log('[DeployModal] Clicked archive example:', ex);
                                 setDeploymentMethod('url');
                                 setArchiveUrl(ex.url);
                                 setBuildCommand(ex.buildCommand);
                                 setOutputDir(ex.outputDir);
                                 setEnvVarsText(ex.envVars || "");
+                                // Handle pureAssets field (with fallback for old backend data)
+                                const isPure = ex.pureAssets === true || 
+                                              (ex.pureAssets === undefined && ex.description?.toLowerCase().includes('pure assets'));
+                                setPureAssets(isPure);
                                 setPendingScrollTo('url');
                               }}
                               className={`px-2 py-1 rounded border text-xs bg-background hover:bg-muted transition flex items-start gap-2 text-left`}
@@ -649,46 +674,79 @@ export function DeployModal({
             </div>
           )}
 
-          {/* Build Command */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <label className="block text-sm font-medium">Build Command</label>
-              <TooltipWrapper
-                content="The command used to build your application. This should generate production-ready files in your output directory.">
-                <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
-              </TooltipWrapper>
+          {/* Pure Assets Option */}
+          <div className="border rounded-lg p-4 bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/50">
+            <div className="flex items-start gap-3">
+              <input
+                id="pureAssets"
+                type="checkbox"
+                checked={pureAssets}
+                onChange={(e) => setPureAssets(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <label htmlFor="pureAssets" className="text-sm font-medium cursor-pointer">
+                    Pure Assets (No Build Required)
+                  </label>
+                  <TooltipWrapper
+                    content="Enable this if your files are already built and ready to deploy. The build process will be skipped, and files will be uploaded directly from your source.">
+                    <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
+                  </TooltipWrapper>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Skip dependency installation and build process. Your files will be deployed as-is from the specified directory.
+                </p>
+              </div>
             </div>
-            <Input
-              value={buildCommand}
-              onChange={(e) => setBuildCommand(e.target.value)}
-              placeholder="npm run build"
-              required
-              className="font-mono text-sm"
-            />
           </div>
+
+          {/* Build Command */}
+          {!pureAssets && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium">Build Command</label>
+                <TooltipWrapper
+                  content="The command used to build your application. This should generate production-ready files in your output directory.">
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
+                </TooltipWrapper>
+              </div>
+              <Input
+                value={buildCommand}
+                onChange={(e) => setBuildCommand(e.target.value)}
+                placeholder="npm run build"
+                required
+                className="font-mono text-sm"
+              />
+            </div>
+          )}
 
           {/* Output Directory */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <label className="block text-sm font-medium">
-                Output Directory
+                {pureAssets ? 'Assets Directory' : 'Output Directory'}
               </label>
               <TooltipWrapper
-                content="The directory containing the built files after running the build command. Common examples: dist, build, out, public.">
+                content={pureAssets 
+                  ? "The directory containing your ready-to-deploy static files (HTML, CSS, JS, images, etc.)."
+                  : "The directory containing the built files after running the build command. Common examples: dist, build, out, public."
+                }>
                 <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
               </TooltipWrapper>
             </div>
             <Input
               value={outputDir}
               onChange={(e) => setOutputDir(e.target.value)}
-              placeholder="dist"
+              placeholder={pureAssets ? "public" : "dist"}
               required
               className="font-mono text-sm"
             />
           </div>
 
           {/* Environment Variables */}
-          <div>
+          {!pureAssets && (
+            <div>
             <div className="flex items-center gap-2 mb-2">
               <label className="block text-sm font-medium">
                 Environment Variables (Optional)
@@ -716,7 +774,8 @@ export function DeployModal({
               Format: KEY=value (one per line). Lines starting with # are
               ignored.
             </p>
-          </div>
+            </div>
+          )}
 
           {/* Dry-Run Option */}
           <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/50">

@@ -26,6 +26,7 @@ function toDeployment(apiDeployment: ApiDeployment): Deployment {
     createdAt: apiDeployment.createdAt,
     updatedAt: apiDeployment.updatedAt,
     isDryRun: apiDeployment.isDryRun,
+    pureAssets: apiDeployment.pureAssets,
   }
 }
 
@@ -110,6 +111,7 @@ export function useDeployments() {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const result = await uploadDeploymentMutation.mutateAsync({
@@ -118,7 +120,8 @@ export function useDeployments() {
         buildCommand: data.buildCommand,
         outputDir: data.outputDir,
         envVars: data.envVars,
-        isDryRun: data.isDryRun
+        isDryRun: data.isDryRun,
+        pureAssets: data.pureAssets
       })
       return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
     } catch (err) {
@@ -138,6 +141,7 @@ export function useDeployments() {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const result = await uploadDeploymentGitMutation.mutateAsync({
@@ -147,7 +151,8 @@ export function useDeployments() {
         buildCommand: data.buildCommand,
         outputDir: data.outputDir,
         envVars: data.envVars,
-        isDryRun: data.isDryRun
+        isDryRun: data.isDryRun,
+        pureAssets: data.pureAssets
       })
       return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
     } catch (err) {
@@ -166,6 +171,7 @@ export function useDeployments() {
     outputDir: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
       const result = await uploadDeploymentUrlMutation.mutateAsync({
@@ -174,7 +180,8 @@ export function useDeployments() {
         buildCommand: data.buildCommand,
         outputDir: data.outputDir,
         envVars: data.envVars,
-        isDryRun: data.isDryRun
+        isDryRun: data.isDryRun,
+        pureAssets: data.pureAssets
       })
       return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
     } catch (err) {

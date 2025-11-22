@@ -380,6 +380,7 @@ export const deploymentsApi = {
     outputDir?: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) {
     try {
       const accessToken = getStoredAccessToken()
@@ -391,17 +392,25 @@ export const deploymentsApi = {
       const formData = new FormData()
       formData.append('canisterId', data.canisterId)
       formData.append('zip', data.zipFile)
-      if (data.buildCommand) {
-        formData.append('buildCommand', data.buildCommand)
+      
+      // Only include build-related fields if not pure assets
+      if (!data.pureAssets) {
+        if (data.buildCommand) {
+          formData.append('buildCommand', data.buildCommand)
+        }
+        if (data.envVars) {
+          formData.append('envVars', JSON.stringify(data.envVars))
+        }
       }
+      
       if (data.outputDir) {
         formData.append('outputDir', data.outputDir)
       }
-      if (data.envVars) {
-        formData.append('envVars', JSON.stringify(data.envVars))
-      }
       if (data.isDryRun !== undefined) {
         formData.append('isDryRun', data.isDryRun.toString())
+      }
+      if (data.pureAssets !== undefined) {
+        formData.append('pureAssets', data.pureAssets.toString())
       }
 
       const response = await fetch(`${API_BASE}/deployments/deploy-zip`, {
@@ -439,6 +448,7 @@ export const deploymentsApi = {
     outputDir?: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) {
     try {
       const accessToken = getStoredAccessToken()
@@ -447,21 +457,29 @@ export const deploymentsApi = {
         throw new Error('No active session')
       }
 
+      // Build payload, omitting build-related fields for pure assets
+      const payload: any = {
+        canisterId: data.canisterId,
+        gitRepoUrl: data.gitRepoUrl,
+        branch: data.branch,
+        outputDir: data.outputDir,
+        isDryRun: data.isDryRun,
+        pureAssets: data.pureAssets,
+      }
+      
+      // Only include build-related fields if not pure assets
+      if (!data.pureAssets) {
+        if (data.buildCommand) payload.buildCommand = data.buildCommand
+        if (data.envVars) payload.envVars = data.envVars
+      }
+
       const response = await fetch(`${API_BASE}/deployments/deploy-git`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          canisterId: data.canisterId,
-          gitRepoUrl: data.gitRepoUrl,
-          branch: data.branch,
-          buildCommand: data.buildCommand,
-          outputDir: data.outputDir,
-          envVars: data.envVars,
-          isDryRun: data.isDryRun,
-        }),
+        body: JSON.stringify(payload),
       })
 
       checkUnauthorized(response)
@@ -490,20 +508,30 @@ export const deploymentsApi = {
     outputDir?: string;
     envVars?: Record<string, string>;
     isDryRun?: boolean;
+    pureAssets?: boolean;
   }) {
     try {
       const headers = await getAuthHeaders()
+      
+      // Build payload, omitting build-related fields for pure assets
+      const payload: any = {
+        canisterId: data.canisterId,
+        zipUrl: data.zipUrl,
+        outputDir: data.outputDir,
+        isDryRun: data.isDryRun,
+        pureAssets: data.pureAssets,
+      }
+      
+      // Only include build-related fields if not pure assets
+      if (!data.pureAssets) {
+        if (data.buildCommand) payload.buildCommand = data.buildCommand
+        if (data.envVars) payload.envVars = data.envVars
+      }
+      
       const response = await fetch(`${API_BASE}/deployments/deploy-url`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          canisterId: data.canisterId,
-          zipUrl: data.zipUrl,
-          buildCommand: data.buildCommand,
-          outputDir: data.outputDir,
-          envVars: data.envVars,
-          isDryRun: data.isDryRun,
-        })
+        body: JSON.stringify(payload)
       })
 
       checkUnauthorized(response)
