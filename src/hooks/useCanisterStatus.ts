@@ -143,7 +143,7 @@ export function useCanisterStatus(canisterId?: string) {
 
   const uploadBytesLeft = (() => {
     if (!status) return undefined;
-    return formatBytes(status.cycles / 2000n);
+    return formatBytes(status.cycles / 2400n);
   })();
 
   const uptimeYearsLeft = (() => {
