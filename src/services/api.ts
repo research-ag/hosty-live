@@ -123,6 +123,51 @@ export const authApi = {
 
 // Custom domain API
 export const customDomainApi = {
+  // Helper: Verify ic-domains file is accessible via boundary node with retry logic
+  async verifyIcDomainsFile(canisterId: string, expectedDomain: string, maxRetries = 10, initialDelay = 500): Promise<boolean> {
+    let delay = initialDelay;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Add cache busting with timestamp
+        const timestamp = Date.now();
+        const response = await fetch(
+          `https://${canisterId}.icp0.io/.well-known/ic-domains?t=${timestamp}`,
+          {
+            method: "GET",
+            headers: {
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+              "Pragma": "no-cache",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const content = await response.text();
+          const retrievedDomain = content.trim();
+          
+          if (retrievedDomain === expectedDomain) {
+            console.log(`✅ ic-domains file verified after ${attempt + 1} attempt(s)`);
+            return true;
+          } else {
+            console.warn(`⚠️ ic-domains file found but contains wrong domain: "${retrievedDomain}" (expected: "${expectedDomain}")`);
+          }
+        }
+      } catch (error) {
+        console.warn(`Attempt ${attempt + 1}/${maxRetries} failed:`, error instanceof Error ? error.message : 'Unknown error');
+      }
+
+      // Wait before next attempt with exponential backoff
+      if (attempt < maxRetries - 1) {
+        console.log(`⏳ Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay = Math.min(delay * 1.5, 5000); // Cap at 5 seconds
+      }
+    }
+
+    return false;
+  },
+
   // Add custom domain to canister (new API)
   async addDomain(canisterId: string, domain: string) {
     if (!isValidDomain(domain)) {
@@ -132,7 +177,8 @@ export const customDomainApi = {
       }
     }
     try {
-      // Upload .well-known/ic-domains file
+      // STEP 1: Upload .well-known/ic-domains file
+      console.log('📤 Uploading ic-domains file to canister...');
       const assetManager = new AssetManager({
         canisterId: Principal.fromText(canisterId),
         agent: getAgent(),
@@ -143,8 +189,22 @@ export const customDomainApi = {
         contentType: "text/plain",
         contentEncoding: "identity",
       });
+      console.log('✅ ic-domains file uploaded to canister');
 
-      // Register domain with IC gateways using new API
+      // STEP 2: Verify file is accessible via boundary node (with retries)
+      console.log('🔍 Verifying ic-domains file is accessible via boundary node...');
+      const isVerified = await this.verifyIcDomainsFile(canisterId, domain);
+      
+      if (!isVerified) {
+        return {
+          success: false,
+          error: `Failed to verify ic-domains file accessibility. The file was uploaded to the canister but is not yet propagated to the boundary nodes. Please wait a few moments and try again.`
+        };
+      }
+      console.log('✅ ic-domains file verified and accessible');
+
+      // STEP 3: Register domain with IC gateways using new API
+      console.log('📝 Registering domain with IC gateway...');
       const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}`, {
         method: "POST",
       });
@@ -158,14 +218,17 @@ export const customDomainApi = {
       }
       
       const result = await response.json();
+      console.log('✅ Domain registered with IC gateway');
       
-      // Update backend database with domain association
+      // STEP 4: Update backend database with domain association
+      console.log('💾 Updating backend database...');
       const backend = await getBackendActor();
       await backend.updateCanister(Principal.fromText(canisterId), {
         alias: [],
         description: [],
         frontendUrl: [domain]
       });
+      console.log('✅ Backend database updated');
       
       return {
         success: true,
