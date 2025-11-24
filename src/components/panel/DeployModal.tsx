@@ -360,6 +360,31 @@ export function DeployModal({
     onClose();
   };
 
+  const selectExample = (ex: DeploymentExample) => {
+    if ('git' in ex.kind) {
+      setDeploymentMethod('git');
+      setGitRepoUrl(ex.url);
+      setArchiveUrl("");
+      setBranch(ex.kind['git'] || 'main');
+    } else {
+      setDeploymentMethod('url');
+      setGitRepoUrl("");
+      setArchiveUrl(ex.url);
+      setBranch("");
+    }
+    const isPure = 'pure' in ex.assets;
+    if (isPure) {
+      setBuildCommand("true");
+      setEnvVarsText("");
+    } else {
+      setBuildCommand(ex.assets['build'].command);
+      setEnvVarsText(ex.assets['build'].envVars);
+    }
+    setPureAssets(isPure);
+    setOutputDir(ex.assetsDir);
+    setPendingScrollTo('git' in ex.kind ? 'git' : 'url');
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -449,22 +474,7 @@ export function DeployModal({
                             <button
                               key={`git-${idx}`}
                               type="button"
-                              onClick={() => {
-                                console.log('[DeployModal] Clicked example:', ex);
-                                console.log('[DeployModal] pureAssets value:', ex.pureAssets);
-                                setDeploymentMethod('git');
-                                setGitRepoUrl(ex.url);
-                                setBranch((ex.kind && (ex.kind as any)['git']) || 'main');
-                                setBuildCommand(ex.buildCommand);
-                                setOutputDir(ex.outputDir);
-                                setEnvVarsText(ex.envVars || "");
-                                // Handle pureAssets field (with fallback for old backend data)
-                                const isPure = ex.pureAssets === true || 
-                                              (ex.pureAssets === undefined && ex.description?.toLowerCase().includes('pure assets'));
-                                setPureAssets(isPure);
-                                console.log('[DeployModal] Set pureAssets to:', isPure);
-                                setPendingScrollTo('git');
-                              }}
+                              onClick={() => selectExample(ex)}
                               className={`px-2 py-1 rounded border text-xs bg-background hover:bg-muted transition flex items-start gap-2 text-left`}
                             >
                               <div className="flex flex-col">
@@ -498,19 +508,7 @@ export function DeployModal({
                             <button
                               key={`arc-${idx}`}
                               type="button"
-                              onClick={() => {
-                                console.log('[DeployModal] Clicked archive example:', ex);
-                                setDeploymentMethod('url');
-                                setArchiveUrl(ex.url);
-                                setBuildCommand(ex.buildCommand);
-                                setOutputDir(ex.outputDir);
-                                setEnvVarsText(ex.envVars || "");
-                                // Handle pureAssets field (with fallback for old backend data)
-                                const isPure = ex.pureAssets === true || 
-                                              (ex.pureAssets === undefined && ex.description?.toLowerCase().includes('pure assets'));
-                                setPureAssets(isPure);
-                                setPendingScrollTo('url');
-                              }}
+                              onClick={() => selectExample(ex)}
                               className={`px-2 py-1 rounded border text-xs bg-background hover:bg-muted transition flex items-start gap-2 text-left`}
                             >
                               <div className="flex flex-col">
@@ -675,7 +673,8 @@ export function DeployModal({
           )}
 
           {/* Pure Assets Option */}
-          <div className="border rounded-lg p-4 bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/50">
+          <div
+            className="border rounded-lg p-4 bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800/50">
             <div className="flex items-start gap-3">
               <input
                 id="pureAssets"
@@ -695,7 +694,8 @@ export function DeployModal({
                   </TooltipWrapper>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Skip dependency installation and build process. Your files will be deployed as-is from the specified directory.
+                  Skip dependency installation and build process. Your files will be deployed as-is from the specified
+                  directory.
                 </p>
               </div>
             </div>
@@ -728,7 +728,7 @@ export function DeployModal({
                 {pureAssets ? 'Assets Directory' : 'Output Directory'}
               </label>
               <TooltipWrapper
-                content={pureAssets 
+                content={pureAssets
                   ? "The directory containing your ready-to-deploy static files (HTML, CSS, JS, images, etc.)."
                   : "The directory containing the built files after running the build command. Common examples: dist, build, out, public."
                 }>
@@ -747,33 +747,33 @@ export function DeployModal({
           {/* Environment Variables */}
           {!pureAssets && (
             <div>
-            <div className="flex items-center gap-2 mb-2">
-              <label className="block text-sm font-medium">
-                Environment Variables (Optional)
-              </label>
-              <TooltipWrapper
-                content="Add environment variables that will be available during the build process. Use the .env file format with KEY=value pairs.">
-                <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
-              </TooltipWrapper>
-            </div>
-            <textarea
-              value={envVarsText}
-              onChange={(e) => setEnvVarsText(e.target.value)}
-              placeholder="VITE_API_URL=https://api.example.com&#10;VITE_APP_NAME=My App&#10;NODE_ENV=production"
-              className={`w-full px-3 py-2 text-sm font-mono bg-background border rounded-md resize-none focus:outline-none focus:ring-2 ${
-                envVarsError
-                  ? "border-destructive focus:ring-destructive"
-                  : "border-input focus:ring-ring"
-              }`}
-              rows={4}
-            />
-            {envVarsError && (
-              <p className="text-xs text-destructive mt-1">{envVarsError}</p>
-            )}
-            <p className="text-xs text-muted-foreground mt-2">
-              Format: KEY=value (one per line). Lines starting with # are
-              ignored.
-            </p>
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium">
+                  Environment Variables (Optional)
+                </label>
+                <TooltipWrapper
+                  content="Add environment variables that will be available during the build process. Use the .env file format with KEY=value pairs.">
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
+                </TooltipWrapper>
+              </div>
+              <textarea
+                value={envVarsText}
+                onChange={(e) => setEnvVarsText(e.target.value)}
+                placeholder="VITE_API_URL=https://api.example.com&#10;VITE_APP_NAME=My App&#10;NODE_ENV=production"
+                className={`w-full px-3 py-2 text-sm font-mono bg-background border rounded-md resize-none focus:outline-none focus:ring-2 ${
+                  envVarsError
+                    ? "border-destructive focus:ring-destructive"
+                    : "border-input focus:ring-ring"
+                }`}
+                rows={4}
+              />
+              {envVarsError && (
+                <p className="text-xs text-destructive mt-1">{envVarsError}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                Format: KEY=value (one per line). Lines starting with # are
+                ignored.
+              </p>
             </div>
           )}
 
@@ -799,7 +799,7 @@ export function DeployModal({
                   </TooltipWrapper>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, the build process will run but deployment to the canister will be skipped. 
+                  When enabled, the build process will run but deployment to the canister will be skipped.
                   Use this to verify your configuration works before committing to an actual deployment.
                 </p>
               </div>

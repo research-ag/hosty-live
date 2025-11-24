@@ -40,11 +40,12 @@ import Http "../shared/tiny_http";
 //     canistersPool : Queue.Queue<Nat>;
 //     renters : Queue.Queue<Principal>;
 //     var assetsModule : (Blob, Blob);
-//     deploymentExamples : List.List<{ kind : { #git : Text; #archive }; url : Text; buildCommand : Text; outputDir : Text; envVars : Text; description : Text }>;
+//     deploymentExamples : List.List<{ kind : { #git : Text; #archive }; url : Text; assetsDir : Text; assets : { #pure; #build : { command : Text; envVars : Text } }; description : Text; owner : ?Principal }>;
 //   } {
 //     {
 //       old with
 //       var assetsModule = old.assetsModule;
+//       deploymentExamples = List.empty<{ kind : { #git : Text; #archive }; url : Text; assetsDir : Text; assets : { #pure; #build : { command : Text; envVars : Text } }; description : Text; owner : ?Principal }>();
 //     };
 //   }
 // )
@@ -82,13 +83,18 @@ persistent actor class Backend() = self {
   };
 
   type DeploymentExample = {
+    description : Text;
     kind : { #git : Text; #archive };
     url : Text;
-    buildCommand : Text;
-    outputDir : Text;
-    envVars : Text;
-    description : Text;
-    pureAssets : Bool;
+    assets : {
+      #pure;
+      #build : {
+        command : Text;
+        envVars : Text;
+      };
+    };
+    assetsDir : Text;
+    owner : ?Principal;
   };
 
   let profiles : Map.Map<Principal, Profile> = Map.empty();
@@ -109,53 +115,70 @@ persistent actor class Backend() = self {
   if (List.size(deploymentExamples) == 0) {
     List.addAll<DeploymentExample>(
       deploymentExamples,
-      ([
-        {
-          kind = #git("main");
-          url = "https://github.com/research-ag/hosty-live";
-          buildCommand = "npm run build";
-          outputDir = "dist";
-          description = "Hosty.live frontend itself!";
-          envVars = "";
-          pureAssets = false;
-        },
-        {
-          kind = #git("main");
-          url = "https://github.com/research-ag/wallet";
-          buildCommand = "npm run build";
-          outputDir = "dist";
-          description = "ICRC-1 web wallet";
-          envVars = "";
-          pureAssets = false;
-        },
-        {
-          kind = #git("main");
-          url = "https://github.com/itkrivoshei/Vanilla-Js-ToDoList";
-          buildCommand = "true";
-          outputDir = "./";
-          description = "Pure assets, no building";
-          envVars = "";
-          pureAssets = true;
-        },
-        {
-          kind = #archive;
-          url = "https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.zip";
-          buildCommand = "npm run build";
-          outputDir = "dist";
-          description = "ICRC-1 web wallet (zip)";
-          envVars = "";
-          pureAssets = false;
-        },
-        {
-          kind = #archive;
-          url = "https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.tar.gz";
-          buildCommand = "npm run build";
-          outputDir = "dist";
-          description = "ICRC-1 web wallet (tar.gz)";
-          envVars = "";
-          pureAssets = false;
-        },
-      ]).values(),
+      (
+        [
+          {
+            description = "Hosty.live frontend itself!";
+            kind = #git("main");
+            url = "https://github.com/research-ag/hosty-live";
+            assets = #build({
+              command = "npm run build";
+              envVars = "";
+            });
+            assetsDir = "dist";
+            owner = null;
+          },
+          {
+            description = "ICRC-1 web wallet";
+            kind = #git("main");
+            url = "https://github.com/research-ag/wallet";
+            assets = #build({
+              command = "npm run build";
+              envVars = "";
+            });
+            assetsDir = "dist";
+            owner = null;
+          },
+          {
+            description = "Pure assets, no building";
+            kind = #git("main");
+            url = "https://github.com/itkrivoshei/Vanilla-Js-ToDoList";
+            assets = #pure;
+            assetsDir = "./";
+            owner = null;
+          },
+          {
+            description = "Notes app";
+            kind = #git("main");
+            url = "https://github.com/dcode-youtube/notes-app-javascript-localstorage";
+            assets = #pure;
+            assetsDir = "./";
+            owner = null;
+          },
+          {
+            description = "ICRC-1 web wallet (zip)";
+            kind = #archive;
+            url = "https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.zip";
+            assets = #build({
+              command = "npm run build";
+              envVars = "";
+            });
+            assetsDir = "dist";
+            owner = null;
+          },
+          {
+            description = "ICRC-1 web wallet (tar.gz)";
+            kind = #archive;
+            url = "https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.tar.gz";
+            assets = #build({
+              command = "npm run build";
+              envVars = "";
+            });
+            assetsDir = "dist";
+            owner = null;
+          },
+        ] : [DeploymentExample]
+      ).values(),
     );
   };
 
@@ -259,11 +282,25 @@ persistent actor class Backend() = self {
     |> Iter.toArray(_);
   };
 
-  public shared func addDeploymentExample(example : DeploymentExample) : async () {
-    if (Text.size(example.url) == 0 or Text.size(example.outputDir) == 0 or Text.size(example.buildCommand) == 0) {
+  type DeploymentExampleInput = {
+    description : Text;
+    kind : { #git : Text; #archive };
+    url : Text;
+    assets : {
+      #pure;
+      #build : {
+        command : Text;
+        envVars : Text;
+      };
+    };
+    assetsDir : Text;
+  };
+
+  public shared ({ caller }) func addDeploymentExample(example : DeploymentExampleInput) : async () {
+    if (Text.size(example.url) == 0 or Text.size(example.assetsDir) == 0) {
       throw Error.reject("Invalid example: missing required fields");
     };
-    List.add(deploymentExamples, example);
+    List.add(deploymentExamples, { example with owner = ?caller });
   };
 
   // canisters api

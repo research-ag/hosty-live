@@ -3,43 +3,49 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 
 export interface CanisterInfo {
-  'alias': [] | [string],
-  'deployedAt': [] | [bigint],
-  'createdAt': bigint,
-  'description': [] | [string],
-  'userIds': Array<Principal>,
-  'frontendUrl': string,
-  'deletedAt': [] | [bigint],
-  'canisterId': Principal,
-  'ownedBySystem': boolean,
+  'alias' : [] | [string],
+  'deployedAt' : [] | [bigint],
+  'createdAt' : bigint,
+  'description' : [] | [string],
+  'userIds' : Array<Principal>,
+  'frontendUrl' : string,
+  'deletedAt' : [] | [bigint],
+  'canisterId' : Principal,
+  'ownedBySystem' : boolean,
 }
-
 export interface DeploymentExample {
-  'url': string,
-  'kind': { 'git': string } |
-    { 'archive': null },
-  'description': string,
-  'envVars': string,
-  'buildCommand': string,
-  'outputDir': string,
-  'pureAssets'?: boolean,
+  'url' : string,
+  'owner' : [] | [Principal],
+  'kind' : { 'git' : string } |
+    { 'archive' : null },
+  'assets' : { 'pure' : null } |
+    { 'build' : { 'command' : string, 'envVars' : string } },
+  'description' : string,
+  'assetsDir' : string,
 }
-
+export interface DeploymentExampleInput {
+  'url' : string,
+  'kind' : { 'git' : string } |
+    { 'archive' : null },
+  'assets' : { 'pure' : null } |
+    { 'build' : { 'command' : string, 'envVars' : string } },
+  'description' : string,
+  'assetsDir' : string,
+}
 export interface ProfileInfo {
-  'username': [] | [string],
-  'userId': Principal,
-  'createdAt': bigint,
-  'updatedAt': bigint,
-  'rentedCanister': [] | [[CanisterInfo, bigint]],
+  'username' : [] | [string],
+  'userId' : Principal,
+  'createdAt' : bigint,
+  'updatedAt' : bigint,
+  'rentedCanister' : [] | [[CanisterInfo, bigint]],
 }
-
-export type Result = { 'ok': CanisterInfo } |
-  { 'err': string };
-export type Result_1 = { 'ok': null } |
-  { 'err': string };
+export type Result = { 'ok' : CanisterInfo } |
+  { 'err' : string };
+export type Result_1 = { 'ok' : null } |
+  { 'err' : string };
 
 export interface _SERVICE {
-  'addDeploymentExample': ActorMethod<[DeploymentExample], undefined>,
+  'addDeploymentExample': ActorMethod<[DeploymentExampleInput], undefined>,
   'canRentCanister': ActorMethod<[], boolean>,
   'deleteCanister': ActorMethod<[Principal], undefined>,
   'donateCanister': ActorMethod<[Principal], Result_1>,

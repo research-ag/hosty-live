@@ -20,6 +20,7 @@ import {
   isActivelyBuilding
 } from '../../lib/deploymentHelpers'
 import { getBackendActor } from '../../api/backend'
+import { DeploymentExampleInput } from "../../api/backend/backend.did";
 
 export function DeploymentPage() {
   const { id } = useParams<{ id: string }>()
@@ -195,7 +196,7 @@ export function DeploymentPage() {
 
       // Build example payload
       let url = ''
-      let kind: any = { archive: null }
+      let kind: DeploymentExampleInput['kind'] = { archive: null }
       if (deployment.sourceType === 'GIT' && deployment.sourceGitRepo) {
         url = deployment.sourceGitRepo
         const branch = deployment.gitBranch || 'main'
@@ -208,17 +209,25 @@ export function DeploymentPage() {
         setIsSavingExample(false)
         return
       }
-
-      const payload = {
-        url,
-        kind,
-        description,
-        envVars: serializeEnvVars(deployment.envVars || undefined),
-        buildCommand: deployment.buildCommand || 'npm run build',
-        outputDir: deployment.outputDir || 'dist',
+      let assets: DeploymentExampleInput['assets'] = { pure: null }
+      if (!deployment.pureAssets) {
+        assets = {
+          build: {
+            command: deployment.buildCommand || 'npm run build',
+            envVars: serializeEnvVars(deployment.envVars || undefined)
+          }
+        }
       }
 
-      await actor.addDeploymentExample(payload as any)
+      const payload: DeploymentExampleInput = {
+        description,
+        kind,
+        url,
+        assets,
+        assetsDir: deployment.outputDir || 'dist',
+      }
+
+      await actor.addDeploymentExample(payload)
       toast.success('Example saved', 'Your deployment has been added to the public examples list.')
       setSaveDialogOpen(false)
     } catch (e: any) {
@@ -247,7 +256,8 @@ export function DeploymentPage() {
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-semibold" title={deployment.id}>Deployment {deployment.id.slice(0, 7)}</h1>
             {deployment.isDryRun && (
-              <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700">
+              <Badge variant="secondary"
+                     className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700">
                 Dry-Run
               </Badge>
             )}
@@ -306,16 +316,20 @@ export function DeploymentPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {deployment.isDryRun && (
-              <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3">
+              <div
+                className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <span className="font-semibold">Test Build:</span> This was a dry-run deployment. The build process was executed, but no actual deployment to the canister was performed.
+                  <span className="font-semibold">Test Build:</span> This was a dry-run deployment. The build process
+                  was executed, but no actual deployment to the canister was performed.
                 </p>
               </div>
             )}
             {deployment.pureAssets && (
-              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-3">
+              <div
+                className="rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-3">
                 <p className="text-sm text-purple-700 dark:text-purple-300">
-                  <span className="font-semibold">Pure Assets:</span> This deployment used pre-built assets. No build process or dependency installation was performed.
+                  <span className="font-semibold">Pure Assets:</span> This deployment used pre-built assets. No build
+                  process or dependency installation was performed.
                 </p>
               </div>
             )}
