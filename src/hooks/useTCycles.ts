@@ -29,7 +29,7 @@ export async function createCanisterOnLedger() {
     amount: 840_000_000_000n,
     creation_args: [
       {
-        subnet_selection: [],
+        subnet_selection: [{ Subnet: { subnet: Principal.fromText("c4isl-65rwf-emhk5-5ta5m-ngl73-rgrl3-tcc56-2hkja-4erqd-iivmy-7ae") } }],
         settings: [
           {
             controllers: [[
