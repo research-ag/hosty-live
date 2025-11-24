@@ -539,8 +539,12 @@ persistent actor class Backend() = self {
 
     Prim.debugPrint("updating internal registry state...");
     for (user in canisterData.userIds.values()) {
-      let ?userCanisters = Map.get(userCanistersMap, Principal.compare, user) else Prim.trap("No user canisters list");
-      Map.add(userCanistersMap, Principal.compare, user, List.filter(userCanisters, func(idx) = idx != cidx));
+      switch (Map.get(userCanistersMap, Principal.compare, user)) {
+        case (?userCanisters) {
+          Map.add(userCanistersMap, Principal.compare, user, List.filter(userCanisters, func(idx) = idx != cidx));
+        };
+        case (null) {};
+      };
     };
     canisterData.userIds := [];
     Queue.pushBack(canistersPool, cidx);
@@ -634,25 +638,21 @@ persistent actor class Backend() = self {
     CONSTANTS.RENT_TAKEBACK_INTERVAL,
     0,
     func(_ : Nat) : async* () {
-      while (true) {
-        let ?renter = Queue.peekFront(renters) else return;
-        let ?profile = Map.get(profiles, Principal.compare, renter) else {
-          ignore Queue.popFront(renters);
+      label l while (true) {
+        let ?renter = Queue.popFront(renters) else return;
+        let ?profile = Map.get(profiles, Principal.compare, renter) else continue l;
+        let ?(cidx, rentUntil) = profile.rentedCanister else continue l;
+        if (rentUntil > Prim.time()) {
+          Queue.pushFront(renters, renter);
           return;
-        };
-        let ?(cidx, rentUntil) = profile.rentedCanister else {
-          ignore Queue.popFront(renters);
-          return;
-        };
-        if (rentUntil < Prim.time()) {
-          ignore Queue.popFront(renters);
-
+        } else {
           Prim.debugPrint("RETURNING BACK CANISTER " # Principal.toText(List.at(canisters, cidx).canisterId) # "...");
           try {
             await* setupSystemOwnership_(cidx);
           } catch (err) {
             Prim.debugPrint("Cannot take the canister " # Principal.toText(List.at(canisters, cidx).canisterId) # " back: " # Error.message(err));
             Queue.pushBack(renters, renter);
+            continue l;
           };
           profile.rentedCanister := null;
           try {
@@ -660,8 +660,6 @@ persistent actor class Backend() = self {
           } catch (err) {
             Prim.debugPrint("Could not prepare canister for pool: " # Error.message(err));
           };
-        } else {
-          return;
         };
       };
     },
