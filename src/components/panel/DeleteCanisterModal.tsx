@@ -1,6 +1,8 @@
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Canister } from '../../types'
+import { useCanisterStatus } from "../../hooks/useCanisterStatus";
+import { Link } from "react-router-dom";
 
 interface DeleteCanisterModalProps {
   isOpen: boolean
@@ -25,6 +27,20 @@ export function DeleteCanisterModal(
     error
   }: DeleteCanisterModalProps) {
 
+  const discardThresholdTC = 0.35;
+
+  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canister?.id);
+  const cyclesTC = (() => {
+    try {
+      if (!cyclesRaw) return undefined;
+      return Number(BigInt(cyclesRaw)) / 1_000_000_000_000;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const willDiscardTooMuch = typeof cyclesTC === 'number' && cyclesTC > discardThresholdTC;
+
   const handleConfirm = () => {
     onConfirmDelete()
   }
@@ -41,10 +57,37 @@ export function DeleteCanisterModal(
           </div>
         )}
 
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete canister <strong>{canister?.id}</strong>?
-          This action cannot be undone. Consider donating your canister instead.
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete canister <strong>{canister?.id}</strong>?
+            This action cannot be undone. Consider donating your canister instead.
+          </p>
+
+          <div className="p-3 text-sm bg-red-50 border border-red-200 text-red-800 rounded-md">
+            {isCanisterStatusLoading ? (
+              <span>Loading canister cycles…</span>
+            ) : cyclesTC === undefined ? (
+              <span>Unable to determine current cycles. Deleting will discard any remaining cycles.</span>
+            ) : (
+              <div className="space-y-1">
+                <div>
+                  Deleting will discard approximately <strong>{cyclesTC.toFixed(2)} TC</strong>.
+                </div>
+                {willDiscardTooMuch && (
+                  <div className="text-red-700">
+                    This exceeds the current discard limit of {discardThresholdTC} TC. Deletion is disabled. Please withdraw cycles first (available for our custom asset canister), or reset the canister to our asset canister and then withdraw.
+                  </div>
+                )}
+                {canister?.id && (
+                  <div className="text-xs text-red-700">
+                    Tip: You can manage withdrawals and resets on the canister page. <Link to={`/panel/canister/${canister.id}`} className="underline">Open canister</Link>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="flex justify-end space-x-3">
           <Button type="button" variant="outline" onClick={onClose} disabled={isDeleting || isDonating}>
             Cancel
@@ -59,7 +102,7 @@ export function DeleteCanisterModal(
               'Donate'
             )}
           </Button>
-          <Button type="button" variant="destructive" onClick={handleConfirm} disabled={isDeleting || isDonating}>
+          <Button type="button" variant="destructive" onClick={handleConfirm} disabled={isDeleting || isDonating || willDiscardTooMuch}>
             {isDeleting ? (
               <div className="flex items-center">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"/>
