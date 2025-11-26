@@ -101,8 +101,7 @@ export function WithdrawCyclesModal({
             onChange={(e) => setDestination(e.target.value)}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
           />
-          <p className="text-xs text-muted-foreground">Enter the canister to receive cycles (e.g., your wallet
-            canister).</p>
+          <p className="text-xs text-muted-foreground">Enter the canister to receive cycles</p>
         </div>
 
         <div className="space-y-2">
