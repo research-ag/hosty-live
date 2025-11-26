@@ -328,7 +328,7 @@ persistent actor class Backend() = self {
     userCanisterIndices
     |> List.values(_)
     |> Iter.map<Nat, CanisterData>(_, func(i) = List.at(canisters, i))
-    // |> Iter.filter(_, func(_, c) = Option.isNull(c.deletedAt))
+    |> Iter.filter(_, func(c) = Option.isNull(c.deletedAt))
     |> Iter.map<CanisterData, CanisterInfo>(_, freezeCanisterData_)
     |> Iter.toArray(_);
   };
@@ -364,6 +364,7 @@ persistent actor class Backend() = self {
 
     let data = switch (existing) {
       case (?(canisterIndex, canisterData)) {
+        canisterData.deletedAt := null;
         canisterData.userIds := Array.concat(canisterData.userIds, [caller]);
         let userCanisters = switch (Map.get(userCanistersMap, Principal.compare, caller)) {
           case (?list) list;
@@ -397,6 +398,9 @@ persistent actor class Backend() = self {
 
   public query func getCanister(cid : Principal) : async CanisterInfo {
     let ?(_, data) = getCanister_(cid) else throw Error.reject("Not found");
+    if (Option.isSome(data.deletedAt)) {
+      throw Error.reject("Not found");
+    };
     return freezeCanisterData_(data);
   };
 

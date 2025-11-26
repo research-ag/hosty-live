@@ -165,6 +165,22 @@ export function useCanisters() {
 
       const backend = await getBackendActor();
       await backend.deleteCanister(Principal.fromText(canister.id));
+
+      try {
+        const management = await getManagementActor();
+        const eff = { effectiveCanisterId: Principal.fromText(canister.id) };
+        const args = { canister_id: Principal.fromText(canister.id) };
+        try {
+          await management.stop_canister.withOptions(eff)(args);
+        } catch (_) {
+          // ignore if already stopped or lacks state
+        }
+        await management.delete_canister.withOptions(eff)(args);
+      } catch (e) {
+        throw new Error(
+          e instanceof Error ? e.message : `Failed to delete canister on management canister`
+        );
+      }
       return { canisterDbId }
     },
     onSuccess: ({ canisterDbId }) => {
