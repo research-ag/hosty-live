@@ -142,9 +142,9 @@ export function WithdrawCyclesModal({
         </div>
 
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          Note: We leave a small safety buffer (~{safetyBufferTC} TC) to avoid freezing threshold issues. If you need to
-          fully drain cycles, consider the advanced deletion flow.
+          Note: We leave a small safety buffer (~{safetyBufferTC} TC) to avoid freezing threshold issues.
         </div>
+        {/* If you need to fully drain cycles, consider the advanced deletion flow */}
       </div>
     </Modal>
   );
