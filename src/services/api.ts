@@ -5,71 +5,73 @@ import { getAgent } from "../hooks/useInternetIdentity.ts";
 import { getBackendActor } from "../api/backend";
 import { isValidDomain } from "../utils/domains.ts";
 
-const API_BASE = `${import.meta.env.VITE_HOSTY_API_BASE || 'https://mrresearch.xyz/hosty-live-api'}`
+const API_BASE = `${
+  import.meta.env.VITE_HOSTY_API_BASE || "https://mrresearch.xyz/hosty-live-api"
+}`;
 
 // Token storage keys
-const ACCESS_TOKEN_KEY = 'hosty_access_token'
-const PRINCIPAL_KEY = 'hosty_principal'
+const ACCESS_TOKEN_KEY = "hosty_access_token";
+const PRINCIPAL_KEY = "hosty_principal";
 
 // Handle 401 errors globally
 function handle401Error() {
-  console.warn('🔒 [API] 401 Unauthorized - Redirecting to sign-in')
-  clearAuthTokens()
+  console.warn("🔒 [API] 401 Unauthorized - Redirecting to sign-in");
+  clearAuthTokens();
   // Use window.location for immediate redirect, bypassing React Router
-  window.location.href = '/panel/sign-in'
+  window.location.href = "/panel/sign-in";
 }
 
 // Token management
 export function getStoredAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY)
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
 export function setAccessToken(accessToken: string) {
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
 }
 
 export function getStoredPrincipal(): string | null {
-  return localStorage.getItem(PRINCIPAL_KEY)
+  return localStorage.getItem(PRINCIPAL_KEY);
 }
 
 export function setStoredPrincipal(principal: string) {
-  localStorage.setItem(PRINCIPAL_KEY, principal)
+  localStorage.setItem(PRINCIPAL_KEY, principal);
 }
 
 export function clearAuthTokens() {
-  localStorage.removeItem(ACCESS_TOKEN_KEY)
-  localStorage.removeItem(PRINCIPAL_KEY)
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(PRINCIPAL_KEY);
 }
 
 // Helper function to get auth headers
 async function getAuthHeaders() {
-  console.log('🔐 [getAuthHeaders] Getting access token...')
-  const accessToken = getStoredAccessToken()
+  console.log("🔐 [getAuthHeaders] Getting access token...");
+  const accessToken = getStoredAccessToken();
 
-  console.log('🔐 [getAuthHeaders] Token check:', {
+  console.log("🔐 [getAuthHeaders] Token check:", {
     hasAccessToken: !!accessToken,
-    tokenPreview: accessToken ? `${accessToken.substring(0, 20)}...` : 'none',
-  })
+    tokenPreview: accessToken ? `${accessToken.substring(0, 20)}...` : "none",
+  });
 
   if (!accessToken) {
-    console.error('❌ [getAuthHeaders] No access token')
-    throw new Error('No active session')
+    console.error("❌ [getAuthHeaders] No access token");
+    throw new Error("No active session");
   }
 
   const headers = {
-    'Authorization': `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
-  }
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
 
-  console.log('✅ [getAuthHeaders] Headers prepared')
-  return headers
+  console.log("✅ [getAuthHeaders] Headers prepared");
+  return headers;
 }
 
 // Helper function to check response for 401 errors
 function checkUnauthorized(response: Response) {
   if (response.status === 401) {
-    handle401Error()
-    throw new Error('Unauthorized - redirecting to login')
+    handle401Error();
+    throw new Error("Unauthorized - redirecting to login");
   }
 }
 
@@ -78,158 +80,162 @@ export const authApi = {
   // Authenticate with Internet Identity
   async authWithII(principal: string, secret: string) {
     try {
-      console.log('🔐 [authApi.authWithII] Authenticating with principal:', principal)
+      console.log(
+        "🔐 [authApi.authWithII] Authenticating with principal:",
+        principal
+      );
 
       const response = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ principal, secret }),
-      })
+      });
 
-      console.log('📡 [authApi.authWithII] Response status:', response.status)
+      console.log("📡 [authApi.authWithII] Response status:", response.status);
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        console.error('❌ [authApi.authWithII] Error response:', error)
-        return { success: false, error: (error && error.message) || `HTTP ${response.status}` }
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Network error" }));
+        console.error("❌ [authApi.authWithII] Error response:", error);
+        return {
+          success: false,
+          error: (error && error.message) || `HTTP ${response.status}`,
+        };
       }
 
-      const data = await response.json()
-      console.log('✅ [authApi.authWithII] Success response:', data)
+      const data = await response.json();
+      console.log("✅ [authApi.authWithII] Success response:", data);
 
       // Expect AuthResponseDto { principal, accessToken }
       if (data && data.accessToken) {
-        setAccessToken(data.accessToken)
+        setAccessToken(data.accessToken);
         return {
           success: true,
           principal: data.principal || principal,
-          accessToken: data.accessToken
-        }
+          accessToken: data.accessToken,
+        };
       }
 
-      return { success: false, error: 'Invalid auth response' }
+      return { success: false, error: "Invalid auth response" };
     } catch (err) {
-      console.error('💥 [authApi.authWithII] Exception:', err)
+      console.error("💥 [authApi.authWithII] Exception:", err);
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Authentication failed'
-      }
+        error: err instanceof Error ? err.message : "Authentication failed",
+      };
     }
-  }
-}
-
+  },
+};
 
 // Custom domain API
 export const customDomainApi = {
-  // Helper: Verify ic-domains file is accessible via boundary node with retry logic
-  async verifyIcDomainsFile(canisterId: string, expectedDomain: string, maxRetries = 10, initialDelay = 500): Promise<boolean> {
-    let delay = initialDelay;
-    
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        // Add cache busting with timestamp
-        const timestamp = Date.now();
-        const response = await fetch(
-          `https://${canisterId}.icp0.io/.well-known/ic-domains?t=${timestamp}`,
-          {
-            method: "GET",
-            headers: {
-              "Cache-Control": "no-cache, no-store, must-revalidate",
-              "Pragma": "no-cache",
-            },
-          }
-        );
-
-        if (response.ok) {
-          const content = await response.text();
-          const retrievedDomain = content.trim();
-          
-          if (retrievedDomain === expectedDomain) {
-            console.log(`✅ ic-domains file verified after ${attempt + 1} attempt(s)`);
-            return true;
-          } else {
-            console.warn(`⚠️ ic-domains file found but contains wrong domain: "${retrievedDomain}" (expected: "${expectedDomain}")`);
-          }
-        }
-      } catch (error) {
-        console.warn(`Attempt ${attempt + 1}/${maxRetries} failed:`, error instanceof Error ? error.message : 'Unknown error');
-      }
-
-      // Wait before next attempt with exponential backoff
-      if (attempt < maxRetries - 1) {
-        console.log(`⏳ Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay = Math.min(delay * 1.5, 5000); // Cap at 5 seconds
-      }
-    }
-
-    return false;
-  },
-
-  // Add custom domain to canister (new API)
-  async addDomain(canisterId: string, domain: string) {
+  // Upload ic-domains file only (no registration)
+  async uploadIcDomainsFile(canisterId: string, domain: string) {
     if (!isValidDomain(domain)) {
       return {
         success: false,
         error: "Invalid domain format",
-      }
+      };
     }
     try {
-      // STEP 1: Upload .well-known/ic-domains file
-      console.log('📤 Uploading ic-domains file to canister...');
+      console.log("📤 Uploading ic-domains file...");
+      const { getAuthClient } = await import("../hooks/useInternetIdentity");
+      const { getAssetStorageActor } = await import("../api/asset-storage");
+
+      const authClient = await getAuthClient();
+      const myPrincipal = authClient.getIdentity().getPrincipal();
+      const assetCanister = await getAssetStorageActor(canisterId);
+
+      // Grant permissions (silent if already granted)
+      try {
+        await assetCanister.grant_permission({
+          permission: { Prepare: null },
+          to_principal: myPrincipal,
+        });
+        await assetCanister.grant_permission({
+          permission: { Commit: null },
+          to_principal: myPrincipal,
+        });
+      } catch (permErr) {
+        console.warn("⚠️ Could not grant permissions:", permErr);
+      }
+
+      // Upload file
       const assetManager = new AssetManager({
         canisterId: Principal.fromText(canisterId),
         agent: getAgent(),
       });
-      await assetManager.delete("/.well-known/ic-domains");
       await assetManager.store(new TextEncoder().encode(domain), {
         fileName: ".well-known/ic-domains",
         contentType: "text/plain",
         contentEncoding: "identity",
       });
-      console.log('✅ ic-domains file uploaded to canister');
+      console.log("✅ ic-domains file uploaded");
 
-      // STEP 2: Verify file is accessible via boundary node (with retries)
-      console.log('🔍 Verifying ic-domains file is accessible via boundary node...');
-      const isVerified = await this.verifyIcDomainsFile(canisterId, domain);
-      
-      if (!isVerified) {
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Failed to upload file",
+      };
+    }
+  },
+
+  // Add custom domain to canister (upload ic-domains + register with IC)
+  async addDomain(canisterId: string, domain: string) {
+    if (!isValidDomain(domain)) {
+      return {
+        success: false,
+        error: "Invalid domain format",
+      };
+    }
+    try {
+      // STEP 1: Upload ic-domains file
+      const uploadResult = await this.uploadIcDomainsFile(canisterId, domain);
+      if (!uploadResult.success) {
+        return uploadResult;
+      }
+
+      // STEP 2: Wait for boundary node propagation (2 seconds is sufficient)
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // STEP 3: Register domain with IC (validates DNS + registers)
+      console.log("📝 Registering domain with IC...");
+      const response = await fetch(
+        `https://icp0.io/custom-domains/v1/${domain}`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ errors: "Unknown error" }));
         return {
           success: false,
-          error: `Failed to verify ic-domains file accessibility. The file was uploaded to the canister but is not yet propagated to the boundary nodes. Please wait a few moments and try again.`
+          error: `Domain registration failed: ${
+            errorData.errors || errorData.message
+          }`,
         };
       }
-      console.log('✅ ic-domains file verified and accessible');
 
-      // STEP 3: Register domain with IC gateways using new API
-      console.log('📝 Registering domain with IC gateway...');
-      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}`, {
-        method: "POST",
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ errors: 'Unknown error' }));
-        return {
-          success: false,
-          error: `Domain registration failed: ${errorData.errors || errorData.message}`
-        }
-      }
-      
       const result = await response.json();
-      console.log('✅ Domain registered with IC gateway');
-      
-      // STEP 4: Update backend database with domain association
-      console.log('💾 Updating backend database...');
+      console.log("✅ Domain registered with IC");
+
+      // STEP 4: Update backend database
+      console.log("💾 Updating backend database...");
       const backend = await getBackendActor();
       await backend.updateCanister(Principal.fromText(canisterId), {
         alias: [],
         description: [],
-        frontendUrl: [domain]
+        frontendUrl: [domain],
       });
-      console.log('✅ Backend database updated');
-      
+      console.log("✅ Backend updated");
+
       return {
         success: true,
         domain: result.data?.domain,
@@ -238,200 +244,201 @@ export const customDomainApi = {
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to add domain'
-      }
+        error: err instanceof Error ? err.message : "Failed to add domain",
+      };
     }
   },
 
-  // Get current domain from canister
-  async getCurrentDomain(canisterId: string) {
-    try {
-      const response = await fetch(`https://${canisterId}.icp0.io/.well-known/ic-domains`)
-
-      if (!response.ok) {
-        return null
-      }
-
-      const text = (await response.text()).trim()
-      if (text?.startsWith('<!DOCTYPE html>')) {
-        return null
-      }
-      return text
-    } catch (_err) {
-      return null
-    }
-  },
-
-  // Check domain registration status using new API
+  // Check domain registration status
   async checkRegistrationStatus(domain: string) {
     try {
-      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}`)
+      const response = await fetch(
+        `https://icp0.io/custom-domains/v1/${domain}`
+      );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ errors: 'Registration not found' }));
-        return { 
-          success: false, 
-          error: errorData.errors || errorData.message || 'Registration not found' 
-        }
+        const errorData = await response
+          .json()
+          .catch(() => ({ errors: "Registration not found" }));
+        return {
+          success: false,
+          error:
+            errorData.errors || errorData.message || "Registration not found",
+        };
       }
 
-      const data = await response.json()
-      return { 
-        success: true, 
+      const data = await response.json();
+      return {
+        success: true,
         data: {
           domain: data.data?.domain,
           canisterId: data.data?.canister_id,
           status: data.data?.registration_status,
           message: data.message,
-        }
-      }
+        },
+      };
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to check status'
-      }
+        error: err instanceof Error ? err.message : "Failed to check status",
+      };
     }
   },
 
-  // Validate domain before registration using new API
-  async validateDomain(domain: string) {
-    try {
-      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}/validate`)
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ errors: 'Validation failed' }));
-        return { 
-          success: false, 
-          error: errorData.errors || errorData.message || 'Validation failed' 
-        }
-      }
-
-      const data = await response.json()
-      return { 
-        success: true, 
-        data: {
-          domain: data.data?.domain,
-          canisterId: data.data?.canister_id,
-          validationStatus: data.data?.validation_status,
-          message: data.message,
-        }
-      }
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to validate domain'
-      }
-    }
-  },
-
-  // Remove domain registration using new API
+  // Remove domain registration
   async removeDomain(domain: string) {
     try {
-      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}`, {
-        method: 'DELETE',
-      })
+      const response = await fetch(
+        `https://icp0.io/custom-domains/v1/${domain}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ errors: 'Failed to remove domain' }));
-        return { 
-          success: false, 
-          error: errorData.errors || errorData.message || 'Failed to remove domain' 
-        }
+        const errorData = await response
+          .json()
+          .catch(() => ({ errors: "Failed to remove domain" }));
+        return {
+          success: false,
+          error:
+            errorData.errors || errorData.message || "Failed to remove domain",
+        };
       }
 
-      const data = await response.json()
-      return { 
+      const data = await response.json();
+      return {
         success: true,
         message: data.message,
-      }
+      };
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to remove domain'
-      }
+        error: err instanceof Error ? err.message : "Failed to remove domain",
+      };
     }
-  }
-}
+  },
+};
 
 // Deployments API
 export const deploymentsApi = {
   // List deployments
   async listDeployments(limit = 50, offset = 0) {
     try {
-      console.log('🔍 [deploymentsApi.listDeployments] Starting API call...')
+      console.log("🔍 [deploymentsApi.listDeployments] Starting API call...");
 
-      const headers = await getAuthHeaders()
+      const headers = await getAuthHeaders();
 
       const params = new URLSearchParams({
         limit: limit.toString(),
-        offset: offset.toString()
-      })
+        offset: offset.toString(),
+      });
 
       const response = await fetch(`${API_BASE}/deployments?${params}`, {
-        method: 'GET',
+        method: "GET",
         headers,
-      })
+      });
 
-      console.log('📡 [deploymentsApi.listDeployments] Response status:', response.status)
+      console.log(
+        "📡 [deploymentsApi.listDeployments] Response status:",
+        response.status
+      );
 
-      checkUnauthorized(response)
+      checkUnauthorized(response);
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        console.error('❌ [deploymentsApi.listDeployments] Error response:', error)
-        return { success: false, error: error.error || `HTTP ${response.status}` }
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Network error" }));
+        console.error(
+          "❌ [deploymentsApi.listDeployments] Error response:",
+          error
+        );
+        return {
+          success: false,
+          error: error.error || `HTTP ${response.status}`,
+        };
       }
 
-      const data = await response.json()
-      console.log('✅ [deploymentsApi.listDeployments] Success response:', data)
-      return { success: true, deployments: data.deployments || [], pagination: data.pagination }
+      const data = await response.json();
+      console.log(
+        "✅ [deploymentsApi.listDeployments] Success response:",
+        data
+      );
+      return {
+        success: true,
+        deployments: data.deployments || [],
+        pagination: data.pagination,
+      };
     } catch (err) {
-      console.error('💥 [deploymentsApi.listDeployments] Exception:', err)
+      console.error("💥 [deploymentsApi.listDeployments] Exception:", err);
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to fetch deployments'
-      }
+        error:
+          err instanceof Error ? err.message : "Failed to fetch deployments",
+      };
     }
   },
 
   // Get a single deployment
   async getDeployment(deploymentId: string) {
     try {
-      console.log('🚀 [deploymentsApi.getDeployment] Starting API call for deployment:', deploymentId)
+      console.log(
+        "🚀 [deploymentsApi.getDeployment] Starting API call for deployment:",
+        deploymentId
+      );
 
-      const headers = await getAuthHeaders()
-      console.log('🔑 [deploymentsApi.getDeployment] Headers prepared')
+      const headers = await getAuthHeaders();
+      console.log("🔑 [deploymentsApi.getDeployment] Headers prepared");
 
-      const url = `${API_BASE}/deployments/${encodeURIComponent(deploymentId)}`
-      console.log('🌐 [deploymentsApi.getDeployment] URL:', url)
+      const url = `${API_BASE}/deployments/${encodeURIComponent(deploymentId)}`;
+      console.log("🌐 [deploymentsApi.getDeployment] URL:", url);
 
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         headers,
-      })
+      });
 
-      console.log('📡 [deploymentsApi.getDeployment] Response status:', response.status, response.statusText)
-      console.log('📡 [deploymentsApi.getDeployment] Response headers:', Object.fromEntries(response.headers.entries()))
+      console.log(
+        "📡 [deploymentsApi.getDeployment] Response status:",
+        response.status,
+        response.statusText
+      );
+      console.log(
+        "📡 [deploymentsApi.getDeployment] Response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
 
-      checkUnauthorized(response)
+      checkUnauthorized(response);
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        console.error('❌ [deploymentsApi.getDeployment] Error response:', error)
-        return { success: false, error: error.error || `HTTP ${response.status}` }
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Network error" }));
+        console.error(
+          "❌ [deploymentsApi.getDeployment] Error response:",
+          error
+        );
+        return {
+          success: false,
+          error: error.error || `HTTP ${response.status}`,
+        };
       }
 
-      const data = await response.json()
-      console.log('✅ [deploymentsApi.getDeployment] Success response (raw):', data)
+      const data = await response.json();
+      console.log(
+        "✅ [deploymentsApi.getDeployment] Success response (raw):",
+        data
+      );
 
       // data is DeploymentResponseDto
-      return { success: true, deployment: data }
+      return { success: true, deployment: data };
     } catch (err) {
-      console.error('💥 [deploymentsApi.getDeployment] Exception:', err)
+      console.error("💥 [deploymentsApi.getDeployment] Exception:", err);
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to get deployment'
-      }
+        error: err instanceof Error ? err.message : "Failed to get deployment",
+      };
     }
   },
 
@@ -446,59 +453,65 @@ export const deploymentsApi = {
     pureAssets?: boolean;
   }) {
     try {
-      const accessToken = getStoredAccessToken()
+      const accessToken = getStoredAccessToken();
 
       if (!accessToken) {
-        throw new Error('No active session')
+        throw new Error("No active session");
       }
 
-      const formData = new FormData()
-      formData.append('canisterId', data.canisterId)
-      formData.append('zip', data.zipFile)
-      
+      const formData = new FormData();
+      formData.append("canisterId", data.canisterId);
+      formData.append("zip", data.zipFile);
+
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
         if (data.buildCommand) {
-          formData.append('buildCommand', data.buildCommand)
+          formData.append("buildCommand", data.buildCommand);
         }
         if (data.envVars) {
-          formData.append('envVars', JSON.stringify(data.envVars))
+          formData.append("envVars", JSON.stringify(data.envVars));
         }
       }
-      
+
       if (data.outputDir) {
-        formData.append('outputDir', data.outputDir)
+        formData.append("outputDir", data.outputDir);
       }
       if (data.isDryRun !== undefined) {
-        formData.append('isDryRun', data.isDryRun.toString())
+        formData.append("isDryRun", data.isDryRun.toString());
       }
       if (data.pureAssets !== undefined) {
-        formData.append('pureAssets', data.pureAssets.toString())
+        formData.append("pureAssets", data.pureAssets.toString());
       }
 
       const response = await fetch(`${API_BASE}/deployments/deploy-zip`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: formData,
-      })
+      });
 
-      checkUnauthorized(response)
+      checkUnauthorized(response);
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Network error" }));
+        return {
+          success: false,
+          error: error.error || `HTTP ${response.status}`,
+        };
       }
 
-      const result = await response.json()
+      const result = await response.json();
       // result is DeploymentResponseDto
-      return { success: true, deploymentId: result.id, deployment: result }
+      return { success: true, deploymentId: result.id, deployment: result };
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to upload deployment'
-      }
+        error:
+          err instanceof Error ? err.message : "Failed to upload deployment",
+      };
     }
   },
 
@@ -514,10 +527,10 @@ export const deploymentsApi = {
     pureAssets?: boolean;
   }) {
     try {
-      const accessToken = getStoredAccessToken()
+      const accessToken = getStoredAccessToken();
 
       if (!accessToken) {
-        throw new Error('No active session')
+        throw new Error("No active session");
       }
 
       // Build payload, omitting build-related fields for pure assets
@@ -528,38 +541,46 @@ export const deploymentsApi = {
         outputDir: data.outputDir,
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets,
-      }
-      
+      };
+
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
-        if (data.buildCommand) payload.buildCommand = data.buildCommand
-        if (data.envVars) payload.envVars = data.envVars
+        if (data.buildCommand) payload.buildCommand = data.buildCommand;
+        if (data.envVars) payload.envVars = data.envVars;
       }
 
       const response = await fetch(`${API_BASE}/deployments/deploy-git`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-      })
+      });
 
-      checkUnauthorized(response)
+      checkUnauthorized(response);
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Network error" }));
+        return {
+          success: false,
+          error: error.error || `HTTP ${response.status}`,
+        };
       }
 
-      const result = await response.json()
+      const result = await response.json();
       // result is DeploymentResponseDto
-      return { success: true, deploymentId: result.id, deployment: result }
+      return { success: true, deploymentId: result.id, deployment: result };
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to upload deployment from Git'
-      }
+        error:
+          err instanceof Error
+            ? err.message
+            : "Failed to upload deployment from Git",
+      };
     }
   },
 
@@ -574,8 +595,8 @@ export const deploymentsApi = {
     pureAssets?: boolean;
   }) {
     try {
-      const headers = await getAuthHeaders()
-      
+      const headers = await getAuthHeaders();
+
       // Build payload, omitting build-related fields for pure assets
       const payload: any = {
         canisterId: data.canisterId,
@@ -583,35 +604,43 @@ export const deploymentsApi = {
         outputDir: data.outputDir,
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets,
-      }
-      
+      };
+
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
-        if (data.buildCommand) payload.buildCommand = data.buildCommand
-        if (data.envVars) payload.envVars = data.envVars
+        if (data.buildCommand) payload.buildCommand = data.buildCommand;
+        if (data.envVars) payload.envVars = data.envVars;
       }
-      
-      const response = await fetch(`${API_BASE}/deployments/deploy-url`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-      })
 
-      checkUnauthorized(response)
+      const response = await fetch(`${API_BASE}/deployments/deploy-url`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      checkUnauthorized(response);
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        return { success: false, error: error.error || `HTTP ${response.status}` }
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Network error" }));
+        return {
+          success: false,
+          error: error.error || `HTTP ${response.status}`,
+        };
       }
 
-      const result = await response.json()
+      const result = await response.json();
       // result is DeploymentResponseDto
-      return { success: true, deploymentId: result.id, deployment: result }
+      return { success: true, deploymentId: result.id, deployment: result };
     } catch (err) {
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Failed to upload deployment from URL'
-      }
+        error:
+          err instanceof Error
+            ? err.message
+            : "Failed to upload deployment from URL",
+      };
     }
-  }
-}
+  },
+};

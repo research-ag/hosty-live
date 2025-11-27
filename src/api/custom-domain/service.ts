@@ -34,268 +34,130 @@ export interface GoogleDnsResponse {
   }[];
 }
 
-export const validateAliasRecord = async (
-  domain: string
-): Promise<{ status: string; ips?: string[] }> => {
-  const timestamp = Date.now();
-  const data = await makeRequest.auto<GoogleDnsResponse>({
-    url: `https://dns.google/resolve?name=${domain}&type=A&_t=${timestamp}`,
-    method: "GET",
-    headers: resetHeaders,
-  });
+// @ Cloudflare DNS check (recursive resolver - shows propagation status)
 
-  if (data.Status !== 0) return { status: "missing" };
-
-  const ips = data.Answer?.map((record) => record.data) || [];
-  const hasIcpIPs = ips.some(
-    (ip) => ICP_BOUNDARY_NODE_IPS.includes(ip) || ip === "icp1.io."
-  );
-
-  return {
-    status: hasIcpIPs ? "valid" : "wrong_target",
-    ips,
-  };
-};
-
-export const validateCanisterIdRecord = async (
-  domain: string,
-  expectedCanisterId: string
-): Promise<{ status: string; values?: string[] }> => {
-  const timestamp = Date.now();
-  const data = await makeRequest.auto<GoogleDnsResponse>({
-    url: `https://dns.google/resolve?name=_canister-id.${domain}&type=TXT&_t=${timestamp}`,
-    method: "GET",
-    headers: resetHeaders,
-  });
-
-  if (data.Status !== 0) return { status: "missing" };
-
-  const txtRecords =
-    data.Answer?.map((record) => record.data.replace(/"/g, "")) || [];
-  const hasCorrectCanisterId = txtRecords.includes(expectedCanisterId);
-
-  return {
-    status: hasCorrectCanisterId ? "valid" : "wrong_value",
-    values: txtRecords,
-  };
-};
-
-export const validateAcmeChallengeRecord = async (
-  domain: string
-): Promise<{ status: string; values?: string[] }> => {
-  const timestamp = Date.now();
-  const data = await makeRequest.auto<GoogleDnsResponse>({
-    url: `https://dns.google/resolve?name=_acme-challenge.${domain}&type=CNAME&_t=${timestamp}`,
-    method: "GET",
-    headers: resetHeaders,
-  });
-
-  if (data.Status !== 0) return { status: "missing" };
-
-  const expectedValue = `_acme-challenge.${domain}.icp2.io.`;
-  const cnameRecords = data.Answer?.map((record) => record.data) || [];
-  const hasCorrectCname = cnameRecords.some(
-    (record) => record === expectedValue
-  );
-
-  return {
-    status: hasCorrectCname ? "valid" : "wrong_value",
-    values: cnameRecords,
-  };
-};
-
-// @ Namecheap check
-
-interface DnsQueryResponse {
-  results: Array<{
-    name: string;
-    type: string;
-    server: string;
-    answers: string[];
-    error?: string;
-  }>;
-  error?: string;
-}
-
-export const checkNamecheapDns = async (
+export const checkCloudflareDns = async (
   domain: string,
   expectedCanisterId: string
 ) => {
-  const data = await makeRequest.auto<DnsQueryResponse>({
-    url: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dns-query`,
-    method: "POST",
-    headers: { ...resetHeaders },
-    data: {
-      queries: [
-        {
-          name: domain,
-          type: "A",
-          server: "dns1.registrar-servers.com",
-        },
-        {
-          name: `_canister-id.${domain}`,
-          type: "TXT",
-          server: "dns1.registrar-servers.com",
-        },
-        {
-          name: `_acme-challenge.${domain}`,
-          type: "CNAME",
-          server: "dns1.registrar-servers.com",
-        },
-      ],
-    },
-  });
+  const timestamp = Date.now();
 
-  const fnResult: Array<{ status: string; ips?: string[]; values?: string[] }> =
-    [];
-
-  const [aliasRecord, canisterIdRecord, acmeChallengeRecord] = data.results;
-
-  // Alias validation
-
-  if (!aliasRecord.answers.length) {
-    fnResult.push({ status: "missing" });
-  } else {
-    const ips = aliasRecord.answers.map((record) => record);
-    const hasIcpIPs = ips.some(
-      (ip) => ICP_BOUNDARY_NODE_IPS.includes(ip) || ip === "icp1.io."
-    );
-
-    fnResult.push({
-      status: hasIcpIPs ? "valid" : "wrong_target",
-      ips,
-    });
-  }
-
-  // Canister id validation
-
-  if (!canisterIdRecord.answers.length) {
-    fnResult.push({ status: "missing" });
-  } else {
-    const txtRecords = canisterIdRecord.answers.map((record) =>
-      record.replace(/"/g, "")
-    );
-    const hasCorrectCanisterId = txtRecords.includes(expectedCanisterId);
-
-    fnResult.push({
-      status: hasCorrectCanisterId ? "valid" : "wrong_value",
-      values: txtRecords,
-    });
-  }
-  // Acme challenge validation
-
-  if (!acmeChallengeRecord.answers.length) {
-    fnResult.push({ status: "missing" });
-  } else {
-    const expectedValue = `_acme-challenge.${domain}.icp2.io.`;
-    const cnameRecords = acmeChallengeRecord.answers.map((record) => record);
-    const hasCorrectCname = cnameRecords.some(
-      (record) => record === expectedValue
-    );
-
-    fnResult.push({
-      status: hasCorrectCname ? "valid" : "wrong_value",
-      values: cnameRecords,
-    });
-  }
-
-  return {
-    alias: fnResult[0],
-    canisterId: fnResult[1],
-    acmeChallenge: fnResult[2],
+  // Cloudflare DNS-over-HTTPS requires Accept: application/dns-json header
+  const cloudflareDnsHeaders = {
+    ...resetHeaders,
+    Accept: "application/dns-json",
   };
+
+  try {
+    // Query all three records in parallel
+    const [aliasData, canisterIdData, acmeChallengeData] = await Promise.all([
+      makeRequest.auto<GoogleDnsResponse>({
+        url: `https://cloudflare-dns.com/dns-query?name=${domain}&type=A&_t=${timestamp}`,
+        method: "GET",
+        headers: cloudflareDnsHeaders,
+      }),
+      makeRequest.auto<GoogleDnsResponse>({
+        url: `https://cloudflare-dns.com/dns-query?name=_canister-id.${domain}&type=TXT&_t=${timestamp}`,
+        method: "GET",
+        headers: cloudflareDnsHeaders,
+      }),
+      makeRequest.auto<GoogleDnsResponse>({
+        url: `https://cloudflare-dns.com/dns-query?name=_acme-challenge.${domain}&type=CNAME&_t=${timestamp}`,
+        method: "GET",
+        headers: cloudflareDnsHeaders,
+      }),
+    ]);
+
+    console.log("✅ Cloudflare DNS responses:", {
+      aliasData,
+      canisterIdData,
+      acmeChallengeData,
+    });
+
+    // Alias validation
+    const aliasResult = (() => {
+      if (aliasData.Status !== 0 || !aliasData.Answer?.length) {
+        return { status: "missing" };
+      }
+      const ips = aliasData.Answer.map((record) => record.data);
+      const hasIcpIPs = ips.some(
+        (ip) => ICP_BOUNDARY_NODE_IPS.includes(ip) || ip === "icp1.io."
+      );
+      return {
+        status: hasIcpIPs ? "valid" : "wrong_target",
+        ips,
+      };
+    })();
+
+    // Canister ID validation
+    const canisterIdResult = (() => {
+      if (canisterIdData.Status !== 0 || !canisterIdData.Answer?.length) {
+        return { status: "missing" };
+      }
+      const txtRecords = canisterIdData.Answer.map((record) =>
+        record.data.replace(/"/g, "")
+      );
+      const hasCorrectCanisterId = txtRecords.includes(expectedCanisterId);
+      return {
+        status: hasCorrectCanisterId ? "valid" : "wrong_value",
+        values: txtRecords,
+      };
+    })();
+
+    // ACME challenge validation
+    const acmeChallengeResult = (() => {
+      if (acmeChallengeData.Status !== 0 || !acmeChallengeData.Answer?.length) {
+        return { status: "missing" };
+      }
+      const expectedValue = `_acme-challenge.${domain}.icp2.io.`;
+      const cnameRecords = acmeChallengeData.Answer.map(
+        (record) => record.data
+      );
+      const hasCorrectCname = cnameRecords.some(
+        (record) => record === expectedValue
+      );
+      return {
+        status: hasCorrectCname ? "valid" : "wrong_value",
+        values: cnameRecords,
+      };
+    })();
+
+    return {
+      alias: aliasResult,
+      canisterId: canisterIdResult,
+      acmeChallenge: acmeChallengeResult,
+    };
+  } catch (error) {
+    console.error("❌ Cloudflare DNS check failed:", error);
+    // Return error state for all records
+    return {
+      alias: { status: "missing" },
+      canisterId: { status: "missing" },
+      acmeChallenge: { status: "missing" },
+    };
+  }
 };
 
-// @
-
-// New API Types
-export interface DomainValidationResponse {
-  status: "success" | "error";
-  message: string;
-  data?: {
-    domain: string;
-    canister_id: string;
-    validation_status: "valid" | "invalid";
-  };
-  errors?: string;
-}
-
-export interface DomainRegistrationResponse {
-  status: "success" | "error";
-  message: string;
-  data?: {
-    domain: string;
-    canister_id: string;
-    registration_status?: "registering" | "registered" | "expired" | "failed";
-  };
-  errors?: string;
-}
-
-// Validate domain configuration before registration
-export const validateDomain = async (domain: string): Promise<DomainValidationResponse> => {
-  const data = await makeRequest.auto<DomainValidationResponse>({
-    url: `https://icp0.io/custom-domains/v1/${domain}/validate`,
-    method: "GET",
-    headers: resetHeaders,
-  });
-
-  return data;
-};
-
-// Register domain with new API
-export const registerDomain = async (domain: string): Promise<DomainRegistrationResponse> => {
-  const data = await makeRequest.auto<DomainRegistrationResponse>({
-    url: `https://icp0.io/custom-domains/v1/${domain}`,
-    method: "POST",
-    headers: resetHeaders,
-  });
-
-  return data;
-};
-
-// Check domain registration status
-export const checkRegistrationStatus = async (domain: string): Promise<DomainRegistrationResponse> => {
-  const data = await makeRequest.auto<DomainRegistrationResponse>({
-    url: `https://icp0.io/custom-domains/v1/${domain}`,
-    method: "GET",
-    headers: resetHeaders,
-  });
-
-  return data;
-};
-
-// Update domain mapping to different canister
-export const updateDomain = async (domain: string): Promise<DomainRegistrationResponse> => {
-  const data = await makeRequest.auto<DomainRegistrationResponse>({
-    url: `https://icp0.io/custom-domains/v1/${domain}`,
-    method: "PATCH",
-    headers: resetHeaders,
-  });
-
-  return data;
-};
-
-// Remove domain registration
-export const removeDomain = async (domain: string): Promise<DomainRegistrationResponse> => {
-  const data = await makeRequest.auto<DomainRegistrationResponse>({
-    url: `https://icp0.io/custom-domains/v1/${domain}`,
-    method: "DELETE",
-    headers: resetHeaders,
-  });
-
-  return data;
-};
 
 export const fetchDomainFromIcDomains = async (
   canisterId: string
 ): Promise<string> => {
-  const data = await makeRequest.auto<string>({
-    url: `https://${canisterId}.icp0.io/.well-known/ic-domains`,
-    method: "GET",
-    headers: { ...resetHeaders, "Content-Type": "text/plain" },
-  });
+  try {
+    const data = await makeRequest.auto<string>({
+      url: `https://${canisterId}.icp0.io/.well-known/ic-domains`,
+      method: "GET",
+      headers: { ...resetHeaders, "Content-Type": "text/plain" },
+    });
 
-  const domain = (data ?? "").trim();
+    const domain = (data ?? "").trim();
 
-  return isValidDomain(domain) ? domain : "";
+    // Handle HTML fallback (asset canister serves index.html for missing files)
+    if (domain.startsWith("<!DOCTYPE") || domain.startsWith("<html")) {
+      return "";
+    }
+
+    return isValidDomain(domain) ? domain : "";
+  } catch {
+    return "";
+  }
 };

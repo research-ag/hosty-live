@@ -3,49 +3,6 @@ import * as apiService from "./service";
 
 // @
 
-export const validateAliasRecord = queryEndpoint({
-  entity: "aliasRecordValidationRes",
-  queryKey: (payload) => ["alias-record-validation-res", payload.domain],
-  queryFn: (payload: { domain: string }) =>
-    apiService.validateAliasRecord(payload.domain),
-  defaultValue: null,
-  nullable: true,
-});
-
-// @
-
-export const validateCanisterIdRecord = queryEndpoint({
-  entity: "canisterIdRecordValidationRes",
-  queryKey: (payload) => [
-    "canister-id-record-validation-res",
-    payload.domain,
-    payload.expectedCanisterId,
-  ],
-  queryFn: (payload: { domain: string; expectedCanisterId: string }) =>
-    apiService.validateCanisterIdRecord(
-      payload.domain,
-      payload.expectedCanisterId
-    ),
-  defaultValue: null,
-  nullable: true,
-});
-
-// @
-
-export const validateAcmeChallengeRecord = queryEndpoint({
-  entity: "acmeChallengeRecordValidationRes",
-  queryKey: (payload) => [
-    "acme-challenge-record-validation-res",
-    payload.domain,
-  ],
-  queryFn: (payload: { domain: string }) =>
-    apiService.validateAcmeChallengeRecord(payload.domain),
-  defaultValue: null,
-  nullable: true,
-});
-
-// @
-
 export const fetchDomainFromIcDomains = queryEndpoint({
   entity: "domainFromIcDomains",
   queryKey: (payload) => ["domain-from-ic-domains", payload.canisterId],
@@ -57,15 +14,15 @@ export const fetchDomainFromIcDomains = queryEndpoint({
 
 // @
 
-export const checkNamecheapDns = queryEndpoint({
-  entity: "checkNamecheapDns",
+export const checkCloudflareDns = queryEndpoint({
+  entity: "checkCloudflareDns",
   queryKey: (payload) => [
-    "check-namecheap-dns",
+    "check-cloudflare-dns",
     payload.domain,
     payload.expectedCanisterId,
   ],
   queryFn: (payload: { domain: string; expectedCanisterId: string }) =>
-    apiService.checkNamecheapDns(payload.domain, payload.expectedCanisterId),
+    apiService.checkCloudflareDns(payload.domain, payload.expectedCanisterId),
   defaultValue: null,
   nullable: true,
 });
@@ -113,13 +70,17 @@ export const checkCustomDomain = queryEndpoint({
         };
       }
 
-      // Check registration status using new API
+      // Check registration status via IC API
       try {
-        const statusResponse = await apiService.checkRegistrationStatus(domain);
+        // Query IC boundary nodes for registration status
+        const response = await fetch(
+          `https://icp0.io/custom-domains/v1/${domain}`
+        );
 
-        if (statusResponse.status === "success" && statusResponse.data) {
-          const regStatus = statusResponse.data.registration_status;
-          const registeredCanisterId = statusResponse.data.canister_id;
+        if (response.ok) {
+          const data = await response.json();
+          const regStatus = data.data?.registration_status;
+          const registeredCanisterId = data.data?.canister_id;
 
           // Verify canister ID matches
           if (
@@ -150,46 +111,7 @@ export const checkCustomDomain = queryEndpoint({
           };
         }
       } catch (_statusError) {
-        // Domain not yet registered, try validation
-        try {
-          const validationResponse = await apiService.validateDomain(domain);
-
-          if (
-            validationResponse.status === "success" &&
-            validationResponse.data
-          ) {
-            return {
-              domain,
-              status: "dns_invalid",
-              validationResult: {
-                validation_status: validationResponse.data.validation_status,
-                canister_id: validationResponse.data.canister_id,
-              },
-              registrationStatus: null,
-              errorMessage: null,
-            };
-          } else {
-            return {
-              domain,
-              status: "dns_invalid",
-              validationResult: null,
-              registrationStatus: null,
-              errorMessage:
-                validationResponse.errors || validationResponse.message,
-            };
-          }
-        } catch (validationError) {
-          return {
-            domain,
-            status: "dns_invalid",
-            validationResult: null,
-            registrationStatus: null,
-            errorMessage:
-              validationError instanceof Error
-                ? validationError.message
-                : "Validation failed",
-          };
-        }
+        // Domain not registered, return not_configured
       }
 
       return {

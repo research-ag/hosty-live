@@ -51,7 +51,6 @@ export function CustomDomainModal({
   const [registerDomain, setRegisterDomain] = useState("");
   const [initialDomain, setInitialDomain] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingInitial, setIsLoadingInitial] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [registrationStatus, setRegistrationStatus] = useState<any>(null);
@@ -75,70 +74,22 @@ export function CustomDomainModal({
     );
 
   const {
-    aliasRecordValidationRes,
-    aliasRecordValidationResIsLoading,
-    aliasRecordValidationResRefetch,
-  } = customDomainApiV2.validateAliasRecord.useQuery(
-    {
-      domain: domain,
-    },
-    { enabled: false }
-  );
-
-  const {
-    canisterIdRecordValidationRes,
-    canisterIdRecordValidationResIsLoading,
-    canisterIdRecordValidationResRefetch,
-  } = customDomainApiV2.validateCanisterIdRecord.useQuery(
+    checkCloudflareDns,
+    checkCloudflareDnsIsLoading,
+    checkCloudflareDnsRefetch,
+  } = customDomainApiV2.checkCloudflareDns.useQuery(
     {
       domain: domain,
       expectedCanisterId: canister?.id ?? "",
     },
     { enabled: false }
   );
-
-  const {
-    acmeChallengeRecordValidationRes,
-    acmeChallengeRecordValidationResIsLoading,
-    acmeChallengeRecordValidationResRefetch,
-  } = customDomainApiV2.validateAcmeChallengeRecord.useQuery(
-    {
-      domain: domain,
-    },
-    { enabled: false }
-  );
-
-  const {
-    checkNamecheapDns,
-    checkNamecheapDnsIsLoading,
-    checkNamecheapDnsRefetch,
-  } = customDomainApiV2.checkNamecheapDns.useQuery(
-    {
-      domain: domain,
-      expectedCanisterId: canister?.id ?? "",
-    },
-    { enabled: false }
-  );
-
-  console.log("=== checkNamecheapDns", checkNamecheapDns);
-  const isAnyDnsCheckLoading =
-    aliasRecordValidationResIsLoading ||
-    canisterIdRecordValidationResIsLoading ||
-    acmeChallengeRecordValidationResIsLoading ||
-    checkNamecheapDnsIsLoading;
 
   const handleDnsCheck = async () => {
     if (!domain || !isValidDomain(domain)) return;
 
     setShowDnsCheck(true);
-
-    // Trigger all DNS checks
-    await Promise.all([
-      aliasRecordValidationResRefetch(),
-      canisterIdRecordValidationResRefetch(),
-      acmeChallengeRecordValidationResRefetch(),
-      checkNamecheapDnsRefetch(),
-    ]);
+    await checkCloudflareDnsRefetch();
   };
 
   const getDnsStatusIcon = (status: string) => {
@@ -182,11 +133,6 @@ export function CustomDomainModal({
       setRegistrationStatus(null);
       setIsCheckingStatus(false);
       setShowDnsCheck(false);
-
-      // Fetch current domain
-      if (canister?.id) {
-        fetchCurrentDomain();
-      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, canister?.id]);
@@ -201,32 +147,13 @@ export function CustomDomainModal({
     setShowDnsCheck(false);
   }, [domain]);
 
-  const fetchCurrentDomain = async () => {
-    if (!canister?.id) return;
-
-    setIsLoadingInitial(true);
-    try {
-      const currentDomain = await customDomainApi.getCurrentDomain(
-        canister.id
-      );
-      if (currentDomain) {
-        setRegisterDomain(currentDomain);
-        setInitialDomain(currentDomain);
-      }
-    } catch (_err) {
-      // Silently fail, just use empty string
-    } finally {
-      setIsLoadingInitial(false);
-    }
-  };
-
   const checkRegistrationStatus = async (domain: string) => {
     setIsCheckingStatus(true);
     try {
       const result = await customDomainApi.checkRegistrationStatus(domain);
       if (result.success && result.data) {
         setRegistrationStatus(result.data);
-        
+
         // Show success message for registered domains
         if (result.data.status === "registered") {
           setError(""); // Clear any errors
@@ -246,11 +173,7 @@ export function CustomDomainModal({
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      !canister?.id ||
-      !registerDomain ||
-      !isValidDomain(registerDomain)
-    )
+    if (!canister?.id || !registerDomain || !isValidDomain(registerDomain))
       return;
 
     setIsLoading(true);
@@ -262,94 +185,47 @@ export function CustomDomainModal({
     const isDifferentDomain = registerDomain !== initialDomain;
 
     try {
-      // STEP 1: Check if domain is already registered to prevent conflicts
-      const existingRegistration = await customDomainApi.checkRegistrationStatus(registerDomain);
-      
-      if (existingRegistration.success && existingRegistration.data) {
-        const registeredCanisterId = existingRegistration.data.canisterId;
-        const registrationStatus = existingRegistration.data.status;
-        
-        // Domain is registered to a DIFFERENT canister
-        if (registeredCanisterId && registeredCanisterId !== canister.id) {
-          throw new Error(
-            `This domain is already registered to canister ${registeredCanisterId}. ` +
-            `Each domain can only be registered to one canister at a time. ` +
-            `Please use a different domain or remove it from the other canister first.`
-          );
-        }
-        
-        // Domain is registered to THIS canister
-        if (registeredCanisterId === canister.id) {
-          if (registrationStatus === "registered") {
-            setSuccess("Domain is already registered to this canister!");
-            setRegistrationStatus(existingRegistration.data);
-            setIsLoading(false);
-            return;
-          }
-          // If status is not "registered" (e.g., "registering", "failed", "expired"), continue to re-register
-        }
+      // Check if domain is already registered to this canister
+      const existingRegistration =
+        await customDomainApi.checkRegistrationStatus(registerDomain);
+
+      if (
+        existingRegistration.success &&
+        existingRegistration.data?.canisterId === canister.id &&
+        existingRegistration.data?.status === "registered"
+      ) {
+        // Domain already registered and working - just update ic-domains file
+        await customDomainApi.uploadIcDomainsFile(canister.id, registerDomain);
+        setSuccess("Domain is already registered to this canister!");
+        setRegistrationStatus(existingRegistration.data);
+        return;
       }
 
-      // STEP 2: Validate DNS configuration
-      const validationResult = await customDomainApi.validateDomain(registerDomain);
-
-      if (!validationResult.success) {
-        throw new Error(`DNS validation failed: ${validationResult.error}`);
-      }
-
-      if (validationResult.data?.validationStatus !== "valid") {
-        throw new Error("DNS configuration is not valid. Please check your DNS records and try again.");
-      }
-
-      // STEP 2.5: Verify canister ID in DNS matches this canister
-      const canisterIdCheck = await customDomainApiV2.validateCanisterIdRecord.fetch(queryClient, {
-        domain: registerDomain,
-        expectedCanisterId: canister.id,
-      });
-
-      if (canisterIdCheck.status !== "valid") {
-        throw new Error(
-          `DNS TXT record _canister-id.${registerDomain} must contain ${canister.id}. ` +
-          `Current status: ${canisterIdCheck.status}`
-        );
-      }
-
-      // STEP 3: Handle domain registration/update
+      // Handle registration/update
       if (hasExistingDomain && isDifferentDomain) {
-        // SCENARIO: Changing to a different domain
         // Remove old domain from IC
         await customDomainApi.removeDomain(initialDomain);
-        
-        // Register new domain
-        const result = await customDomainApi.addDomain(
-          canister.id,
-          registerDomain
-        );
-
-        if (!result.success) {
-          throw new Error(result.error || "Failed to register new domain");
-        }
-      } else {
-        // SCENARIO: New domain or re-registering same domain
-        const result = await customDomainApi.addDomain(
-          canister.id,
-          registerDomain
-        );
-
-        if (!result.success) {
-          throw new Error(result.error || "Failed to register domain");
-        }
       }
 
-      // Invalidate queries to refresh UI
+      // Register domain (uploads ic-domains + registers with IC)
+      const result = await customDomainApi.addDomain(
+        canister.id,
+        registerDomain
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to register domain");
+      }
+
+      setSuccess("Domain registration submitted successfully!");
+      await checkRegistrationStatus(registerDomain);
+    } catch (err) {
+      setSuccess("");
+      setError(err instanceof Error ? err.message : "Failed to process domain");
+    } finally {
+      // Always refresh (ic-domains may have changed)
       queryClient.invalidateQueries({
-        queryKey: ["alias-record-validation-res"],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["canister-id-record-validation-res"],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["acme-challenge-record-validation-res"],
+        queryKey: ["check-cloudflare-dns"],
       });
       queryClient.invalidateQueries({
         queryKey: ["domain-from-ic-domains", canister.id],
@@ -358,35 +234,23 @@ export function CustomDomainModal({
         queryKey: ["domain-check-result", canister.id],
       });
 
-      setSuccess("Domain registration submitted successfully!");
-      
-      // Check status immediately
-      await checkRegistrationStatus(registerDomain);
-    } catch (err) {
-      setSuccess(""); // Clear any status messages
-      setError(
-        err instanceof Error ? err.message : "Failed to process domain"
-      );
-    } finally {
       setIsLoading(false);
     }
   };
 
   const isRegisterSubmitDisabled =
-    !registerDomain ||
-    !isValidDomain(registerDomain) ||
-    isLoading ||
-    isLoadingInitial;
+    !registerDomain || !isValidDomain(registerDomain) || isLoading;
 
   const displayDomain = domain || "<domain>";
 
   const getDnsRecords = () => {
     const displayCanisterId = canister?.id || "<canister-id>";
-
     const { isApex, subdomain } = getDomainParts(domain);
 
-    // Generate names based on apex/subdomain
-    const aliasName = domain ? (isApex ? "@" : subdomain) : "@ or subdomain";
+    // Cloudflare supports CNAME for apex domains (CNAME flattening)
+    const recordType = "CNAME";
+    const recordName = domain ? (isApex ? "@" : subdomain) : "@ or subdomain";
+
     const cnameName = domain
       ? isApex
         ? "_acme-challenge"
@@ -396,6 +260,7 @@ export function CustomDomainModal({
     const cnameValue = domain
       ? `_acme-challenge.${displayDomain}.icp2.io.`
       : "_acme-challenge.yourdomain.com.icp2.io.";
+
     const txtName = domain
       ? isApex
         ? "_canister-id"
@@ -404,22 +269,22 @@ export function CustomDomainModal({
 
     return [
       {
-        type: "ALIAS",
-        name: aliasName,
-        value: "icp1.io.",
-        description: "Domain mapping",
+        type: recordType,
+        name: recordName,
+        value: "icp1.io",
+        description: "Points domain to IC",
       },
       {
         type: "CNAME",
         name: cnameName,
         value: cnameValue,
-        description: "SSL certificate validation",
+        description: "SSL certificate",
       },
       {
         type: "TXT",
         name: txtName,
-        value: displayCanisterId,
-        description: "Canister ID verification",
+        value: `"${displayCanisterId}"`,
+        description: "Canister ID",
       },
     ];
   };
@@ -468,20 +333,32 @@ export function CustomDomainModal({
               <div className="flex items-start gap-2">
                 <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
                 <div className="text-sm text-blue-700 dark:text-blue-300">
-                  <p className="font-medium mb-2">DNS Configuration Required</p>
-                  <p className="mb-3">
-                    Before registering your domain, you must configure these DNS
-                    records with your domain provider:
+                  <p className="font-medium mb-2">Configure DNS Records</p>
+                  <p className="mb-2">
+                    Add these 3 DNS records in your domain provider. Cloudflare
+                    is recommended for fastest propagation (1-5 min vs 30+ min).
                   </p>
-                  <p>
-                    For detailed setup instructions, visit:{" "}
+                  <ul className="space-y-1 text-xs ml-4 mb-3">
+                    <li>
+                      • <strong>Cloudflare:</strong> Set Proxy Status to "DNS
+                      only" for all records
+                    </li>
+                    <li>
+                      • TXT value format:{" "}
+                      <code className="bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded">
+                        "canister-id"
+                      </code>{" "}
+                      (with quotes)
+                    </li>
+                  </ul>
+                  <p className="text-xs">
                     <a
-                      href="https://internetcomputer.org/docs/building-apps/frontends/custom-domains/dns-setup"
+                      href="https://internetcomputer.org/docs/current/developer-docs/web-apps/custom-domains/using-custom-domains"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors underline"
+                      className="underline hover:no-underline"
                     >
-                      DNS Setup Guide
+                      View full documentation →
                     </a>
                   </p>
                 </div>
@@ -515,10 +392,10 @@ export function CustomDomainModal({
                     variant="outline"
                     size="sm"
                     onClick={handleDnsCheck}
-                    disabled={isAnyDnsCheckLoading}
+                    disabled={checkCloudflareDnsIsLoading}
                     className="text-xs h-7"
                   >
-                    {isAnyDnsCheckLoading ? (
+                    {checkCloudflareDnsIsLoading ? (
                       <>
                         <Loader2 className="h-3 w-3 animate-spin" />
                         Checking...
@@ -602,10 +479,13 @@ export function CustomDomainModal({
 
             {showDnsCheck && domain && isValidDomain(domain) && (
               <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4">
-                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Globe className="h-4 w-4" />
-                  DNS Configuration Status
+                  DNS Propagation Status
                 </h4>
+                <p className="text-xs text-blue-700 dark:text-blue-300 mb-3">
+                  Checking DNS records via Cloudflare recursive resolver
+                </p>
 
                 {/* DNS Status Table */}
                 <div className="overflow-x-auto">
@@ -615,55 +495,34 @@ export function CustomDomainModal({
                         <th className="text-left py-2 px-2 font-medium text-muted-foreground">
                           Record
                         </th>
-                        <th className="text-center py-2 px-2 font-medium text-muted-foreground w-20 sm:w-44">
-                          Namecheap
-                        </th>
-                        <th className="text-center py-2 px-2 font-medium text-muted-foreground w-20 sm:w-44">
-                          Propagated
+                        <th className="text-center py-2 px-2 font-medium text-muted-foreground w-32 sm:w-48">
+                          Status
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-blue-100 dark:divide-blue-900">
-                      {/* ALIAS Record Row */}
+                      {/* A Record Row */}
                       <tr>
                         <td className="py-3 px-2">
                           <div className="flex items-center gap-2">
                             <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
-                              ALIAS
+                              A
                             </div>
                             <span className="text-sm">Domain mapping</span>
                           </div>
                         </td>
                         <td className="py-3 px-2">
-                          <div className="flex items-center justify-center gap-1">
-                            {checkNamecheapDnsIsLoading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            {checkCloudflareDnsIsLoading ? (
                               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : checkNamecheapDns?.alias ? (
+                            ) : checkCloudflareDns?.alias ? (
                               <>
                                 {getDnsStatusIcon(
-                                  checkNamecheapDns.alias.status
+                                  checkCloudflareDns.alias.status
                                 )}
-                                <span className="text-xs text-muted-foreground hidden sm:inline">
+                                <span className="text-sm">
                                   {getDnsStatusMessage(
-                                    checkNamecheapDns.alias.status
-                                  )}
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center justify-center gap-1">
-                            {aliasRecordValidationResIsLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : aliasRecordValidationRes ? (
-                              <>
-                                {getDnsStatusIcon(
-                                  aliasRecordValidationRes.status
-                                )}
-                                <span className="text-xs text-muted-foreground hidden sm:inline">
-                                  {getDnsStatusMessage(
-                                    aliasRecordValidationRes.status
+                                    checkCloudflareDns.alias.status
                                   )}
                                 </span>
                               </>
@@ -679,41 +538,21 @@ export function CustomDomainModal({
                             <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
                               CNAME
                             </div>
-                            <span className="text-sm">
-                              SSL certificate validation
-                            </span>
+                            <span className="text-sm">SSL certificate</span>
                           </div>
                         </td>
                         <td className="py-3 px-2">
-                          <div className="flex items-center justify-center gap-1">
-                            {checkNamecheapDnsIsLoading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            {checkCloudflareDnsIsLoading ? (
                               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : checkNamecheapDns?.acmeChallenge ? (
+                            ) : checkCloudflareDns?.acmeChallenge ? (
                               <>
                                 {getDnsStatusIcon(
-                                  checkNamecheapDns.acmeChallenge.status
+                                  checkCloudflareDns.acmeChallenge.status
                                 )}
-                                <span className="text-xs text-muted-foreground hidden sm:inline">
+                                <span className="text-sm">
                                   {getDnsStatusMessage(
-                                    checkNamecheapDns.acmeChallenge.status
-                                  )}
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center justify-center gap-1">
-                            {acmeChallengeRecordValidationResIsLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : acmeChallengeRecordValidationRes ? (
-                              <>
-                                {getDnsStatusIcon(
-                                  acmeChallengeRecordValidationRes.status
-                                )}
-                                <span className="text-xs text-muted-foreground hidden sm:inline">
-                                  {getDnsStatusMessage(
-                                    acmeChallengeRecordValidationRes.status
+                                    checkCloudflareDns.acmeChallenge.status
                                   )}
                                 </span>
                               </>
@@ -729,41 +568,21 @@ export function CustomDomainModal({
                             <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
                               TXT
                             </div>
-                            <span className="text-sm">
-                              Canister ID verification
-                            </span>
+                            <span className="text-sm">Canister ID</span>
                           </div>
                         </td>
                         <td className="py-3 px-2">
-                          <div className="flex items-center justify-center gap-1">
-                            {checkNamecheapDnsIsLoading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            {checkCloudflareDnsIsLoading ? (
                               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : checkNamecheapDns?.canisterId ? (
+                            ) : checkCloudflareDns?.canisterId ? (
                               <>
                                 {getDnsStatusIcon(
-                                  checkNamecheapDns.canisterId.status
+                                  checkCloudflareDns.canisterId.status
                                 )}
-                                <span className="text-xs text-muted-foreground hidden sm:inline">
+                                <span className="text-sm">
                                   {getDnsStatusMessage(
-                                    checkNamecheapDns.canisterId.status
-                                  )}
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center justify-center gap-1">
-                            {canisterIdRecordValidationResIsLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                            ) : canisterIdRecordValidationRes ? (
-                              <>
-                                {getDnsStatusIcon(
-                                  canisterIdRecordValidationRes.status
-                                )}
-                                <span className="text-xs text-muted-foreground hidden sm:inline">
-                                  {getDnsStatusMessage(
-                                    canisterIdRecordValidationRes.status
+                                    checkCloudflareDns.canisterId.status
                                   )}
                                 </span>
                               </>
@@ -779,26 +598,26 @@ export function CustomDomainModal({
 
             {/* Additional Notes */}
             <div className="bg-muted/30 border rounded-lg p-4">
-              <h4 className="text-sm font-medium mb-2">Notes</h4>
-              <ul className="space-y-1 text-xs text-muted-foreground">
+              <h4 className="text-sm font-medium mb-2">Important Notes</h4>
+              <ul className="space-y-1.5 text-xs text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground mt-1 shrink-0"></span>
                   <span>
-                    DNS record names are shown in the format your DNS provider
-                    expects (@ for apex domains, subdomain names for subdomains)
+                    <strong>Cloudflare:</strong> Set Proxy Status to "DNS only"
+                    (disable orange cloud) for all 3 records
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground mt-1 shrink-0"></span>
                   <span>
-                    DNS changes can take up to 48 hours to propagate globally
+                    DNS propagation: 1-5 minutes (Cloudflare), up to 30 minutes
+                    (other providers)
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground mt-1 shrink-0"></span>
                   <span>
-                    Verify your DNS records are active before proceeding to
-                    registration
+                    Click "Check DNS" to verify propagation before registering
                   </span>
                 </li>
               </ul>
@@ -831,8 +650,8 @@ export function CustomDomainModal({
                 <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
                 <div className="text-sm text-blue-700 dark:text-blue-300">
                   <p>
-                    Before registering a domain here, you need to configure DNS
-                    settings.
+                    Configure DNS records first (see Configure DNS tab), then
+                    return here to register.
                   </p>
                 </div>
               </div>
@@ -862,7 +681,7 @@ export function CustomDomainModal({
                   value={registerDomain}
                   onChange={(e) => setRegisterDomain(e.target.value)}
                   placeholder="example.com"
-                  disabled={isLoading || isLoadingInitial}
+                  disabled={isLoading}
                   className="font-mono text-sm"
                 />
                 {registerDomain && !isValidDomain(registerDomain) && (
