@@ -185,7 +185,15 @@ export const customDomainApi = {
   },
 
   // Add custom domain to canister (upload ic-domains + register with IC)
-  async addDomain(canisterId: string, domain: string) {
+  async addDomain(
+    canisterId: string,
+    domain: string
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    domain?: string;
+    registrationStatus?: string;
+  }> {
     if (!isValidDomain(domain)) {
       return {
         success: false,
@@ -196,7 +204,10 @@ export const customDomainApi = {
       // STEP 1: Upload ic-domains file
       const uploadResult = await this.uploadIcDomainsFile(canisterId, domain);
       if (!uploadResult.success) {
-        return uploadResult;
+        return {
+          success: false,
+          error: uploadResult.error,
+        };
       }
 
       // STEP 2: Wait for boundary node propagation (2 seconds is sufficient)
