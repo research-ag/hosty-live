@@ -29,24 +29,53 @@ export const checkCloudflareDns = queryEndpoint({
 
 // @
 
+/**
+ * IC Custom Domains API statuses (direct mapping):
+ * - registering: SSL certificate being issued
+ * - registered: Domain active and working
+ * - failed: Registration failed
+ * - expired: SSL certificate expired
+ *
+ * Additional statuses (our logic):
+ * - not_configured: No ic-domains file or not registered with IC
+ * - routing_error: Domain registered but not routing to expected canister
+ */
+export type DomainStatus =
+  | "not_configured"
+  | "registering"
+  | "registered"
+  | "failed"
+  | "expired"
+  | "routing_error";
+
 export interface CustomDomainCheckResult {
   domain: string | null;
-  status:
-    | "not_configured"
-    | "dns_invalid"
-    | "registering"
-    | "registered"
-    | "expired"
-    | "failed";
-  validationResult: {
-    validation_status: "valid" | "invalid";
-    canister_id?: string;
-  } | null;
-  registrationStatus: {
-    registration_status: "registering" | "registered" | "expired" | "failed";
-    canister_id?: string;
-  } | null;
+  status: DomainStatus;
+  registeredCanisterId: string | null;
+  routingCanisterId: string | null;
   errorMessage: string | null;
+}
+
+/**
+ * Verify domain routes to expected canister via x-ic-canister-id header
+ */
+async function verifyDomainRouting(
+  domain: string,
+  expectedCanisterId: string
+): Promise<{ routingCanisterId: string | null; isCorrect: boolean }> {
+  try {
+    const response = await fetch(`https://${domain}/`, {
+      method: "HEAD",
+      redirect: "follow",
+    });
+    const routingCanisterId = response.headers.get("x-ic-canister-id");
+    return {
+      routingCanisterId,
+      isCorrect: routingCanisterId === expectedCanisterId,
+    };
+  } catch {
+    return { routingCanisterId: null, isCorrect: false };
+  }
 }
 
 export const checkCustomDomain = queryEndpoint({
@@ -55,80 +84,81 @@ export const checkCustomDomain = queryEndpoint({
   queryFn: async (payload: {
     canisterId: string;
   }): Promise<CustomDomainCheckResult> => {
+    // Step 1: Fetch domain from ic-domains file
+    const domain = await apiService.fetchDomainFromIcDomains(payload.canisterId);
+
+    if (!domain) {
+      return {
+        domain: null,
+        status: "not_configured",
+        registeredCanisterId: null,
+        routingCanisterId: null,
+        errorMessage: null,
+      };
+    }
+
+    // Step 2: Check IC registration status
     try {
-      const domain = await apiService.fetchDomainFromIcDomains(
-        payload.canisterId
+      const response = await fetch(
+        `https://icp0.io/custom-domains/v1/${domain}`
       );
 
-      if (!domain) {
+      if (!response.ok) {
+        // Domain not registered with IC
         return {
-          domain: null,
+          domain,
           status: "not_configured",
-          validationResult: null,
-          registrationStatus: null,
+          registeredCanisterId: null,
+          routingCanisterId: null,
           errorMessage: null,
         };
       }
 
-      // Check registration status via IC API
-      try {
-        // Query IC boundary nodes for registration status
-        const response = await fetch(
-          `https://icp0.io/custom-domains/v1/${domain}`
-        );
+      const data = await response.json();
+      const icStatus = data.data?.registration_status as DomainStatus;
+      const registeredCanisterId = data.data?.canister_id;
 
-        if (response.ok) {
-          const data = await response.json();
-          const regStatus = data.data?.registration_status;
-          const registeredCanisterId = data.data?.canister_id;
-
-          // Verify canister ID matches
-          if (
-            registeredCanisterId &&
-            registeredCanisterId !== payload.canisterId
-          ) {
-            return {
-              domain,
-              status: "failed",
-              validationResult: null,
-              registrationStatus: {
-                registration_status: regStatus || "registering",
-                canister_id: registeredCanisterId,
-              },
-              errorMessage: `Domain registered to different canister: ${registeredCanisterId}`,
-            };
-          }
-
-          return {
-            domain,
-            status: regStatus || "registering",
-            validationResult: null,
-            registrationStatus: {
-              registration_status: regStatus || "registering",
-              canister_id: registeredCanisterId,
-            },
-            errorMessage: null,
-          };
-        }
-      } catch (_statusError) {
-        // Domain not registered, return not_configured
+      // Check if registered to different canister
+      if (registeredCanisterId && registeredCanisterId !== payload.canisterId) {
+        return {
+          domain,
+          status: "failed",
+          registeredCanisterId,
+          routingCanisterId: null,
+          errorMessage: `Domain registered to different canister: ${registeredCanisterId}`,
+        };
       }
 
+      // Step 3: For registered domains, verify actual routing via x-ic-canister-id
+      if (icStatus === "registered") {
+        const routing = await verifyDomainRouting(domain, payload.canisterId);
+
+        if (!routing.isCorrect && routing.routingCanisterId) {
+          return {
+            domain,
+            status: "routing_error",
+            registeredCanisterId,
+            routingCanisterId: routing.routingCanisterId,
+            errorMessage: `Domain routes to ${routing.routingCanisterId}`,
+          };
+        }
+      }
+
+      // Return IC status directly
+      return {
+        domain,
+        status: icStatus || "registering",
+        registeredCanisterId,
+        routingCanisterId: null,
+        errorMessage: null,
+      };
+    } catch {
       return {
         domain,
         status: "not_configured",
-        validationResult: null,
-        registrationStatus: null,
+        registeredCanisterId: null,
+        routingCanisterId: null,
         errorMessage: null,
-      };
-    } catch (error) {
-      return {
-        domain: null,
-        status: "not_configured",
-        validationResult: null,
-        registrationStatus: null,
-        errorMessage:
-          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   },

@@ -113,12 +113,25 @@ export function CustomDomainModal({
       case "missing":
         return "Record not found";
       case "wrong_target":
-        return "Not pointing to ICP";
       case "wrong_value":
         return "Incorrect value";
       default:
         return "Unknown status";
     }
+  };
+
+  // Domain mapping check is advisory only (IPs change, CNAME flattening issues)
+  const getDomainMappingIcon = (status: string) => {
+    if (status === "valid") {
+      return <CheckCircle className="h-4 w-4 text-green-600" />;
+    }
+    return <Info className="h-4 w-4 text-muted-foreground" />;
+  };
+
+  const getDomainMappingMessage = (status: string) => {
+    if (status === "valid") return "Detected";
+    if (status === "missing") return "Not detected";
+    return "Could not verify";
   };
 
   // Reset state when modal opens/closes
@@ -248,8 +261,7 @@ export function CustomDomainModal({
     const { isApex, subdomain } = getDomainParts(domain);
 
     // Cloudflare supports CNAME for apex domains (CNAME flattening)
-    const recordType = "CNAME";
-    const recordName = domain ? (isApex ? "@" : subdomain) : "@ or subdomain";
+    const domainName = domain ? (isApex ? "@" : subdomain) : "@ or subdomain";
 
     const cnameName = domain
       ? isApex
@@ -269,16 +281,16 @@ export function CustomDomainModal({
 
     return [
       {
-        type: recordType,
-        name: recordName,
+        type: "CNAME",
+        name: domainName,
         value: "icp1.io",
-        description: "Points domain to IC",
+        description: "Domain mapping",
       },
       {
         type: "CNAME",
         name: cnameName,
         value: cnameValue,
-        description: "SSL certificate",
+        description: "ACME challenge",
       },
       {
         type: "TXT",
@@ -501,14 +513,20 @@ export function CustomDomainModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-blue-100 dark:divide-blue-900">
-                      {/* A Record Row */}
+                      {/* CNAME Domain mapping Row (advisory check) */}
                       <tr>
                         <td className="py-3 px-2">
                           <div className="flex items-center gap-2">
                             <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
-                              A
+                              CNAME
                             </div>
                             <span className="text-sm">Domain mapping</span>
+                            <div className="relative group">
+                              <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-popover border rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                Advisory check only - IC validates at registration
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td className="py-3 px-2">
@@ -517,11 +535,11 @@ export function CustomDomainModal({
                               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                             ) : checkCloudflareDns?.alias ? (
                               <>
-                                {getDnsStatusIcon(
+                                {getDomainMappingIcon(
                                   checkCloudflareDns.alias.status
                                 )}
-                                <span className="text-sm">
-                                  {getDnsStatusMessage(
+                                <span className="text-sm text-muted-foreground">
+                                  {getDomainMappingMessage(
                                     checkCloudflareDns.alias.status
                                   )}
                                 </span>
@@ -531,14 +549,14 @@ export function CustomDomainModal({
                         </td>
                       </tr>
 
-                      {/* CNAME Record Row */}
+                      {/* CNAME ACME challenge Row */}
                       <tr>
                         <td className="py-3 px-2">
                           <div className="flex items-center gap-2">
                             <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
                               CNAME
                             </div>
-                            <span className="text-sm">SSL certificate</span>
+                            <span className="text-sm">ACME challenge</span>
                           </div>
                         </td>
                         <td className="py-3 px-2">
