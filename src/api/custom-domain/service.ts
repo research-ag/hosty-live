@@ -6,15 +6,6 @@ const resetHeaders = {
   Authorization: null,
 };
 
-const ICP_BOUNDARY_NODE_IPS = [
-  "145.40.67.162",
-  "63.251.162.12",
-  "147.75.108.42",
-  "147.75.202.74",
-  "23.142.184.129",
-  "icp1.io.",
-];
-
 export interface GoogleDnsResponse {
   Status: number;
   TC: boolean;
@@ -74,32 +65,26 @@ export const checkCloudflareDns = async (
       acmeChallengeData,
     });
 
-    // Alias validation
+    // Domain mapping - just show what's configured (we can't verify IPs reliably)
     const aliasResult = (() => {
       if (aliasData.Status !== 0 || !aliasData.Answer?.length) {
-        return { status: "missing" };
+        return { status: "missing" as const, values: [] as string[] };
       }
-      const ips = aliasData.Answer.map((record) => record.data);
-      const hasIcpIPs = ips.some(
-        (ip) => ICP_BOUNDARY_NODE_IPS.includes(ip) || ip === "icp1.io."
-      );
-      return {
-        status: hasIcpIPs ? "valid" : "wrong_target",
-        ips,
-      };
+      const values = aliasData.Answer.map((record) => record.data);
+      return { status: "configured" as const, values };
     })();
 
     // Canister ID validation
     const canisterIdResult = (() => {
       if (canisterIdData.Status !== 0 || !canisterIdData.Answer?.length) {
-        return { status: "missing" };
+        return { status: "missing" as const, values: [] as string[] };
       }
       const txtRecords = canisterIdData.Answer.map((record) =>
         record.data.replace(/"/g, "")
       );
       const hasCorrectCanisterId = txtRecords.includes(expectedCanisterId);
       return {
-        status: hasCorrectCanisterId ? "valid" : "wrong_value",
+        status: hasCorrectCanisterId ? ("valid" as const) : ("wrong_value" as const),
         values: txtRecords,
       };
     })();
@@ -107,7 +92,7 @@ export const checkCloudflareDns = async (
     // ACME challenge validation
     const acmeChallengeResult = (() => {
       if (acmeChallengeData.Status !== 0 || !acmeChallengeData.Answer?.length) {
-        return { status: "missing" };
+        return { status: "missing" as const, values: [] as string[] };
       }
       const expectedValue = `_acme-challenge.${domain}.icp2.io.`;
       const cnameRecords = acmeChallengeData.Answer.map(
@@ -117,7 +102,7 @@ export const checkCloudflareDns = async (
         (record) => record === expectedValue
       );
       return {
-        status: hasCorrectCname ? "valid" : "wrong_value",
+        status: hasCorrectCname ? ("valid" as const) : ("wrong_value" as const),
         values: cnameRecords,
       };
     })();
@@ -129,15 +114,13 @@ export const checkCloudflareDns = async (
     };
   } catch (error) {
     console.error("❌ Cloudflare DNS check failed:", error);
-    // Return error state for all records
     return {
-      alias: { status: "missing" },
-      canisterId: { status: "missing" },
-      acmeChallenge: { status: "missing" },
+      alias: { status: "missing" as const, values: [] as string[] },
+      canisterId: { status: "missing" as const, values: [] as string[] },
+      acmeChallenge: { status: "missing" as const, values: [] as string[] },
     };
   }
 };
-
 
 export const fetchDomainFromIcDomains = async (
   canisterId: string

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Eye, Gift, Loader2, Plus, Server, Trash2, Zap, } from "lucide-react";
+import { ensureHttps } from "../../lib/utils";
 import { Button } from "../../components/ui/Button";
 import { SortButton } from "../../components/ui/SortButton";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
@@ -561,7 +562,7 @@ export function CanistersPage() {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.open(canister.frontendUrl, "_blank");
+                      window.open(ensureHttps(canister.frontendUrl), "_blank");
                     }}
                     className="text-xs font-medium bg-gradient-to-r from-primary via-primary to-primary/90 hover:from-primary/90 hover:via-primary/90 hover:to-primary/80 shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-200"
                   >

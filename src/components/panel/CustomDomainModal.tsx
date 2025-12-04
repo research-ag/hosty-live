@@ -7,6 +7,12 @@ import {
   Loader2,
   Settings,
   BookOpen,
+  Zap,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Trash2,
 } from "lucide-react";
 import psl from "psl";
 import { Modal } from "../ui/Modal";
@@ -19,6 +25,14 @@ import { CopyButton } from "../ui/CopyButton";
 import { useQueryClient } from "@tanstack/react-query";
 import { CustomDomain } from "../ui/CustomDomain";
 import { isValidDomain } from "../../utils/domains";
+import {
+  configureDnsRecords,
+  saveCredentials,
+  loadCredentials,
+  clearCredentials,
+  type CloudflareCredentials,
+  type DnsConfigResult,
+} from "../../api/cloudflare";
 
 interface CustomDomainModalProps {
   isOpen: boolean;
@@ -56,6 +70,16 @@ export function CustomDomainModal({
   const [registrationStatus, setRegistrationStatus] = useState<any>(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [showDnsCheck, setShowDnsCheck] = useState(false);
+
+  // Cloudflare auto-configure state
+  const [showCloudflare, setShowCloudflare] = useState(false);
+  const [cfApiToken, setCfApiToken] = useState("");
+  const [cfZoneId, setCfZoneId] = useState("");
+  const [cfSaveCredentials, setCfSaveCredentials] = useState(true);
+  const [cfShowToken, setCfShowToken] = useState(false);
+  const [cfIsConfiguring, setCfIsConfiguring] = useState(false);
+  const [cfResults, setCfResults] = useState<DnsConfigResult[] | null>(null);
+  const [cfError, setCfError] = useState("");
 
   const { domainFromIcDomains } =
     customDomainApiV2.fetchDomainFromIcDomains.useQuery(
@@ -120,18 +144,20 @@ export function CustomDomainModal({
     }
   };
 
-  // Domain mapping check is advisory only (IPs change, CNAME flattening issues)
-  const getDomainMappingIcon = (status: string) => {
-    if (status === "valid") {
-      return <CheckCircle className="h-4 w-4 text-green-600" />;
+  // Domain mapping - we just show what's configured (can't verify IPs from browser)
+  const getDomainMappingDisplay = (result: { status: string; values?: string[] }) => {
+    if (result.status === "missing") {
+      return {
+        icon: <AlertCircle className="h-4 w-4 text-red-500" />,
+        message: "Not configured",
+      };
     }
-    return <Info className="h-4 w-4 text-muted-foreground" />;
-  };
-
-  const getDomainMappingMessage = (status: string) => {
-    if (status === "valid") return "Detected";
-    if (status === "missing") return "Not detected";
-    return "Could not verify";
+    // Show configured IPs
+    const ips = result.values?.join(", ") || "Unknown";
+    return {
+      icon: <Info className="shrink-0 h-4 w-4 text-blue-500" />,
+      message: ips,
+    };
   };
 
   // Reset state when modal opens/closes
@@ -159,6 +185,66 @@ export function CustomDomainModal({
   useEffect(() => {
     setShowDnsCheck(false);
   }, [domain]);
+
+  // Load saved Cloudflare credentials on mount
+  useEffect(() => {
+    const saved = loadCredentials();
+    if (saved) {
+      setCfApiToken(saved.apiToken);
+      setCfZoneId(saved.zoneId);
+    }
+  }, []);
+
+  const handleCloudflareConfig = async () => {
+    if (!cfApiToken || !cfZoneId || !domain || !canister?.id) return;
+
+    setCfIsConfiguring(true);
+    setCfError("");
+    setCfResults(null);
+
+    const credentials: CloudflareCredentials = {
+      apiToken: cfApiToken,
+      zoneId: cfZoneId,
+    };
+
+    try {
+      // Save credentials if checkbox is checked
+      if (cfSaveCredentials) {
+        saveCredentials(credentials);
+      }
+
+      // Configure DNS records via backend
+      const { isApex, subdomain } = getDomainParts(domain);
+      const results = await configureDnsRecords(
+        credentials,
+        domain,
+        canister.id,
+        isApex,
+        subdomain
+      );
+
+      setCfResults(results);
+
+      // Check if all succeeded
+      const allSuccess = results.every((r) => r.success);
+      if (allSuccess) {
+        // Refresh DNS check after short delay
+        setTimeout(() => {
+          checkCloudflareDnsRefetch();
+        }, 2000);
+      }
+    } catch (err) {
+      setCfError(err instanceof Error ? err.message : "Configuration failed");
+    } finally {
+      setCfIsConfiguring(false);
+    }
+  };
+
+  const handleClearCredentials = () => {
+    clearCredentials();
+    setCfApiToken("");
+    setCfZoneId("");
+  };
 
   const checkRegistrationStatus = async (domain: string) => {
     setIsCheckingStatus(true);
@@ -348,7 +434,7 @@ export function CustomDomainModal({
                   <p className="font-medium mb-2">Configure DNS Records</p>
                   <p className="mb-2">
                     Add these 3 DNS records in your domain provider. Cloudflare
-                    is recommended for fastest propagation (1-5 min vs 30+ min).
+                    recommended: faster propagation + global DNS resolution.
                   </p>
                   <ul className="space-y-1 text-xs ml-4 mb-3">
                     <li>
@@ -489,6 +575,191 @@ export function CustomDomainModal({
               </div>
             </div>
 
+            {/* Cloudflare Auto-Configure Section */}
+            <div className="border rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowCloudflare(!showCloudflare)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-950/50 dark:hover:to-amber-950/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-orange-500" />
+                  <span className="text-sm font-medium">
+                    Auto-configure with Cloudflare API
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    (optional)
+                  </span>
+                </div>
+                {showCloudflare ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+
+              {showCloudflare && (
+                <div className="p-4 space-y-4 border-t">
+                  <p className="text-xs text-muted-foreground">
+                    Enter your Cloudflare API credentials to automatically
+                    create DNS records. Credentials are stored locally in your
+                    browser only.
+                  </p>
+
+                  {/* API Token */}
+                  <div>
+                    <label className="block text-xs font-medium mb-1">
+                      API Token
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={cfShowToken ? "text" : "password"}
+                        value={cfApiToken}
+                        onChange={(e) => setCfApiToken(e.target.value)}
+                        placeholder="Enter Cloudflare API token"
+                        className="font-mono text-xs pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCfShowToken(!cfShowToken)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {cfShowToken ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Zone ID */}
+                  <div>
+                    <label className="block text-xs font-medium mb-1">
+                      Zone ID
+                    </label>
+                    <Input
+                      value={cfZoneId}
+                      onChange={(e) => setCfZoneId(e.target.value)}
+                      placeholder="Enter Zone ID (32-char hex)"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  {/* Options */}
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={cfSaveCredentials}
+                        onChange={(e) => setCfSaveCredentials(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      <span>Remember credentials in browser</span>
+                    </label>
+
+                    {(cfApiToken || cfZoneId) && (
+                      <button
+                        type="button"
+                        onClick={handleClearCredentials}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Clear saved
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Configure Button */}
+                  <Button
+                    type="button"
+                    onClick={handleCloudflareConfig}
+                    disabled={
+                      !cfApiToken ||
+                      !cfZoneId ||
+                      !domain ||
+                      !isValidDomain(domain) ||
+                      !canister?.id ||
+                      cfIsConfiguring
+                    }
+                    className="w-full"
+                    variant="outline"
+                  >
+                    {cfIsConfiguring ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Configuring...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="h-4 w-4 mr-2" />
+                        Configure DNS Records
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Error */}
+                  {cfError && (
+                    <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+                      {cfError}
+                    </div>
+                  )}
+
+                  {/* Results */}
+                  {cfResults && (
+                    <div className="space-y-2">
+                      {cfResults.map((result, index) => (
+                        <div
+                          key={index}
+                          className={`flex items-center justify-between p-2 rounded text-sm ${
+                            result.success
+                              ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300"
+                              : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {result.success ? (
+                              <CheckCircle className="h-4 w-4" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4" />
+                            )}
+                            <span>{result.record}</span>
+                          </div>
+                          <span className="text-xs">{result.message}</span>
+                        </div>
+                      ))}
+
+                      {cfResults.every((r) => r.success) && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                          ✓ All DNS records configured! Propagation takes 1-5
+                          minutes.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Help Links */}
+                  <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
+                    <p>
+                      <a
+                        href="https://dash.cloudflare.com/profile/api-tokens"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:no-underline"
+                      >
+                        Create API Token →
+                      </a>{" "}
+                      (requires Zone:DNS:Edit permission)
+                    </p>
+                    <p>
+                      Zone ID is in your Cloudflare dashboard → Domain → right
+                      sidebar
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {showDnsCheck && domain && isValidDomain(domain) && (
               <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4">
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
@@ -520,12 +791,11 @@ export function CustomDomainModal({
                             <div className="text-xs font-mono bg-muted px-2 py-1 rounded shrink-0">
                               CNAME
                             </div>
-                            <span className="text-sm">Domain mapping</span>
-                            <div className="relative group">
-                              <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-popover border rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                Advisory check only - IC validates at registration
-                              </div>
+                            <div>
+                              <span className="text-sm">Domain mapping</span>
+                              <p className="text-xs text-muted-foreground">
+                                Resolved IPs · IC validates at registration
+                              </p>
                             </div>
                           </div>
                         </td>
@@ -534,16 +804,17 @@ export function CustomDomainModal({
                             {checkCloudflareDnsIsLoading ? (
                               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                             ) : checkCloudflareDns?.alias ? (
-                              <>
-                                {getDomainMappingIcon(
-                                  checkCloudflareDns.alias.status
-                                )}
-                                <span className="text-sm text-muted-foreground">
-                                  {getDomainMappingMessage(
-                                    checkCloudflareDns.alias.status
-                                  )}
-                                </span>
-                              </>
+                              (() => {
+                                const display = getDomainMappingDisplay(checkCloudflareDns.alias);
+                                return (
+                                  <>
+                                    {display.icon}
+                                    <span className="text-sm text-muted-foreground font-mono">
+                                      {display.message}
+                                    </span>
+                                  </>
+                                );
+                              })()
                             ) : null}
                           </div>
                         </td>

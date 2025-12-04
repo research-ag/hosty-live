@@ -17,6 +17,7 @@ import {
   UserCheck,
   Zap,
 } from "lucide-react";
+import { ensureHttps } from "../../lib/utils";
 import { Button } from "../../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
 import { TextInputModal } from "../../components/ui/TextInputModal";
@@ -956,14 +957,14 @@ export function CanisterPage() {
                   </label>
                   <div className="bg-muted/50 border border-border rounded-lg p-3">
                     <div className="font-mono text-sm text-foreground break-all select-text leading-relaxed mb-3">
-                      {canister.frontendUrl}
+                      {ensureHttps(canister.frontendUrl)}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() =>
-                          window.open(canister.frontendUrl, "_blank")
+                          window.open(ensureHttps(canister.frontendUrl), "_blank")
                         }
                         className="h-7 px-2 text-xs"
                       >
@@ -974,7 +975,7 @@ export function CanisterPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          copyToClipboard(canister.frontendUrl!);
+                          copyToClipboard(ensureHttps(canister.frontendUrl!));
                           toast.success("URL copied to clipboard");
                         }}
                         className="h-7 px-2 text-xs"
@@ -1018,7 +1019,7 @@ export function CanisterPage() {
                   </div>
                   <div className="border border-border rounded-lg overflow-hidden bg-white dark:bg-gray-950">
                     <iframe
-                      src={canister.frontendUrl}
+                      src={ensureHttps(canister.frontendUrl)}
                       className="w-full h-96 md:h-[500px] lg:h-[600px] border-0"
                       title="Frontend Preview"
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
@@ -1038,7 +1039,7 @@ export function CanisterPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() =>
-                        window.open(canister.frontendUrl, "_blank")
+                        window.open(ensureHttps(canister.frontendUrl), "_blank")
                       }
                       className="h-7 px-2 text-xs"
                     >
