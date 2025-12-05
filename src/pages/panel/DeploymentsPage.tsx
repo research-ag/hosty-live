@@ -9,6 +9,7 @@ import {
   Eye,
   Github,
   RefreshCw,
+  RotateCcw,
   Upload,
   XCircle,
   Zap,
@@ -39,10 +40,13 @@ export function DeploymentsPage() {
     deployments,
     isLoading,
     error,
+    redeploy,
+    isRedeploying,
     refreshDeployments
   } = useDeployments()
 
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [redeployingId, setRedeployingId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(initialPage)
   const [sortField, setSortField] = useState(initialSortField)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(initialSortDirection)
@@ -78,6 +82,24 @@ export function DeploymentsPage() {
       await refreshDeployments()
     } finally {
       setIsRefreshing(false)
+    }
+  }
+
+  const handleRedeploy = async (e: React.MouseEvent, deploymentId: string) => {
+    e.stopPropagation()
+    setRedeployingId(deploymentId)
+    try {
+      const result = await redeploy(deploymentId)
+      if (result.success) {
+        toast.success('Redeployment Started', 'A new deployment has been triggered')
+        if (result.data?.id) {
+          navigate(`/panel/deployment/${result.data.id}`)
+        }
+      } else {
+        toast.error('Redeploy Failed', result.error || 'Could not start redeployment')
+      }
+    } finally {
+      setRedeployingId(null)
     }
   }
 
@@ -330,19 +352,43 @@ export function DeploymentsPage() {
                 </div>
               )}
 
+              {deployment.redeployedFromId && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border/50">
+                  <RotateCcw className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">
+                    Redeployed from{' '}
+                    <span className="font-mono">{deployment.redeployedFromId.slice(0, 7)}</span>
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigate(`/panel/deployment/${deployment.id}`)
-                  }}
-                  className="flex items-center gap-1 text-xs hover:bg-primary/10"
-                >
-                  <Eye className="h-3 w-3"/>
-                  View Details
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/panel/deployment/${deployment.id}`)
+                    }}
+                    className="flex items-center gap-1 text-xs hover:bg-primary/10"
+                  >
+                    <Eye className="h-3 w-3"/>
+                    View
+                  </Button>
+                  {(deployment.sourceType === 'GIT' || deployment.sourceType === 'URL') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleRedeploy(e, deployment.id)}
+                      disabled={isRedeploying || redeployingId === deployment.id}
+                      className="flex items-center gap-1 text-xs hover:bg-primary/10"
+                    >
+                      <RotateCcw className={`h-3 w-3 ${redeployingId === deployment.id ? 'animate-spin' : ''}`}/>
+                      Redeploy
+                    </Button>
+                  )}
+                </div>
                 {deployment.buildServiceJobId && (
                   <Badge variant="outline" className="text-xs font-mono">
                     {deployment.buildServiceJobId.slice(0, 14)}

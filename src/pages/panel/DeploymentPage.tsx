@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ChevronRight, ExternalLink, Github, Link as LinkIcon, RefreshCw, Upload } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ChevronRight, ExternalLink, Github, Link as LinkIcon, RefreshCw, RotateCcw, Upload } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -8,7 +8,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { Input } from '../../components/ui/Input'
 import { LiveLogConsole } from '../../components/ui/LiveLogConsole'
 import { ConnectionStatus } from '../../components/ui/ConnectionStatus'
-import { useDeployment } from '../../hooks/useDeployments'
+import { useDeployment, useDeployments } from '../../hooks/useDeployments'
 import { useCanisters } from '../../hooks/useCanisters'
 import { useToast } from '../../hooks/useToast'
 import { useRealTimeDeployments } from '../../hooks/useRealTimeDeployments'
@@ -24,12 +24,14 @@ import { DeploymentExampleInput } from "../../api/backend/backend.did";
 
 export function DeploymentPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const {
     deployment,
     isLoading: deploymentLoading,
     error: deploymentError,
     refreshDeployment
   } = useDeployment(id)
+  const { redeploy, isRedeploying } = useDeployments()
   const { getCanister } = useCanisters()
   const { toast } = useToast()
 
@@ -107,6 +109,22 @@ export function DeploymentPage() {
       setIsRefreshing(false)
     }
   }
+
+  const handleRedeploy = async () => {
+    if (!deployment) return
+    const result = await redeploy(deployment.id)
+    if (result.success) {
+      toast.success('Redeployment Started', 'A new deployment has been triggered')
+      if (result.data?.id) {
+        navigate(`/panel/deployment/${result.data.id}`)
+      }
+    } else {
+      toast.error('Redeploy Failed', result.error || 'Could not start redeployment')
+    }
+  }
+
+  // Check if redeploy is available (only for GIT and URL sources)
+  const canRedeploy = deployment && (deployment.sourceType === 'GIT' || deployment.sourceType === 'URL')
 
   // Loading state
   if (deploymentLoading) {
@@ -251,10 +269,10 @@ export function DeploymentPage() {
       </nav>
 
       {/* General Info */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-semibold" title={deployment.id}>Deployment {deployment.id.slice(0, 7)}</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold" title={deployment.id}>Deployment {deployment.id.slice(0, 7)}</h1>
             {deployment.isDryRun && (
               <Badge variant="secondary"
                      className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700">
@@ -262,43 +280,55 @@ export function DeploymentPage() {
               </Badge>
             )}
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Status:</span>
               <Badge variant={getStatusVariant(deployment.status)}>{getStatusLabel(deployment.status)}</Badge>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Source:</span>
-              <div className="flex items-center gap-2">
-                {getSourceIcon(deployment.sourceType)}
-                <span className="text-sm">{getSourceTypeLabel(deployment.sourceType)}</span>
-              </div>
+              {getSourceIcon(deployment.sourceType)}
+              <span className="text-sm">{getSourceTypeLabel(deployment.sourceType)}</span>
             </div>
             {deployment.statusReason && (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">Reason:</span>
                 <span className="text-sm text-muted-foreground">{deployment.statusReason}</span>
               </div>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <ConnectionStatus status={connectionStatus}/>
+          {canRedeploy && (
+            <Button
+              variant="default"
+              onClick={handleRedeploy}
+              disabled={isRedeploying}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <RotateCcw className={`h-4 w-4 ${isRedeploying ? 'animate-spin' : ''}`}/>
+              {isRedeploying ? 'Redeploying...' : 'Redeploy'}
+            </Button>
+          )}
           {canSaveAsExample && (
             <Button
               variant="secondary"
               onClick={openSaveDialog}
               disabled={isSavingExample}
+              size="sm"
               className="flex items-center gap-2"
               title="Add this deployment configuration as a public example"
             >
-              {isSavingExample ? 'Saving…' : 'Save as public example'}
+              {isSavingExample ? 'Saving…' : 'Save as example'}
             </Button>
           )}
           <Button
             variant="outline"
             onClick={handleRefresh}
             disabled={deploymentLoading || canisterLoading || isRefreshing}
+            size="sm"
             className="flex items-center gap-2"
           >
             <RefreshCw
@@ -330,6 +360,23 @@ export function DeploymentPage() {
                 <p className="text-sm text-purple-700 dark:text-purple-300">
                   <span className="font-semibold">Pure Assets:</span> This deployment used pre-built assets. No build
                   process or dependency installation was performed.
+                </p>
+              </div>
+            )}
+            {deployment.redeployedFromId && (
+              <div
+                className="rounded-lg border border-muted bg-muted/30 p-3">
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <RotateCcw className="h-4 w-4" />
+                  <span>
+                    <span className="font-semibold">Redeployed from:</span>{' '}
+                    <Link
+                      to={`/panel/deployment/${deployment.redeployedFromId}`}
+                      className="font-mono hover:text-primary transition-colors"
+                    >
+                      {deployment.redeployedFromId.slice(0, 7)}
+                    </Link>
+                  </span>
                 </p>
               </div>
             )}

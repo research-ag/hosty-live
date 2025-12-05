@@ -25,6 +25,7 @@ export interface Deployment {
   builtAssetsUrl?: string
   durationMs?: number
   deployedAt?: string
+  redeployedFromId?: string
   createdAt: string
   updatedAt: string
   isDryRun?: boolean
@@ -127,6 +128,7 @@ export interface ApiDeployment {
   builtAssetsUrl?: string
   durationMs?: number
   deployedAt?: string
+  redeployedFromId?: string
   createdAt: string
   updatedAt: string
   isDryRun?: boolean

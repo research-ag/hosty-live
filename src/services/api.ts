@@ -453,6 +453,41 @@ export const deploymentsApi = {
     }
   },
 
+  // Redeploy an existing deployment
+  async redeployDeployment(deploymentId: string) {
+    try {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(
+        `${API_BASE}/deployments/${encodeURIComponent(deploymentId)}/redeploy`,
+        {
+          method: "POST",
+          headers,
+        }
+      );
+
+      checkUnauthorized(response);
+
+      if (!response.ok) {
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Network error" }));
+        return {
+          success: false,
+          error: error.message || error.error || `HTTP ${response.status}`,
+        };
+      }
+
+      const data = await response.json();
+      return { success: true, deployment: data, deploymentId: data.id };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Failed to redeploy",
+      };
+    }
+  },
+
   // Upload deployment
   async uploadDeployment(data: {
     canisterId: string;

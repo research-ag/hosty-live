@@ -843,13 +843,21 @@ export function DeployModal({
                 </li>
               )}
               {deploymentMethod === "zip" && (
-                <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
-                  <span>
-                    Ensure your ZIP file includes all necessary assets and
-                    dependencies
-                  </span>
-                </li>
+                <>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 dark:bg-amber-400 mt-1 shrink-0"></span>
+                    <span>
+                      Ensure your ZIP file includes all necessary assets and
+                      dependencies
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground mt-1 shrink-0"></span>
+                    <span className="text-muted-foreground">
+                      Redeployments not available for ZIP uploads. Use Git or URL for this feature.
+                    </span>
+                  </li>
+                </>
               )}
               {deploymentMethod === "git" && (
                 <li className="flex items-start gap-2">

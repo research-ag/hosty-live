@@ -23,6 +23,7 @@ function toDeployment(apiDeployment: ApiDeployment): Deployment {
     builtAssetsUrl: apiDeployment.builtAssetsUrl,
     durationMs: apiDeployment.durationMs,
     deployedAt: apiDeployment.deployedAt,
+    redeployedFromId: apiDeployment.redeployedFromId,
     createdAt: apiDeployment.createdAt,
     updatedAt: apiDeployment.updatedAt,
     isDryRun: apiDeployment.isDryRun,
@@ -98,6 +99,16 @@ export function useDeployments() {
     onSuccess: (response) => {
       if (response.success) {
         // Invalidate and refetch deployments list
+        queryClient.invalidateQueries({ queryKey: ['deployments'] })
+      }
+    },
+  })
+
+  // Mutation for redeploying
+  const redeployMutation = useMutation({
+    mutationFn: deploymentsApi.redeployDeployment,
+    onSuccess: (response) => {
+      if (response.success) {
         queryClient.invalidateQueries({ queryKey: ['deployments'] })
       }
     },
@@ -192,6 +203,19 @@ export function useDeployments() {
     }
   }
 
+  // Redeploy an existing deployment
+  const redeploy = async (deploymentId: string): Promise<{ success: boolean; error?: string; data?: any }> => {
+    try {
+      const result = await redeployMutation.mutateAsync(deploymentId)
+      return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
+    } catch (err) {
+      return { 
+        success: false, 
+        error: err instanceof Error ? err.message : 'Failed to redeploy'
+      }
+    }
+  }
+
   // Convert deployments data and error to match original interface
   const deployments = deploymentsData || []
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to fetch deployments') : ''
@@ -203,6 +227,8 @@ export function useDeployments() {
     deployToCanister,
     deployFromGit,
     deployFromUrl,
+    redeploy,
+    isRedeploying: redeployMutation.isPending,
     refreshDeployments
   }
 }
