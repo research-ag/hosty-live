@@ -85,7 +85,9 @@ export const checkCustomDomain = queryEndpoint({
     canisterId: string;
   }): Promise<CustomDomainCheckResult> => {
     // Step 1: Fetch domain from ic-domains file
-    const domain = await apiService.fetchDomainFromIcDomains(payload.canisterId);
+    const domain = await apiService.fetchDomainFromIcDomains(
+      payload.canisterId
+    );
 
     if (!domain) {
       return {

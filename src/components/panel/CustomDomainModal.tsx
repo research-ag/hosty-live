@@ -71,6 +71,14 @@ export function CustomDomainModal({
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [showDnsCheck, setShowDnsCheck] = useState(false);
 
+  // Domain registration mode detection
+  const [domainRegistrationInfo, setDomainRegistrationInfo] = useState<{
+    isRegistered: boolean;
+    registeredCanisterId: string | null;
+    isOwnCanister: boolean;
+  } | null>(null);
+  const [isCheckingRegistration, setIsCheckingRegistration] = useState(false);
+
   // Cloudflare auto-configure state
   const [showCloudflare, setShowCloudflare] = useState(false);
   const [cfApiToken, setCfApiToken] = useState("");
@@ -145,7 +153,10 @@ export function CustomDomainModal({
   };
 
   // Domain mapping - we just show what's configured (can't verify IPs from browser)
-  const getDomainMappingDisplay = (result: { status: string; values?: string[] }) => {
+  const getDomainMappingDisplay = (result: {
+    status: string;
+    values?: string[];
+  }) => {
     if (result.status === "missing") {
       return {
         icon: <AlertCircle className="h-4 w-4 text-red-500" />,
@@ -185,6 +196,49 @@ export function CustomDomainModal({
   useEffect(() => {
     setShowDnsCheck(false);
   }, [domain]);
+
+  // Check if domain is already registered when registerDomain changes
+  useEffect(() => {
+    const checkDomainRegistration = async () => {
+      if (!registerDomain || !isValidDomain(registerDomain) || !canister?.id) {
+        setDomainRegistrationInfo(null);
+        return;
+      }
+
+      setIsCheckingRegistration(true);
+      try {
+        const result = await customDomainApi.checkRegistrationStatus(
+          registerDomain
+        );
+        if (result.success && result.data?.status) {
+          const isOwnCanister = result.data.canisterId === canister.id;
+          setDomainRegistrationInfo({
+            isRegistered: true,
+            registeredCanisterId: result.data.canisterId,
+            isOwnCanister,
+          });
+        } else {
+          setDomainRegistrationInfo({
+            isRegistered: false,
+            registeredCanisterId: null,
+            isOwnCanister: false,
+          });
+        }
+      } catch {
+        setDomainRegistrationInfo({
+          isRegistered: false,
+          registeredCanisterId: null,
+          isOwnCanister: false,
+        });
+      } finally {
+        setIsCheckingRegistration(false);
+      }
+    };
+
+    // Debounce the check
+    const timeoutId = setTimeout(checkDomainRegistration, 500);
+    return () => clearTimeout(timeoutId);
+  }, [registerDomain, canister?.id]);
 
   // Load saved Cloudflare credentials on mount
   useEffect(() => {
@@ -246,24 +300,41 @@ export function CustomDomainModal({
     setCfZoneId("");
   };
 
-  const checkRegistrationStatus = async (domain: string) => {
+  const checkRegistrationStatus = async (
+    domain: string,
+    expectedCanisterId: string
+  ) => {
     setIsCheckingStatus(true);
     try {
       const result = await customDomainApi.checkRegistrationStatus(domain);
       if (result.success && result.data) {
         setRegistrationStatus(result.data);
 
-        // Show success message for registered domains
+        // Verify the domain is registered to the expected canister
         if (result.data.status === "registered") {
-          setError(""); // Clear any errors
-          setSuccess("Domain successfully registered and active!");
+          if (result.data.canisterId === expectedCanisterId) {
+            setError("");
+            setSuccess("Domain successfully registered and active!");
+          } else {
+            // Domain is registered but to a different canister - DNS TXT record mismatch
+            setSuccess("");
+            setError(
+              `DNS mismatch: Domain is registered to ${result.data.canisterId}, not this canister. ` +
+                `Update your _canister-id TXT record to "${expectedCanisterId}" and try again.`
+            );
+          }
+        } else if (result.data.status === "registering") {
+          setError("");
+          setSuccess(
+            "Domain registration in progress. SSL certificate is being issued."
+          );
         }
       } else {
-        setSuccess(""); // Clear any status messages
+        setSuccess("");
         setError(result.error || "Failed to check registration status");
       }
     } catch (_err) {
-      setSuccess(""); // Clear any status messages
+      setSuccess("");
       setError("Failed to check registration status");
     } finally {
       setIsCheckingStatus(false);
@@ -283,41 +354,52 @@ export function CustomDomainModal({
     const hasExistingDomain = !!initialDomain && isValidDomain(initialDomain);
     const isDifferentDomain = registerDomain !== initialDomain;
 
-    try {
-      // Check if domain is already registered to this canister
-      const existingRegistration =
-        await customDomainApi.checkRegistrationStatus(registerDomain);
+    // Determine if this is an update (domain already registered)
+    const isUpdate = domainRegistrationInfo?.isRegistered ?? false;
 
+    try {
+      // If domain is registered to this canister and already "registered" status - just sync ic-domains
       if (
-        existingRegistration.success &&
-        existingRegistration.data?.canisterId === canister.id &&
-        existingRegistration.data?.status === "registered"
+        domainRegistrationInfo?.isRegistered &&
+        domainRegistrationInfo?.isOwnCanister
       ) {
-        // Domain already registered and working - just update ic-domains file
-        await customDomainApi.uploadIcDomainsFile(canister.id, registerDomain);
-        setSuccess("Domain is already registered to this canister!");
-        setRegistrationStatus(existingRegistration.data);
-        return;
+        // Check current status
+        const statusCheck = await customDomainApi.checkRegistrationStatus(
+          registerDomain
+        );
+        if (statusCheck.success && statusCheck.data?.status === "registered") {
+          await customDomainApi.uploadIcDomainsFile(
+            canister.id,
+            registerDomain
+          );
+          setSuccess("Domain is already registered to this canister!");
+          setRegistrationStatus(statusCheck.data);
+          return;
+        }
       }
 
-      // Handle registration/update
+      // Handle old domain removal if switching domains
       if (hasExistingDomain && isDifferentDomain) {
-        // Remove old domain from IC
         await customDomainApi.removeDomain(initialDomain);
       }
 
-      // Register domain (uploads ic-domains + registers with IC)
+      // Register or update domain (uploads ic-domains + registers/updates with IC)
       const result = await customDomainApi.addDomain(
         canister.id,
-        registerDomain
+        registerDomain,
+        isUpdate
       );
 
       if (!result.success) {
-        throw new Error(result.error || "Failed to register domain");
+        throw new Error(
+          result.error || `Failed to ${isUpdate ? "update" : "register"} domain`
+        );
       }
 
-      setSuccess("Domain registration submitted successfully!");
-      await checkRegistrationStatus(registerDomain);
+      setSuccess(
+        `Domain ${isUpdate ? "update" : "registration"} submitted successfully!`
+      );
+      await checkRegistrationStatus(registerDomain, canister.id);
     } catch (err) {
       setSuccess("");
       setError(err instanceof Error ? err.message : "Failed to process domain");
@@ -805,7 +887,9 @@ export function CustomDomainModal({
                               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                             ) : checkCloudflareDns?.alias ? (
                               (() => {
-                                const display = getDomainMappingDisplay(checkCloudflareDns.alias);
+                                const display = getDomainMappingDisplay(
+                                  checkCloudflareDns.alias
+                                );
                                 return (
                                   <>
                                     {display.icon}
@@ -966,31 +1050,79 @@ export function CustomDomainModal({
                 <label className="block text-sm font-medium mb-2">
                   New Custom Domain
                 </label>
-                <Input
-                  value={registerDomain}
-                  onChange={(e) => setRegisterDomain(e.target.value)}
-                  placeholder="example.com"
-                  disabled={isLoading}
-                  className="font-mono text-sm"
-                />
+                <div className="relative">
+                  <Input
+                    value={registerDomain}
+                    onChange={(e) => setRegisterDomain(e.target.value)}
+                    placeholder="example.com"
+                    disabled={isLoading}
+                    className="font-mono text-sm"
+                  />
+                  {isCheckingRegistration && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
                 {registerDomain && !isValidDomain(registerDomain) && (
                   <p className="text-sm text-destructive mt-1">
                     Please enter a valid domain name
                   </p>
                 )}
+                {/* Registration status info */}
+                {registerDomain &&
+                  isValidDomain(registerDomain) &&
+                  domainRegistrationInfo &&
+                  !isCheckingRegistration && (
+                    <div className="mt-2">
+                      {domainRegistrationInfo.isRegistered ? (
+                        domainRegistrationInfo.isOwnCanister ? (
+                          <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            Domain already registered to this canister. Will
+                            refresh.
+                          </p>
+                        ) : (
+                          <p className="text-sm text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
+                            <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                            <span>
+                              Domain registered to{" "}
+                              <span className="font-mono text-xs">
+                                {domainRegistrationInfo.registeredCanisterId}
+                              </span>
+                              . Update DNS{" "}
+                              <code className="text-xs bg-amber-100 dark:bg-amber-900/50 px-1 rounded">
+                                _canister-id
+                              </code>{" "}
+                              TXT record first.
+                            </span>
+                          </p>
+                        )
+                      ) : (
+                        <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <Globe className="h-3.5 w-3.5" />
+                          New domain. Will register.
+                        </p>
+                      )}
+                    </div>
+                  )}
               </div>
 
               {/* Submit Button */}
               <Button
                 type="submit"
-                disabled={isRegisterSubmitDisabled}
+                disabled={isRegisterSubmitDisabled || isCheckingRegistration}
                 className="w-full"
               >
                 {isLoading ? (
                   <div className="flex items-center">
                     <Loader2 className="animate-spin rounded-full h-4 w-4 mr-2" />
-                    Registering...
+                    {domainRegistrationInfo?.isRegistered
+                      ? "Updating..."
+                      : "Registering..."}
                   </div>
+                ) : domainRegistrationInfo?.isRegistered ? (
+                  "Update Domain"
                 ) : (
                   "Register Domain"
                 )}

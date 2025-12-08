@@ -287,8 +287,8 @@ export function DeploymentPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Source:</span>
-              {getSourceIcon(deployment.sourceType)}
-              <span className="text-sm">{getSourceTypeLabel(deployment.sourceType)}</span>
+                {getSourceIcon(deployment.sourceType)}
+                <span className="text-sm">{getSourceTypeLabel(deployment.sourceType)}</span>
             </div>
             {deployment.statusReason && (
               <div className="flex items-center gap-2">

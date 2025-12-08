@@ -84,7 +84,9 @@ export const checkCloudflareDns = async (
       );
       const hasCorrectCanisterId = txtRecords.includes(expectedCanisterId);
       return {
-        status: hasCorrectCanisterId ? ("valid" as const) : ("wrong_value" as const),
+        status: hasCorrectCanisterId
+          ? ("valid" as const)
+          : ("wrong_value" as const),
         values: txtRecords,
       };
     })();

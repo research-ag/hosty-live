@@ -184,10 +184,11 @@ export const customDomainApi = {
     }
   },
 
-  // Add custom domain to canister (upload ic-domains + register with IC)
+  // Add or update custom domain (upload ic-domains + register/update with IC)
   async addDomain(
     canisterId: string,
-    domain: string
+    domain: string,
+    isUpdate: boolean = false
   ): Promise<{
     success: boolean;
     error?: string;
@@ -213,30 +214,29 @@ export const customDomainApi = {
       // STEP 2: Wait for boundary node propagation (2 seconds is sufficient)
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // STEP 3: Register domain with IC (validates DNS + registers)
-      console.log("📝 Registering domain with IC...");
+      // STEP 3: Register or update domain with IC
+      const method = isUpdate ? "PATCH" : "POST";
+      console.log(`📝 ${isUpdate ? "Updating" : "Registering"} domain with IC...`);
       const response = await fetch(
         `https://icp0.io/custom-domains/v1/${domain}`,
-        {
-          method: "POST",
-        }
+        { method }
       );
-
+      
       if (!response.ok) {
         const errorData = await response
           .json()
           .catch(() => ({ errors: "Unknown error" }));
         return {
           success: false,
-          error: `Domain registration failed: ${
+          error: `Domain ${isUpdate ? "update" : "registration"} failed: ${
             errorData.errors || errorData.message
           }`,
         };
       }
-
+      
       const result = await response.json();
-      console.log("✅ Domain registered with IC");
-
+      console.log(`✅ Domain ${isUpdate ? "updated" : "registered"} with IC`);
+      
       // STEP 4: Update backend database
       console.log("💾 Updating backend database...");
       const backend = await getBackendActor();
@@ -246,7 +246,7 @@ export const customDomainApi = {
         frontendUrl: [domain],
       });
       console.log("✅ Backend updated");
-
+      
       return {
         success: true,
         domain: result.data?.domain,
@@ -271,16 +271,16 @@ export const customDomainApi = {
         const errorData = await response
           .json()
           .catch(() => ({ errors: "Registration not found" }));
-        return {
-          success: false,
+        return { 
+          success: false, 
           error:
             errorData.errors || errorData.message || "Registration not found",
         };
       }
 
       const data = await response.json();
-      return {
-        success: true,
+      return { 
+        success: true, 
         data: {
           domain: data.data?.domain,
           canisterId: data.data?.canister_id,
@@ -310,15 +310,15 @@ export const customDomainApi = {
         const errorData = await response
           .json()
           .catch(() => ({ errors: "Failed to remove domain" }));
-        return {
-          success: false,
+        return { 
+          success: false, 
           error:
             errorData.errors || errorData.message || "Failed to remove domain",
         };
       }
 
       const data = await response.json();
-      return {
+      return { 
         success: true,
         message: data.message,
       };
@@ -508,7 +508,7 @@ export const deploymentsApi = {
       const formData = new FormData();
       formData.append("canisterId", data.canisterId);
       formData.append("zip", data.zipFile);
-
+      
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
         if (data.buildCommand) {
@@ -518,7 +518,7 @@ export const deploymentsApi = {
           formData.append("envVars", JSON.stringify(data.envVars));
         }
       }
-
+      
       if (data.outputDir) {
         formData.append("outputDir", data.outputDir);
       }
@@ -588,7 +588,7 @@ export const deploymentsApi = {
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets,
       };
-
+      
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
         if (data.buildCommand) payload.buildCommand = data.buildCommand;
@@ -642,7 +642,7 @@ export const deploymentsApi = {
   }) {
     try {
       const headers = await getAuthHeaders();
-
+      
       // Build payload, omitting build-related fields for pure assets
       const payload: any = {
         canisterId: data.canisterId,
@@ -651,13 +651,13 @@ export const deploymentsApi = {
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets,
       };
-
+      
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
         if (data.buildCommand) payload.buildCommand = data.buildCommand;
         if (data.envVars) payload.envVars = data.envVars;
       }
-
+      
       const response = await fetch(`${API_BASE}/deployments/deploy-url`, {
         method: "POST",
         headers,

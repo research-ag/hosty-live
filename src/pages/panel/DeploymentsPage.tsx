@@ -364,16 +364,16 @@ export function DeploymentsPage() {
 
               <div className="flex items-center justify-between pt-2 border-t border-border/50">
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/panel/deployment/${deployment.id}`)
-                    }}
-                    className="flex items-center gap-1 text-xs hover:bg-primary/10"
-                  >
-                    <Eye className="h-3 w-3"/>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`/panel/deployment/${deployment.id}`)
+                  }}
+                  className="flex items-center gap-1 text-xs hover:bg-primary/10"
+                >
+                  <Eye className="h-3 w-3"/>
                     View
                   </Button>
                   {(deployment.sourceType === 'GIT' || deployment.sourceType === 'URL') && (
@@ -386,7 +386,7 @@ export function DeploymentsPage() {
                     >
                       <RotateCcw className={`h-3 w-3 ${redeployingId === deployment.id ? 'animate-spin' : ''}`}/>
                       Redeploy
-                    </Button>
+                </Button>
                   )}
                 </div>
                 {deployment.buildServiceJobId && (
