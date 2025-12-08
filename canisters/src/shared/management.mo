@@ -12,6 +12,9 @@ module {
     }) -> async ();
     install_code : (InstallCodeArgs) -> async ();
     deposit_cycles : ({ canister_id : Principal }) -> async ();
+    delete_canister : ({ canister_id : Principal }) -> async ();
+    start_canister : ({ canister_id : Principal }) -> async ();
+    stop_canister : ({ canister_id : Principal }) -> async ();
   };
 
   public type CanisterStatus = {
