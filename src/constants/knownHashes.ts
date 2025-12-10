@@ -24,15 +24,15 @@ const walletMap = sdkModuleHashes.reduce<Record<string, string[]>>(
   {}
 );
 
-export const assetStorageHash = "c8055ab49ce2367edcc26ec57f421501e2a3cccf1458c2140ad3b6fc65096391";
-// FIXME investigate why module installed by the backend canister has different hash
-export const assetStorageBackendCanisterHash = "aca05c51145c77094d393637e700ca31a33682c478af41132dfb0bfe0ddcd3f0";
+export const assetStorageHash = "aca05c51145c77094d393637e700ca31a33682c478af41132dfb0bfe0ddcd3f0";
+// uncompressed assetstorage.wasm sha256 sum. Happens when we reset canister from local development environment
+export const assetStorageUncompressedHash = "c8055ab49ce2367edcc26ec57f421501e2a3cccf1458c2140ad3b6fc65096391";
 
 export const mapModuleHash = (hash: string) => {
     if (hash == assetStorageHash) {
       return "hostybot-tc-0.30.1";
-    } else if (hash == assetStorageBackendCanisterHash) {
-      return "hostybot-tc-0.30.1-backend";
+    } else if (hash == assetStorageUncompressedHash) {
+      return "hostybot-tc-0.30.1-uncompressed";
     } else if (hash === "a29f0846ddf65e8a720826a9511b55017c452088f85c57b5ed99ff8510c07272") {
       return "hostybot-0.26.0";
     }
