@@ -1,15 +1,11 @@
 /**
  * Cloudflare DNS API Service
  *
- * Proxies DNS configuration requests through the deployments API backend.
- * Credentials are sent securely via HTTPS, used once, and never stored on the server.
+ * Proxies DNS configuration requests through Cloudflare Worker (bypasses CORS).
+ * Credentials are sent securely via HTTPS, used once, and never stored.
  */
 
-import { getStoredAccessToken } from "../../services/api";
-
-const API_BASE =
-  import.meta.env.VITE_HOSTY_API_BASE ||
-  "https://mrresearch.xyz/hosty-live-api";
+const WORKER_URL = import.meta.env.VITE_CLOUDFLARE_WORKER_URL;
 
 export interface CloudflareCredentials {
   apiToken: string;
@@ -28,7 +24,7 @@ interface ConfigureDnsResponse {
 }
 
 /**
- * Configure all required DNS records for IC custom domain via backend proxy
+ * Configure all required DNS records for IC custom domain via Cloudflare Worker
  */
 export async function configureDnsRecords(
   credentials: CloudflareCredentials,
@@ -37,14 +33,13 @@ export async function configureDnsRecords(
   isApexDomain: boolean,
   subdomain: string | null
 ): Promise<DnsConfigResult[]> {
-  const accessToken = getStoredAccessToken();
+  if (!WORKER_URL) {
+    throw new Error("VITE_CLOUDFLARE_WORKER_URL is not configured");
+  }
 
-  const response = await fetch(`${API_BASE}/cloudflare/dns-records`, {
+  const response = await fetch(WORKER_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       apiToken: credentials.apiToken,
       zoneId: credentials.zoneId,
@@ -58,7 +53,9 @@ export async function configureDnsRecords(
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
-      errorData.message || `Request failed with status ${response.status}`
+      errorData.error ||
+        errorData.message ||
+        `Request failed with status ${response.status}`
     );
   }
 
