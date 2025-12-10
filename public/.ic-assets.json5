@@ -1,0 +1,21 @@
+// Internet Computer asset canister headers configuration
+// This file will be copied to dist/ and applied during `dfx deploy` for the assets canister.
+// It ensures that specific assets are served without automatic gzip decoding by the browser.
+{
+  rules: [
+    {
+      // Serve the gzip file as-is (no auto-decompression)
+      globs: [
+        "assetstorage.wasm.gz",
+      ],
+      headers: {
+        // Important: force identity so raw compressed bytes are returned
+        "Content-Encoding": "identity",
+        // Helpful: clarify the payload is gzip-compressed
+        "Content-Type": "application/gzip",
+        // Caching is fine — adjust if needed
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    }
+  ]
+}
