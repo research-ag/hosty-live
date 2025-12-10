@@ -43,9 +43,9 @@ import { useTCycles } from "../../hooks/useTCycles";
 import { getAssetStorageActor } from "../../api/asset-storage";
 import { backendCanisterId, getBackendActor } from "../../api/backend";
 import { BurnInfo } from "../components/BurnInfo.tsx";
-import { isAssetCanister } from "../../constants/knownHashes.ts";
+import { isAssetCanister, supportsCyclesWithdrawal } from "../../constants/knownHashes.ts";
 import { Canister } from "../../types";
-import { withdrawCycles } from "../../hooks/useWithdrawCycles";
+import { withdrawCycles, depositTCyclesToSelf } from "../../hooks/useWithdrawCycles";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -743,7 +743,7 @@ export function CanisterPage() {
                   </Button>
                   {(() => {
                     const modHash = canisterStatus.moduleHash;
-                    const asset = !!modHash && isAssetCanister(modHash);
+                    const asset = !!modHash && supportsCyclesWithdrawal(modHash);
                     const isBalanceTooLow = Number(canisterStatus.cyclesRaw || 0) < 310_000_000_000;
                     const disabled = canister.ownedBySystem || !asset || isBalanceTooLow;
                     let reason: string | undefined;
@@ -1130,11 +1130,16 @@ export function CanisterPage() {
           onClose={() => setIsWithdrawModalOpen(false)}
           canisterId={icCanisterId}
           onWithdraw={async (destId, amt) => {
-            if (destId.trim() === icCanisterId.trim()) {
-              throw new Error("Destination cannot be the same as the source canister.");
+            if (destId === "__OWN_ACCOUNT__") {
+              await depositTCyclesToSelf(icCanisterId, amt);
+              toast.success("Withdrawal submitted", "tcycles deposit to your account has been submitted.");
+            } else {
+              if (destId.trim() === icCanisterId.trim()) {
+                throw new Error("Destination cannot be the same as the source canister.");
+              }
+              await withdrawCycles(icCanisterId, destId, amt);
+              toast.success("Withdrawal submitted", `Cycles will arrive shortly at ${destId}.`);
             }
-            await withdrawCycles(icCanisterId, destId, amt);
-            toast.success("Withdrawal submitted", `Cycles will arrive shortly at ${destId}.`);
             await queryClient.invalidateQueries({ queryKey: ["canister", "status", icCanisterId] });
           }}
         />

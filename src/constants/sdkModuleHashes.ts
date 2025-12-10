@@ -934,4 +934,11 @@ export const sdkModuleHashes: Array<{
     walletModuleHash:
       "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
   },
+  {
+    version: "0.30.1-beta.1",
+    assetModuleHash:
+      "51e80aa7ecbb94ba477bbc910c934794db674d9c441c3f013b8e09390facb389",
+    walletModuleHash:
+      "664df1045e093084f4ebafedd3a793cc3b3be0a7ef1b245d8d3defe20b33057c",
+  }
 ];

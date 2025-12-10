@@ -42,6 +42,7 @@ export const idlFactory = ({ IDL }) => {
     'sha256' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'chunk_ids' : IDL.Vec(ChunkId),
     'content_encoding' : IDL.Text,
+    'last_chunk' : IDL.Opt(IDL.Vec(IDL.Nat8)),
   });
   const BatchOperationKind = IDL.Variant({
     'SetAssetProperties' : SetAssetPropertiesArguments,
@@ -73,6 +74,10 @@ export const idlFactory = ({ IDL }) => {
     'max_batches' : IDL.Opt(IDL.Nat64),
     'max_bytes' : IDL.Opt(IDL.Nat64),
     'max_chunks' : IDL.Opt(IDL.Nat64),
+  });
+  const StateInfo = IDL.Record({
+    'last_state_update_timestamp' : IDL.Nat64,
+    'state_hash' : IDL.Opt(IDL.Text),
   });
   const Permission = IDL.Variant({
     'Prepare' : IDL.Null,
@@ -113,6 +118,7 @@ export const idlFactory = ({ IDL }) => {
   const HttpResponse = IDL.Record({
     'body' : IDL.Vec(IDL.Nat8),
     'headers' : IDL.Vec(HeaderField),
+    'upgrade' : IDL.Opt(IDL.Bool),
     'streaming_strategy' : IDL.Opt(StreamingStrategy),
     'status_code' : IDL.Nat16,
   });
@@ -145,6 +151,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(IDL.Vec(IDL.Nat8))],
         [],
     ),
+    'compute_state_hash' : IDL.Func([], [IDL.Opt(IDL.Text)], []),
     'configure' : IDL.Func([ConfigureArguments], [], []),
     'create_asset' : IDL.Func([CreateAssetArguments], [], []),
     'create_batch' : IDL.Func(
@@ -208,6 +215,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
     ),
     'get_configuration' : IDL.Func([], [ConfigurationResponse], []),
+    'get_state_info' : IDL.Func([], [StateInfo], ['query']),
     'grant_permission' : IDL.Func([GrantPermission], [], []),
     'http_request' : IDL.Func([HttpRequest], [HttpResponse], ['query']),
     'http_request_streaming_callback' : IDL.Func(
@@ -216,7 +224,12 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
     ),
     'list' : IDL.Func(
-        [IDL.Record({})],
+        [
+          IDL.Record({
+            'start' : IDL.Opt(IDL.Nat),
+            'length' : IDL.Opt(IDL.Nat),
+          }),
+        ],
         [
           IDL.Vec(
               IDL.Record({
@@ -230,6 +243,10 @@ export const idlFactory = ({ IDL }) => {
                     })
                 ),
                 'content_type' : IDL.Text,
+                'headers' : IDL.Opt(IDL.Vec(HeaderField)),
+                'is_aliased' : IDL.Opt(IDL.Bool),
+                'allow_raw_access' : IDL.Opt(IDL.Bool),
+                'max_age' : IDL.Opt(IDL.Nat64),
               })
           ),
         ],
@@ -255,6 +272,22 @@ export const idlFactory = ({ IDL }) => {
         [],
     ),
     'take_ownership' : IDL.Func([], [], []),
+    'tcycles_deposit' : IDL.Func(
+        [
+          IDL.Record({
+            'deposit_args' : IDL.Record({
+              'to' : IDL.Record({
+                'owner' : IDL.Principal,
+                'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+              }),
+              'memo' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+            }),
+            'amount' : IDL.Nat64,
+          }),
+        ],
+        [],
+        [],
+    ),
     'unset_asset_content' : IDL.Func([UnsetAssetContentArguments], [], []),
     'validate_commit_proposed_batch' : IDL.Func(
         [CommitProposedBatchArguments],
@@ -282,18 +315,8 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Record({ 'amount' : IDL.Nat64 })],
         ['query'],
     ),
-    'wallet_balance128' : IDL.Func(
-        [],
-        [IDL.Record({ 'amount' : IDL.Nat })],
-        ['query'],
-    ),
     'wallet_send' : IDL.Func(
         [IDL.Record({ 'canister' : IDL.Principal, 'amount' : IDL.Nat64 })],
-        [WalletResult],
-        [],
-    ),
-    'wallet_send128' : IDL.Func(
-        [IDL.Record({ 'canister' : IDL.Principal, 'amount' : IDL.Nat })],
         [WalletResult],
         [],
     ),

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
+import { supportsTcyclesWithdrawal } from "../../constants/knownHashes.ts";
 
 interface WithdrawCyclesModalProps {
   isOpen: boolean;
   onClose: () => void;
   canisterId: string;
-  onWithdraw: (destinationCanisterId: string, amountTC: string) => Promise<void>;
+  onWithdraw: (destination: string, amountTC: string) => Promise<void>;
 }
 
 export function WithdrawCyclesModal({
@@ -18,21 +19,37 @@ export function WithdrawCyclesModal({
                                     }: WithdrawCyclesModalProps) {
   const [amount, setAmount] = useState("");
   const [destination, setDestination] = useState("");
+  const [destType, setDestType] = useState<"own" | "canister">("canister");
   const [error, setError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState<string>("");
 
-  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
+  const { cyclesRaw, isCanisterStatusLoading, moduleHash } = useCanisterStatus(canisterId);
+
+  const tcyclesSupported = useMemo(() => {
+    try {
+      return moduleHash ? supportsTcyclesWithdrawal(moduleHash) : false;
+    } catch {
+      return false;
+    }
+  }, [moduleHash]);
 
   useEffect(() => {
     if (!isOpen) {
       setAmount("");
       setDestination("");
+      setDestType("canister");
       setError("");
       setSuccess("");
       setIsSubmitting(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (destType === "own" && !tcyclesSupported) {
+      setDestType("canister");
+    }
+  }, [destType, tcyclesSupported]);
 
   const cyclesTC = useMemo(() => {
     try {
@@ -50,19 +67,28 @@ export function WithdrawCyclesModal({
   }, [cyclesTC]);
 
   const validate = (): string | null => {
-    const dest = destination.trim();
-    if (!dest) return "Please enter a destination canister ID.";
-    if (!/^[a-z0-9-]{3,}$/i.test(dest)) return "Invalid canister ID format.";
-    // Prevent withdrawing to the same canister
-    if (dest === canisterId.trim()) return "Destination cannot be the same as the source canister.";
     if (!amount.trim()) return "Please enter an amount.";
     if (isNaN(Number(amount))) return "Amount must be a number.";
     if (Number(amount) <= 0) return "Amount must be greater than zero.";
     if (typeof maxWithdrawTC === "number" && Number(amount) > maxWithdrawTC) return "Amount exceeds available withdrawable balance.";
+
+    if (destType === "canister") {
+      const dest = destination.trim();
+      if (!dest) return "Please enter a destination canister ID.";
+      if (!/^[a-z0-9-]{3,}$/i.test(dest)) return "Invalid canister ID format.";
+      // Prevent withdrawing to the same canister
+      if (dest === canisterId.trim()) return "Destination cannot be the same as the source canister.";
+    }
     return null;
   };
 
   const handleSubmit = async () => {
+    // Disallow tcycles withdrawal if module doesn't support it
+    if (destType === "own" && !tcyclesSupported) {
+      setError("current module does not support tcycles withdrawal. You can reset the canister to install the latest module that supports it");
+      return;
+    }
+
     const v = validate();
     if (v) {
       setError(v);
@@ -72,7 +98,8 @@ export function WithdrawCyclesModal({
     setIsSubmitting(true);
     setSuccess("");
     try {
-      await onWithdraw(destination.trim(), amount.trim());
+      const dest = destType === "own" ? "__OWN_ACCOUNT__" : destination.trim();
+      await onWithdraw(dest, amount.trim());
       setSuccess("Withdrawal submitted.");
       setTimeout(() => onClose(), 1200);
     } catch (e: any) {
@@ -93,16 +120,45 @@ export function WithdrawCyclesModal({
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">Destination canister ID</label>
-          <input
-            type="text"
-            placeholder="e.g. ryjl3-tyaaa-aaaaa-aaaba-cai"
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
-          />
-          <p className="text-xs text-muted-foreground">Enter the canister to receive cycles</p>
+          <label className="text-sm font-medium">Withdraw to</label>
+          <div className="flex gap-2 text-sm">
+            <button
+              type="button"
+              className={`px-2 py-1 rounded border ${destType === "own" ? "bg-primary/10 border-primary" : "bg-background"} ${!tcyclesSupported ? "opacity-50 cursor-not-allowed" : ""}`}
+              onClick={() => tcyclesSupported && setDestType("own")}
+              disabled={!tcyclesSupported}
+              title={!tcyclesSupported ? "current module does not support tcycles withdrawal. You can reset the canister to install the latest module that supports it" : undefined}
+            >
+              Own account (tcycles)
+            </button>
+            <button
+              type="button"
+              className={`px-2 py-1 rounded border ${destType === "canister" ? "bg-primary/10 border-primary" : "bg-background"}`}
+              onClick={() => setDestType("canister")}
+            >
+              Another canister
+            </button>
+          </div>
+          {!tcyclesSupported && (
+            <p className="text-xs text-destructive mt-1">
+              current module does not support tcycles withdrawal. You can reset the canister to install the latest module that supports it
+            </p>
+          )}
         </div>
+
+        {destType === "canister" && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Destination canister ID</label>
+            <input
+              type="text"
+              placeholder="e.g. ryjl3-tyaaa-aaaaa-aaaba-cai"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p className="text-xs text-muted-foreground">Enter the canister to receive cycles</p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">

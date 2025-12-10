@@ -62,6 +62,7 @@ export interface HttpRequest {
 export interface HttpResponse {
   'body' : Uint8Array | number[],
   'headers' : Array<HeaderField>,
+  'upgrade' : [] | [boolean],
   'streaming_strategy' : [] | [StreamingStrategy],
   'status_code' : number,
 }
@@ -80,6 +81,7 @@ export interface SetAssetContentArguments {
   'sha256' : [] | [Uint8Array | number[]],
   'chunk_ids' : Array<ChunkId>,
   'content_encoding' : string,
+  'last_chunk' : [] | [Uint8Array | number[]],
 }
 export interface SetAssetPropertiesArguments {
   'key' : Key,
@@ -92,6 +94,10 @@ export interface SetPermissions {
   'prepare' : Array<Principal>,
   'commit' : Array<Principal>,
   'manage_permissions' : Array<Principal>,
+}
+export interface StateInfo {
+  'last_state_update_timestamp' : bigint,
+  'state_hash' : [] | [string],
 }
 export interface StreamingCallbackHttpResponse {
   'token' : [] | [StreamingCallbackToken],
@@ -136,6 +142,7 @@ export interface _SERVICE {
     [ComputeEvidenceArguments],
     [] | [Uint8Array | number[]]
   >,
+  'compute_state_hash' : ActorMethod<[], [] | [string]>,
   'configure' : ActorMethod<[ConfigureArguments], undefined>,
   'create_asset' : ActorMethod<[CreateAssetArguments], undefined>,
   'create_batch' : ActorMethod<[{}], { 'batch_id' : BatchId }>,
@@ -181,6 +188,7 @@ export interface _SERVICE {
     { 'content' : Uint8Array | number[] }
   >,
   'get_configuration' : ActorMethod<[], ConfigurationResponse>,
+  'get_state_info' : ActorMethod<[], StateInfo>,
   'grant_permission' : ActorMethod<[GrantPermission], undefined>,
   'http_request' : ActorMethod<[HttpRequest], HttpResponse>,
   'http_request_streaming_callback' : ActorMethod<
@@ -188,7 +196,7 @@ export interface _SERVICE {
     [] | [StreamingCallbackHttpResponse]
   >,
   'list' : ActorMethod<
-    [{}],
+    [{ 'start' : [] | [bigint], 'length' : [] | [bigint] }],
     Array<
       {
         'key' : Key,
@@ -201,6 +209,10 @@ export interface _SERVICE {
           }
         >,
         'content_type' : string,
+        'headers' : [] | [Array<HeaderField>],
+        'is_aliased' : [] | [boolean],
+        'allow_raw_access' : [] | [boolean],
+        'max_age' : [] | [bigint],
       }
     >
   >,
@@ -226,6 +238,21 @@ export interface _SERVICE {
     undefined
   >,
   'take_ownership' : ActorMethod<[], undefined>,
+  'tcycles_deposit' : ActorMethod<
+    [
+      {
+        'deposit_args' : {
+          'to' : {
+            'owner' : Principal,
+            'subaccount' : [] | [Uint8Array | number[]],
+          },
+          'memo' : [] | [Uint8Array | number[]],
+        },
+        'amount' : bigint,
+      },
+    ],
+    undefined
+  >,
   'unset_asset_content' : ActorMethod<[UnsetAssetContentArguments], undefined>,
   'validate_commit_proposed_batch' : ActorMethod<
     [CommitProposedBatchArguments],
@@ -242,12 +269,7 @@ export interface _SERVICE {
   >,
   'validate_take_ownership' : ActorMethod<[], ValidationResult>,
   'wallet_balance' : ActorMethod<[], { 'amount' : bigint }>,
-  'wallet_balance128' : ActorMethod<[], { 'amount' : bigint }>,
   'wallet_send' : ActorMethod<
-    [{ 'canister' : Principal, 'amount' : bigint }],
-    WalletResult
-  >,
-  'wallet_send128' : ActorMethod<
     [{ 'canister' : Principal, 'amount' : bigint }],
     WalletResult
   >,

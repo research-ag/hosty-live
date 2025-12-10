@@ -574,7 +574,7 @@ persistent actor class Backend() = self {
       case (?mod) Blob.equal(mod, assetsModule.0);
       case (null) false;
     };
-    Prim.debugPrint("Is correct module? " # debug_show isCorrectModule # "; canister wasm hash: " # debug_show canisterStatus.module_hash);
+    Prim.debugPrint("Is correct module? " # debug_show isCorrectModule # "; canister wasm hash: " # debug_show canisterStatus.module_hash # "; expected: " # debug_show assetsModule.0);
     if (not isCorrectModule) {
       Prim.debugPrint("installing module...");
       let arg = to_candid ({
