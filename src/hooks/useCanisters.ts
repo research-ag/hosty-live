@@ -11,6 +11,7 @@ import { init as assetStorageInit } from "../api/asset-storage/asset_storage.did
 import { IDL } from "@icp-sdk/core/candid";
 import defaultPage from "../constants/default-page.ts";
 import { canister_status_result } from "../api/management/management.did";
+import { arrayBufferToHex } from "../utils/bufffer-utils.ts";
 
 export function useCanisters() {
   const queryClient = useQueryClient()
@@ -156,38 +157,64 @@ export function useCanisters() {
 
   // Mutation for deleting canisters
   const deleteCanisterMutation = useMutation({
-    mutationFn: async (canisterDbId: string) => {
-      // Find the IC canister ID from the database ID
-      const canister = canisters.find(c => c.id === canisterDbId)
-      if (!canister) {
-        throw new Error('Canister not found')
-      }
-
-      const backend = await getBackendActor();
-      await backend.deleteCanister(Principal.fromText(canister.id));
+    mutationFn: async (canisterId: string) => {
+      const management = await getManagementActor();
+      const eff = { effectiveCanisterId: Principal.fromText(canisterId) };
+      const args = { canister_id: Principal.fromText(canisterId) };
+      let status: canister_status_result;
+      let reclaimedTC = 0;
 
       try {
-        const management = await getManagementActor();
-        const eff = { effectiveCanisterId: Principal.fromText(canister.id) };
-        const args = { canister_id: Principal.fromText(canister.id) };
-        try {
-          await management.stop_canister.withOptions(eff)(args);
-        } catch (_) {
-          // ignore if already stopped or lacks state
-        }
-        await management.delete_canister.withOptions(eff)(args);
-      } catch (e) {
-        throw new Error(
-          e instanceof Error ? e.message : `Failed to delete canister on management canister`
-        );
+        await management.update_settings.withOptions(eff)({
+          canister_id: Principal.fromText(canisterId),
+          settings: {
+            controllers: [],
+            freezing_threshold: [0n],
+            reserved_cycles_limit: [],
+            log_visibility: [],
+            wasm_memory_limit: [],
+            memory_allocation: [],
+            compute_allocation: [],
+            wasm_memory_threshold: [],
+          },
+          sender_canister_version: [],
+        });
+        status = await management.canister_status.withOptions(eff)(args);
+      } catch (_) {
+        throw new Error('Could not get canister status:');
       }
-      return { canisterDbId }
+      // withdraw as TCYCLES
+      if (status.cycles > 310_000_000_000n) {
+        const { supportsTcyclesWithdrawal } = await import('../constants/knownHashes.ts');
+        const { depositTCyclesToSelf } = await import('./useWithdrawCycles.ts');
+        const moduleHash = status.module_hash.length > 0 ? arrayBufferToHex(status.module_hash[0] as Uint8Array<ArrayBufferLike> | number[]) : undefined;
+        if (!moduleHash || !supportsTcyclesWithdrawal(moduleHash)) {
+          const auth = await getAuthClient();
+          const res = await resetCanister(canisterId, [auth.getIdentity().getPrincipal()], { skipCheck: true });
+          if (!res.success) {
+            throw new Error(res.error || 'Failed to reset canister');
+          }
+          status = await management.canister_status.withOptions(eff)(args);
+        }
+        reclaimedTC = Math.max(0, Number(status.cycles) / 1_000_000_000_000 - 0.31);
+        if (reclaimedTC > 0) {
+          await depositTCyclesToSelf(canisterId, reclaimedTC);
+        }
+      }
+      if (!('stopped' in status.status)) {
+        await management.stop_canister.withOptions(eff)(args);
+      }
+      await management.delete_canister.withOptions(eff)(args);
+
+      const backend = await getBackendActor();
+      await backend.deleteCanister(Principal.fromText(canisterId));
+      return { canisterId, reclaimedTC };
     },
-    onSuccess: ({ canisterDbId }) => {
+    onSuccess: ({ canisterId }) => {
       // Optimistically remove from cache
       queryClient.setQueryData(['canisters'], (oldData: Canister[]) => {
         if (!oldData) return oldData
-        return oldData.filter((c) => c.id !== canisterDbId)
+        return oldData.filter((c) => c.id !== canisterId)
       })
       // Also invalidate to get fresh data
       queryClient.invalidateQueries({ queryKey: ['canisters'] })
@@ -253,10 +280,10 @@ export function useCanisters() {
     }
   }
 
-  const deleteCanister = async (canisterDbId: string): Promise<{ success: boolean; error?: string }> => {
+  const deleteCanister = async (canisterId: string): Promise<Response<{ reclaimedTC: number }>> => {
     try {
-      await deleteCanisterMutation.mutateAsync(canisterDbId)
-      return { success: true }
+      const { reclaimedTC } = await deleteCanisterMutation.mutateAsync(canisterId)
+      return { success: true, data: { reclaimedTC } }
     } catch (err) {
       return {
         success: false,

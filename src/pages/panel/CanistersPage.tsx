@@ -220,7 +220,7 @@ export function CanistersPage() {
       if (result.success) {
         toast.success(
           "Canister deleted",
-          "Your canister has been successfully removed."
+          "Your canister has been successfully removed. Reclaimed " + result.data.reclaimedTC + " TC."
         );
         setIsDeleteModalOpen(false);
       } else {

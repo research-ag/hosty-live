@@ -27,8 +27,6 @@ export function DeleteCanisterModal(
     error
   }: DeleteCanisterModalProps) {
 
-  const discardThresholdTC = 0.35;
-
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canister?.id);
   const cyclesTC = (() => {
     try {
@@ -38,8 +36,6 @@ export function DeleteCanisterModal(
       return undefined;
     }
   })();
-
-  const willDiscardTooMuch = typeof cyclesTC === 'number' && cyclesTC > discardThresholdTC;
 
   const handleConfirm = () => {
     onConfirmDelete()
@@ -71,16 +67,12 @@ export function DeleteCanisterModal(
             ) : (
               <div className="space-y-1">
                 <div>
-                  Deleting will discard approximately <strong>{cyclesTC.toFixed(2)} TC</strong>.
+                  Deleting will discard approximately <strong>0.31 TC</strong>.
                 </div>
-                {willDiscardTooMuch && (
-                  <div className="text-red-700">
-                    This exceeds the current discard limit of {discardThresholdTC} TC. Deletion is disabled. Please withdraw cycles first (available for our custom asset canister), or reset the canister to our asset canister and then withdraw.
-                  </div>
-                )}
                 {canister?.id && (
                   <div className="text-xs text-red-700">
-                    Tip: You can manage withdrawals and resets on the canister page. <Link to={`/panel/canister/${canister.id}`} className="underline">Open canister</Link>
+                    Tip: You can manage withdrawals and resets on the canister page. <Link
+                    to={`/panel/canister/${canister.id}`} className="underline">Open canister</Link>
                   </div>
                 )}
               </div>
@@ -102,7 +94,7 @@ export function DeleteCanisterModal(
               'Donate'
             )}
           </Button>
-          <Button type="button" variant="destructive" onClick={handleConfirm} disabled={isDeleting || isDonating || willDiscardTooMuch}>
+          <Button type="button" variant="destructive" onClick={handleConfirm} disabled={isDeleting || isDonating}>
             {isDeleting ? (
               <div className="flex items-center">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"/>
