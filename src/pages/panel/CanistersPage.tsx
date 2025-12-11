@@ -18,6 +18,7 @@ import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
 import { getBackendActor } from "../../api/backend";
 import { Canister } from "../../types";
+import { useQueryClient } from "@tanstack/react-query";
 
 function CyclesCell({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -46,6 +47,7 @@ function RentedIndicator({ canister }: { canister: Canister }) {
 }
 
 export function CanistersPage() {
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { principal } = useInternetIdentity();
@@ -220,7 +222,7 @@ export function CanistersPage() {
       if (result.success) {
         toast.success(
           "Canister deleted",
-          "Your canister has been successfully removed. Reclaimed " + result.data.reclaimedTC + " TC."
+          "Your canister has been successfully removed. Reclaimed " + result.data.reclaimedTC.toFixed(4) + " TC."
         );
         setIsDeleteModalOpen(false);
       } else {
@@ -679,6 +681,8 @@ export function CanistersPage() {
               "Top up successful",
               `Deposit submitted. Block index: ${res.toString()}`
             );
+            // Invalidate tcycles balance cache so UI reflects decreased balance
+            await queryClient.invalidateQueries({ queryKey: ["tcycles", "balance", principal ?? "anonymous"] });
             await refresh();
             return res;
           }}

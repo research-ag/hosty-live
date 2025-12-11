@@ -210,14 +210,21 @@ export function useCanisters() {
       await backend.deleteCanister(Principal.fromText(canisterId));
       return { canisterId, reclaimedTC };
     },
-    onSuccess: ({ canisterId }) => {
+    onSuccess: async ({ canisterId }) => {
       // Optimistically remove from cache
       queryClient.setQueryData(['canisters'], (oldData: Canister[]) => {
         if (!oldData) return oldData
         return oldData.filter((c) => c.id !== canisterId)
       })
       // Also invalidate to get fresh data
-      queryClient.invalidateQueries({ queryKey: ['canisters'] })
+      await queryClient.invalidateQueries({ queryKey: ['canisters'] })
+      // Deleting a canister may reclaim cycles and deposit them as tcycles to the user's account
+      try {
+        const principalText = (await getAuthClient()).getIdentity().getPrincipal().toText();
+        await queryClient.invalidateQueries({ queryKey: ['tcycles', 'balance', principalText || 'anonymous'] });
+      } catch (e) {
+        // ignore auth errors; not signed in
+      }
     },
   })
 

@@ -1117,6 +1117,8 @@ export function CanisterPage() {
               "Top up successful",
               `Deposit submitted. Block index: ${res.toString()}`
             );
+            // Invalidate tcycles balance cache to reflect the new state immediately
+            await queryClient.invalidateQueries({ queryKey: ["tcycles", "balance", principal ?? "anonymous"] });
             await refresh();
             return res;
           }}
@@ -1133,6 +1135,8 @@ export function CanisterPage() {
             if (destId === "__OWN_ACCOUNT__") {
               await depositTCyclesToSelf(icCanisterId, amt);
               toast.success("Withdrawal submitted", "tcycles deposit to your account has been submitted.");
+              // Invalidate tcycles balance since it increases when depositing to own account
+              await queryClient.invalidateQueries({ queryKey: ["tcycles", "balance", principal ?? "anonymous"] });
             } else {
               if (destId.trim() === icCanisterId.trim()) {
                 throw new Error("Destination cannot be the same as the source canister.");
