@@ -4,6 +4,7 @@ import { getTCyclesLedgerActor } from '../api/tcycles-ledger'
 import { getAuthClient } from "./useInternetIdentity.ts";
 import { bigIntReplacer } from "../utils/json_bigints.ts";
 import { statusProxyCanisterId } from "../api/status-proxy";
+import { parseTCToRaw } from "../utils/cycles.ts";
 
 export type TCyclesBalance = {
   balance: string
@@ -80,19 +81,6 @@ export function useTCycles(principal: string | null = null) {
     const frac = n % denom
     const fracStr = (Number(frac) / Number(denom)).toFixed(4).split('.')[1]
     return `${whole.toString()}.${fracStr}`
-  }
-
-  const parseTCToRaw = (tc: string | number): bigint => {
-    const DECIMALS = 12n
-    const parts = tc.toString().trim()
-    if (!/^\d*(?:\.\d{0,12})?$/.test(parts)) {
-      throw new Error('Invalid amount format. Use up to 12 decimal places.')
-    }
-    const [wholeStr, fracStr = ''] = parts.split('.')
-    const whole = BigInt(wholeStr || '0')
-    const fracPadded = (fracStr + '0'.repeat(12)).slice(0, 12)
-    const frac = BigInt(fracPadded)
-    return whole * 10n ** DECIMALS + frac
   }
 
   const balanceTC = data?.balance ? formatTC(data.balance) : undefined

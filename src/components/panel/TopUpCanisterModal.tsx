@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
+import { parseTCToRaw } from "../../utils/cycles.ts";
 
 interface TopUpCanisterModalProps {
   isOpen: boolean;
@@ -15,14 +16,14 @@ interface TopUpCanisterModalProps {
 }
 
 export function TopUpCanisterModal({
-  isOpen,
-  onClose,
-  canisterId,
-  userBalanceRaw,
-  formatTC,
-  onWithdraw,
-  onRefreshBalance,
-}: TopUpCanisterModalProps) {
+                                     isOpen,
+                                     onClose,
+                                     canisterId,
+                                     userBalanceRaw,
+                                     formatTC,
+                                     onWithdraw,
+                                     onRefreshBalance,
+                                   }: TopUpCanisterModalProps) {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,19 +59,6 @@ export function TopUpCanisterModal({
       return undefined;
     }
   }, [userBalanceRaw, formatTC]);
-
-  const parseTCToRaw = (tc: string | number): bigint => {
-    const DECIMALS = 12n;
-    const parts = tc.toString().trim();
-    if (!/^(?:\d+)(?:\.\d{0,12})?$/.test(parts)) {
-      throw new Error("Invalid amount format. Use up to 12 decimal places.");
-    }
-    const [wholeStr, fracStr = ""] = parts.split(".");
-    const whole = BigInt(wholeStr || "0");
-    const fracPadded = (fracStr + "0".repeat(12)).slice(0, 12);
-    const frac = BigInt(fracPadded);
-    return whole * 10n ** DECIMALS + frac;
-  };
 
   const validate = (): string | null => {
     if (!amount.trim()) return "Please enter an amount.";
@@ -159,9 +147,9 @@ export function TopUpCanisterModal({
         </div>
 
         <div className="relative flex items-center">
-          <div className="flex-1 h-px bg-border/50" />
+          <div className="flex-1 h-px bg-border/50"/>
           <span className="px-3 text-xs text-muted-foreground">or</span>
-          <div className="flex-1 h-px bg-border/50" />
+          <div className="flex-1 h-px bg-border/50"/>
         </div>
 
         <div>
@@ -176,7 +164,7 @@ export function TopUpCanisterModal({
               )
             }
           >
-            <ExternalLink className="h-4 w-4 mr-2" />
+            <ExternalLink className="h-4 w-4 mr-2"/>
             Top up directly through Cycle Express
           </Button>
         </div>
