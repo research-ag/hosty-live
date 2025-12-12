@@ -48,7 +48,6 @@ export function useCanisters() {
     management: Awaited<ReturnType<typeof getManagementActor>>,
     wasmBinary: Uint8Array,
     userPrincipals: Principal[],
-    buildSystemPrincipal: Principal,
     reinstall: boolean = false,
   ) => {
     // install asset canister
@@ -70,11 +69,7 @@ export function useCanisters() {
       ...userPrincipals.map(p => assetCanister.grant_permission({
         permission: { Commit: null },
         to_principal: p,
-      })),
-      assetCanister.grant_permission({
-        permission: { Commit: null },
-        to_principal: buildSystemPrincipal,
-      })
+      }))
     ])
     // upload default page
     await assetCanister.store({
@@ -98,14 +93,13 @@ export function useCanisters() {
       const wasmBinary = new Uint8Array(await response.arrayBuffer())
       const management = await getManagementActor()
       const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
-      const buildSystemPrincipal = Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL)
       // Step 1: creating on ledger
       setCreationMessage('Creating your canister...')
       const { canisterId } = await createCanisterOnLedger()
       // Step 2: preparing via backend
       setCreationMessage('Preparing your canister...')
       try {
-        await performInitialCanisterSetup(canisterId, management, wasmBinary, [myPrincipal], buildSystemPrincipal);
+        await performInitialCanisterSetup(canisterId, management, wasmBinary, [myPrincipal]);
       } catch (err) {
         // TODO implement a way to setup canister again later. We need to register it anyway
         console.error(err);
@@ -504,7 +498,6 @@ export function useCanisters() {
       const wasmBinary = new Uint8Array(await response.arrayBuffer())
       const managementCanister = await getManagementActor();
       const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
-      const buildSystemPrincipal = Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL);
 
       // 1) Reset controllers to defaults: current user + status-proxy canister
       await managementCanister.update_settings.withOptions({
@@ -523,7 +516,7 @@ export function useCanisters() {
         },
         sender_canister_version: [],
       });
-      await performInitialCanisterSetup(canisterId, managementCanister, wasmBinary, canisterOwners, buildSystemPrincipal, true);
+      await performInitialCanisterSetup(canisterId, managementCanister, wasmBinary, canisterOwners, true);
       return { success: true };
     } catch (err) {
       console.error(err);
@@ -622,15 +615,6 @@ export function useCanisters() {
             },
             sender_canister_version: [],
           });
-        }
-        try {
-          const assetCanister = await getAssetStorageActor(canisterId);
-          await assetCanister.grant_permission({
-            permission: { Commit: null },
-            to_principal: Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL),
-          });
-        } catch (_) {
-          // pass
         }
       }
 
