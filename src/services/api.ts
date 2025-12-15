@@ -391,6 +391,33 @@ export const deploymentsApi = {
     }
   },
 
+  // Check if a canister has a running deployment
+  async isDeploymentRunning(canisterId: string) {
+    try {
+      const headers = await getAuthHeaders();
+      const url = `${API_BASE}/deployments/${encodeURIComponent(canisterId)}/running`;
+      console.log("🚦 [deploymentsApi.isDeploymentRunning] URL:", url);
+
+      const response = await fetch(url, { method: "GET", headers });
+      console.log("📡 [deploymentsApi.isDeploymentRunning] Response status:", response.status);
+
+      checkUnauthorized(response);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Network error" }));
+        console.error("❌ [deploymentsApi.isDeploymentRunning] Error response:", error);
+        return { success: false, error: error.error || `HTTP ${response.status}` };
+      }
+
+      const data = await response.json();
+      const running = !!data?.running;
+      return { success: true, running };
+    } catch (err) {
+      console.error("💥 [deploymentsApi.isDeploymentRunning] Exception:", err);
+      return { success: false, error: err instanceof Error ? err.message : "Failed to check running status" };
+    }
+  },
+
   // Get a single deployment
   async getDeployment(deploymentId: string) {
     try {

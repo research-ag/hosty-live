@@ -20,6 +20,7 @@ import { Navigate } from 'react-router-dom'
 import { ProtectedRoute } from './components/shared/ProtectedRoute'
 import { RouteChangeHandler } from './components/shared/RouteChangeHandler'
 import { ToastProvider } from './hooks/useToast'
+import { useBackgroundScanner } from './hooks/useBackgroundScanner'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +31,11 @@ const queryClient = new QueryClient({
   },
 })
 
+function BackgroundScannerMount() {
+  useBackgroundScanner()
+  return null
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -37,6 +43,7 @@ function App() {
         <ToastProvider>
           <TooltipProvider>
             <Router>
+              <BackgroundScannerMount />
               <RouteChangeHandler />
               <Suspense fallback={<LoadingPage />}>
                 <Routes>

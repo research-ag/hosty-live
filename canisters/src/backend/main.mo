@@ -450,40 +450,23 @@ persistent actor class Backend() = self {
   };
 
   private func setupUserOwnership_(cid : Principal, user : Principal) : async* () {
-    let futures : List.List<async ()> = List.empty();
-    List.add(
-      futures,
+    let futures : [async ()] = [
       Management.getActor().update_settings({
         canister_id = cid;
         settings = {
           controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self), user];
         };
       }),
-    );
-    List.add(
-      futures,
       Assets.getAssetActor(cid).grant_permission({
         permission = #Prepare;
         to_principal = user;
       }),
-    );
-    List.add(
-      futures,
       Assets.getAssetActor(cid).grant_permission({
         permission = #Commit;
         to_principal = user;
       }),
-    );
-    for (bp in CONSTANTS.BUILDER_PRINCIPALS.values()) {
-      List.add(
-        futures,
-        Assets.getAssetActor(cid).grant_permission({
-          permission = #Commit;
-          to_principal = bp;
-        }),
-      );
-    };
-    for (f in List.values(futures)) {
+    ];
+    for (f in futures.values()) {
       await f;
     };
   };

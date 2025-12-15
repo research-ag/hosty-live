@@ -8,12 +8,12 @@ import {
   Clock,
   Eye,
   Github,
+  Link as LinkIcon,
   RefreshCw,
   RotateCcw,
   Upload,
   XCircle,
-  Zap,
-  Link as LinkIcon
+  Zap
 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { SortButton } from '../../components/ui/SortButton'
@@ -23,7 +23,13 @@ import { ConnectionStatus } from '../../components/ui/ConnectionStatus'
 import { useDeployments } from '../../hooks/useDeployments'
 import { useRealTimeDeployments } from '../../hooks/useRealTimeDeployments'
 import { useToast } from '../../hooks/useToast'
-import { getStatusVariant, getStatusLabel, isActivelyBuilding, getSourceTypeLabel, formatDuration } from '../../lib/deploymentHelpers'
+import {
+  formatDuration,
+  getSourceTypeLabel,
+  getStatusLabel,
+  getStatusVariant,
+  isActivelyBuilding
+} from '../../lib/deploymentHelpers'
 import type { DeploymentStatus } from '../../types'
 
 export function DeploymentsPage() {
@@ -55,7 +61,7 @@ export function DeploymentsPage() {
   const { connectionStatus } = useRealTimeDeployments({
     onDeploymentUpdated: (updatedDeployment) => {
       console.log('📦 [DeploymentsPage] Deployment updated:', updatedDeployment.id, updatedDeployment.status)
-      
+
       // Show subtle toast for successful deployments
       if (updatedDeployment.status === 'SUCCESS') {
         toast.success('Deployment Complete', `Deployment ${updatedDeployment.id.slice(0, 7)} is now live`)
@@ -85,11 +91,11 @@ export function DeploymentsPage() {
     }
   }
 
-  const handleRedeploy = async (e: React.MouseEvent, deploymentId: string) => {
+  const handleRedeploy = async (e: React.MouseEvent, deploymentId: string, canisterId: string) => {
     e.stopPropagation()
     setRedeployingId(deploymentId)
     try {
-      const result = await redeploy(deploymentId)
+      const result = await redeploy(deploymentId, canisterId)
       if (result.success) {
         toast.success('Redeployment Started', 'A new deployment has been triggered')
         if (result.data?.id) {
@@ -225,7 +231,7 @@ export function DeploymentsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <ConnectionStatus status={connectionStatus} />
+          <ConnectionStatus status={connectionStatus}/>
           <Button
             variant="outline"
             onClick={handleRefresh}
@@ -261,143 +267,146 @@ export function DeploymentsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-8">
         {paginatedDeployments.map((deployment) => {
           const isActive = isActivelyBuilding(deployment.status)
-          
+
           return (
-          <Card
-            key={deployment.id}
-            className={`group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20 ${
-              isActive && connectionStatus === 'connected' ? 'ring-2 ring-blue-500/50 shadow-blue-500/20' : ''
-            }`}
-            onClick={() => navigate(`/panel/deployment/${deployment.id}`)}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  {getStatusIcon(deployment.status)}
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="text-lg font-semibold font-mono group-hover:text-primary transition-colors"
-                               title={deployment.id}>
-                      {deployment.id.slice(0, 7)}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground font-mono truncate mt-1">
-                      Canister ID: {deployment.canisterId.slice(0, 5)}
+            <Card
+              key={deployment.id}
+              className={`group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer border-border/50 hover:border-primary/20 ${
+                isActive && connectionStatus === 'connected' ? 'ring-2 ring-blue-500/50 shadow-blue-500/20' : ''
+              }`}
+              onClick={() => navigate(`/panel/deployment/${deployment.id}`)}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {getStatusIcon(deployment.status)}
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-lg font-semibold font-mono group-hover:text-primary transition-colors"
+                                 title={deployment.id}>
+                        {deployment.id.slice(0, 7)}
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground font-mono truncate mt-1">
+                        Canister ID: {deployment.canisterId.slice(0, 5)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      {getSourceIcon(deployment.sourceType)}
+                      <span className="text-xs text-muted-foreground">
+                      {getSourceTypeLabel(deployment.sourceType)}
+                    </span>
+                    </div>
+                    <Badge variant={getStatusVariant(deployment.status)}>{getStatusLabel(deployment.status)}</Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {deployment.isDryRun && (
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                      Test Build (Dry-Run)
+                    </span>
+                    </div>
+                  </div>
+                )}
+                {deployment.pureAssets && (
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-md bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
+                      <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
+                      Pure Assets (No Build)
+                    </span>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs font-medium">Duration</p>
+                    <p className="font-semibold">{formatDuration(deployment.durationMs)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs font-medium">Build</p>
+                    <p className="font-mono text-xs bg-muted px-2 py-1 rounded truncate">
+                      {deployment.buildCommand || 'npm run build'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    {getSourceIcon(deployment.sourceType)}
-                    <span className="text-xs text-muted-foreground">
-                      {getSourceTypeLabel(deployment.sourceType)}
-                    </span>
-                  </div>
-                  <Badge variant={getStatusVariant(deployment.status)}>{getStatusLabel(deployment.status)}</Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {deployment.isDryRun && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                    <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                      Test Build (Dry-Run)
-                    </span>
-                  </div>
-                </div>
-              )}
-              {deployment.pureAssets && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
-                    <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
-                      Pure Assets (No Build)
-                    </span>
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-4 text-sm">
+
                 <div>
-                  <p className="text-muted-foreground text-xs font-medium">Duration</p>
-                  <p className="font-semibold">{formatDuration(deployment.durationMs)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs font-medium">Build</p>
-                  <p className="font-mono text-xs bg-muted px-2 py-1 rounded truncate">
-                    {deployment.buildCommand || 'npm run build'}
+                  <p className="text-muted-foreground text-xs font-medium mb-1">Status Reason</p>
+                  <p className="text-sm truncate" title={deployment.statusReason}>
+                    {deployment.statusReason || 'No additional information'}
                   </p>
                 </div>
-              </div>
 
-              <div>
-                <p className="text-muted-foreground text-xs font-medium mb-1">Status Reason</p>
-                <p className="text-sm truncate" title={deployment.statusReason}>
-                  {deployment.statusReason || 'No additional information'}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-muted-foreground text-xs font-medium mb-1">Created</p>
-                <p className="text-sm">
-                  {new Date(deployment.createdAt).toLocaleString()}
-                </p>
-              </div>
-
-              {deployment.deployedAt && (
                 <div>
-                  <p className="text-muted-foreground text-xs font-medium mb-1">Deployed</p>
+                  <p className="text-muted-foreground text-xs font-medium mb-1">Created</p>
                   <p className="text-sm">
-                    {new Date(deployment.deployedAt).toLocaleString()}
+                    {new Date(deployment.createdAt).toLocaleString()}
                   </p>
                 </div>
-              )}
 
-              {deployment.redeployedFromId && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border/50">
-                  <RotateCcw className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
+                {deployment.deployedAt && (
+                  <div>
+                    <p className="text-muted-foreground text-xs font-medium mb-1">Deployed</p>
+                    <p className="text-sm">
+                      {new Date(deployment.deployedAt).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {deployment.redeployedFromId && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border border-border/50">
+                    <RotateCcw className="h-3 w-3 text-muted-foreground"/>
+                    <span className="text-xs text-muted-foreground">
                     Redeployed from{' '}
-                    <span className="font-mono">{deployment.redeployedFromId.slice(0, 7)}</span>
+                      <span className="font-mono">{deployment.redeployedFromId.slice(0, 7)}</span>
                   </span>
-                </div>
-              )}
+                  </div>
+                )}
 
-              <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigate(`/panel/deployment/${deployment.id}`)
-                  }}
-                  className="flex items-center gap-1 text-xs hover:bg-primary/10"
-                >
-                  <Eye className="h-3 w-3"/>
-                    View
-                  </Button>
-                  {(deployment.sourceType === 'GIT' || deployment.sourceType === 'URL') && (
+                <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                  <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={(e) => handleRedeploy(e, deployment.id)}
-                      disabled={isRedeploying || redeployingId === deployment.id}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/panel/deployment/${deployment.id}`)
+                      }}
                       className="flex items-center gap-1 text-xs hover:bg-primary/10"
                     >
-                      <RotateCcw className={`h-3 w-3 ${redeployingId === deployment.id ? 'animate-spin' : ''}`}/>
-                      Redeploy
-                </Button>
+                      <Eye className="h-3 w-3"/>
+                      View
+                    </Button>
+                    {(deployment.sourceType === 'GIT' || deployment.sourceType === 'URL') && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleRedeploy(e, deployment.id, deployment.canisterId)}
+                        disabled={isRedeploying || redeployingId === deployment.id}
+                        className="flex items-center gap-1 text-xs hover:bg-primary/10"
+                      >
+                        <RotateCcw className={`h-3 w-3 ${redeployingId === deployment.id ? 'animate-spin' : ''}`}/>
+                        Redeploy
+                      </Button>
+                    )}
+                  </div>
+                  {deployment.buildServiceJobId && (
+                    <Badge variant="outline" className="text-xs font-mono">
+                      {deployment.buildServiceJobId.slice(0, 14)}
+                    </Badge>
                   )}
                 </div>
-                {deployment.buildServiceJobId && (
-                  <Badge variant="outline" className="text-xs font-mono">
-                    {deployment.buildServiceJobId.slice(0, 14)}
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )})}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Empty State */}

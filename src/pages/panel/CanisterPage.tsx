@@ -40,12 +40,11 @@ import { getStatusProxyActor, statusProxyCanisterId, } from "../../api/status-pr
 import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { WithdrawCyclesModal } from "../../components/panel/WithdrawCyclesModal";
 import { useTCycles } from "../../hooks/useTCycles";
-import { getAssetStorageActor } from "../../api/asset-storage";
 import { backendCanisterId, getBackendActor } from "../../api/backend";
 import { BurnInfo } from "../components/BurnInfo.tsx";
 import { isAssetCanister, supportsCyclesWithdrawal } from "../../constants/knownHashes.ts";
 import { Canister } from "../../types";
-import { withdrawCycles, depositTCyclesToSelf } from "../../hooks/useWithdrawCycles";
+import { depositTCyclesToSelf, withdrawCycles } from "../../hooks/useWithdrawCycles";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
   const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canisterId);
@@ -448,15 +447,6 @@ export function CanisterPage() {
       setIsImmutabilityActionLoading(true);
       const actor = await getStatusProxyActor();
       await actor.undoImmutability(Principal.fromText(icCanisterId));
-      const assetCanister = await getAssetStorageActor(icCanisterId);
-      try {
-        await assetCanister.grant_permission({
-          permission: { Commit: null },
-          to_principal: Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL),
-        });
-      } catch (_) {
-        // pass
-      }
       toast.success("Immutability undone", "Canister is mutable again.");
       setIsImmutableInDebugMode(false);
       await fetchCanister();

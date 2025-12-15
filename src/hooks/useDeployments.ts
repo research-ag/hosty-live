@@ -1,6 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deploymentsApi } from '../services/api'
 import type { ApiDeployment, Deployment, DeploymentStatus, SourceType } from '../types'
+import { getAssetStorageActor } from "../api/asset-storage";
+import { Principal } from "@icp-sdk/core/principal";
 
 // Simple conversion from API response to typed deployment
 // No transformation - just type safety
@@ -46,7 +48,7 @@ export function useDeployments() {
     queryFn: async () => {
       console.log('🚀 [useDeployments.queryFn] Starting fetch...')
       const response = await deploymentsApi.listDeployments()
-      
+
       console.log('📦 [useDeployments.queryFn] API response:', {
         success: response.success,
         error: response.error,
@@ -56,7 +58,7 @@ export function useDeployments() {
           deploymentsLength: response.deployments?.length,
         } : 'no data'
       })
-      
+
       if (response.success && response.deployments && Array.isArray(response.deployments)) {
         console.log('✅ [useDeployments.queryFn] Converting deployments...')
         const deployments = response.deployments.map(toDeployment)
@@ -114,6 +116,14 @@ export function useDeployments() {
     },
   })
 
+  const grantBackendCommitPermission = async (canisterId: string) => {
+    const assets = await getAssetStorageActor(canisterId)
+    await assets.grant_permission({
+      permission: { Commit: null },
+      to_principal: Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL),
+    })
+  }
+
   // Deploy to canister function
   const deployToCanister = async (data: {
     canisterId: string;
@@ -125,6 +135,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
+      await grantBackendCommitPermission(data.canisterId);
       const result = await uploadDeploymentMutation.mutateAsync({
         canisterId: data.canisterId,
         zipFile: data.file,
@@ -134,10 +145,14 @@ export function useDeployments() {
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets
       })
-      return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
+      return {
+        success: result.success,
+        error: result.error,
+        data: result.deploymentId ? { id: result.deploymentId } : null
+      }
     } catch (err) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: err instanceof Error ? err.message : 'Failed to deploy'
       }
     }
@@ -155,6 +170,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
+      await grantBackendCommitPermission(data.canisterId);
       const result = await uploadDeploymentGitMutation.mutateAsync({
         canisterId: data.canisterId,
         gitRepoUrl: data.gitRepoUrl,
@@ -165,10 +181,14 @@ export function useDeployments() {
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets
       })
-      return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
+      return {
+        success: result.success,
+        error: result.error,
+        data: result.deploymentId ? { id: result.deploymentId } : null
+      }
     } catch (err) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: err instanceof Error ? err.message : 'Failed to deploy from Git'
       }
     }
@@ -185,6 +205,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
+      await grantBackendCommitPermission(data.canisterId);
       const result = await uploadDeploymentUrlMutation.mutateAsync({
         canisterId: data.canisterId,
         zipUrl: data.archiveUrl,
@@ -194,23 +215,36 @@ export function useDeployments() {
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets
       })
-      return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
+      return {
+        success: result.success,
+        error: result.error,
+        data: result.deploymentId ? { id: result.deploymentId } : null
+      }
     } catch (err) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: err instanceof Error ? err.message : 'Failed to deploy from URL'
       }
     }
   }
 
   // Redeploy an existing deployment
-  const redeploy = async (deploymentId: string): Promise<{ success: boolean; error?: string; data?: any }> => {
+  const redeploy = async (deploymentId: string, canisterId: string): Promise<{
+    success: boolean;
+    error?: string;
+    data?: any
+  }> => {
     try {
+      await grantBackendCommitPermission(canisterId);
       const result = await redeployMutation.mutateAsync(deploymentId)
-      return { success: result.success, error: result.error, data: result.deploymentId ? { id: result.deploymentId } : null }
+      return {
+        success: result.success,
+        error: result.error,
+        data: result.deploymentId ? { id: result.deploymentId } : null
+      }
     } catch (err) {
-      return { 
-        success: false, 
+      return {
+        success: false,
         error: err instanceof Error ? err.message : 'Failed to redeploy'
       }
     }
@@ -245,16 +279,16 @@ export function useDeployment(deploymentId?: string) {
     queryKey: ['deployment', deploymentId],
     queryFn: async () => {
       if (!deploymentId) throw new Error('Deployment ID is required')
-      
+
       console.log('🔍 [useDeployment.queryFn] Starting fetch for deployment:', deploymentId)
       const response = await deploymentsApi.getDeployment(deploymentId)
-      
+
       console.log('📦 [useDeployment.queryFn] API response:', {
         success: response.success,
         error: response.error,
         hasDeployment: !!response.deployment
       })
-      
+
       if (response.success && response.deployment) {
         console.log('✅ [useDeployment.queryFn] Converting deployment...')
         const deployment = toDeployment(response.deployment)
