@@ -3,12 +3,16 @@
 ## Overview
 
 Hosty.live is a tool that makes hosting static web apps on the Internet Computer extremely easy.
-From within your browser you start by creating a hosting canister. Then you paste a GitHub repo URL where the frontapp source code lives. The hosty.live backend will build the assets and upload them into your canister, and your web app is live! You can also configure custom domains from within the tool.
+From within your browser you start by creating a hosting canister. Then you paste a GitHub repo URL where the frontapp
+source code lives. The hosty.live backend will build the assets and upload them into your canister, and your web app is
+live! You can also configure custom domains from within the tool.
 
 ## Motivation
 
-Whether the developers of a static web app are human or AI, the source code will in most cases end up on GitHub or is easily exported there. 
-Once it is on GitHub hosty.live comes in and makes all the remaining steps easy: building, deploying, hosting. No knowledge of the IC, no tokens, no command line are required.
+Whether the developers of a static web app are human or AI, the source code will in most cases end up on GitHub or is
+easily exported there.
+Once it is on GitHub hosty.live comes in and makes all the remaining steps easy: building, deploying, hosting. No
+knowledge of the IC, no tokens, no command line are required.
 
 ## How it works
 
@@ -23,11 +27,13 @@ The components are:
 
 #### Frontend
 
-The frontend requires login with Internet Identity. The principal from II controls a built-in cycle wallet, controls canisters and performs canister management actions directly from the frontend.
+The frontend requires login with Internet Identity. The principal from II controls a built-in cycle wallet, controls
+canisters and performs canister management actions directly from the frontend.
 
 #### Backend
 
-The web2 backend is a build system that can take frontend source code from a zip file or a GitHub URL, build the assets, and upload them into an asset canister.
+The web2 backend is a build system that can take frontend source code from a zip file or a GitHub URL, build the assets,
+and upload them into an asset canister.
 
 The web2 backend also registers custom domains and queries DNS records for the user.
 
@@ -35,17 +41,20 @@ The web2 backend also registers custom domains and queries DNS records for the u
 
 The status proxy is a blackhole canister which is added as an additional controller to all hosting canisters.
 Firstly, it makes the cycle balance visible to the public.
-Secondly, it has the ability to make asset canisters completely immutable by removing all other controllers and removing all commit permissions inside the asset canister.
+Secondly, it has the ability to make asset canisters completely immutable by removing all other controllers and removing
+all commit permissions inside the asset canister.
 
 #### Auth canister
 
-The auth canister provides an elegant way to allow an II principal to log into a web2 backend. The frontend creates an epheremal secret and uploads the hash of it into the auth canister.
+The auth canister provides an elegant way to allow an II principal to log into a web2 backend. The frontend creates an
+epheremal secret and uploads the hash of it into the auth canister.
 The web2 backend queries the auth canister to verify the presence of the hash.
 
 ### Cycle wallet
 
 The frontend has a self-custodial cycle wallet built in.
-It can be funded via credit card through an integration with cycle.express or via a transfer of TCYCLES to the II principal.
+It can be funded via credit card through an integration with cycle.express or via a transfer of TCYCLES to the II
+principal.
 
 They cycles wallet can be used to create new canisters or to top up existing canisters.
 
@@ -53,11 +62,12 @@ Note: There is currently no withdrawal from the cycle wallet.
 
 ### Canister creation
 
-Canisters are created directly from the frontend and are given two controllers: the frontend (II principal) and the status proxy.
+Canisters are created directly from the frontend and are given two controllers: the frontend (II principal) and the
+status proxy.
 
 ### Gifted canister
 
-The hosty.live backend provides one canister for free as a gift to each user principal. 
+The hosty.live backend provides one canister for free as a gift to each user principal.
 This is done so that users can start the experience even before they obain any cycles.
 
 ### Deployment
@@ -78,14 +88,16 @@ If the already built assets are in the root directory then `./` can be entered a
 
 The web2 backend authenticates users by their II principal.
 This works as follows.
-After II login is complete, 
+After II login is complete,
 the frontend creates an ephermal secret and uploads a hash of it to the auth canister.
 For this, the auth canister has one slot to store a blob for each calling principal.
-The frontend establishes a connection to the web2 backend and requests login by providing its principal and the ephemeral secret.
+The frontend establishes a connection to the web2 backend and requests login by providing its principal and the
+ephemeral secret.
 The web2 backend then hashes the secret and queries the principal's data slot in the auth canister.
 If they match then login is granted and the web2 backend issues a JWT and returns it to the frontend.
 
-This process has the advantage that login is performed in a single request from the frontend, just like if email/password were used.
+This process has the advantage that login is performed in a single request from the frontend, just like if
+email/password were used.
 A challenge-response protocol with a server-generated challenge would be more complicated.
 
 Another advantage is that the web2 backend does not have to understand delegation chains.
@@ -93,7 +105,8 @@ Another advantage is that the web2 backend does not have to understand delegatio
 ### Custom domains
 
 Custom domains can be registered with great convenience.
-The user enters the desired custom domain and hosty.live will dynamically generate the exact DNS records that need to be created.
+The user enters the desired custom domain and hosty.live will dynamically generate the exact DNS records that need to be
+created.
 The user can copy-paste the values from the frontend into the registrar's configuration.
 Then hosty.live will check in real-time if the records are all configured correctly.
 It will also report when the updated records have propagated to Google's DNS servers.
@@ -102,8 +115,9 @@ Hosty.live will perform the necessary call in the background.
 
 ### Changing ownership and sole custody
 
-Additional controllers can be added to the individual hosting canisters. 
-For example, after an initial phase of operating under hosty.live an advanced user may decide to take sole custody of a hosting canister.
+Additional controllers can be added to the individual hosting canisters.
+For example, after an initial phase of operating under hosty.live an advanced user may decide to take sole custody of a
+hosting canister.
 The user can add a dfx principal through the frontend and then use dfx to remove all other controllers.
 
 ### Immutable canisters
@@ -116,9 +130,11 @@ The status proxy then removes all other controllers except itself
 and also removes all other permissions inside the asset canister.
 The status proxy remains a controller so that the hosting canister's cycle balance remains publicly visible.
 
-With the immutability feature, sole custody is no longer needed. Instead, a hosting canister can transition directly from being on hosty.live to being immutable. 
+With the immutability feature, sole custody is no longer needed. Instead, a hosting canister can transition directly
+from being on hosty.live to being immutable.
 
-Note: In order to allow experimentation with this feature without wasting canisters, the immutability feature of the status proxy can be called in debug mode.
+Note: In order to allow experimentation with this feature without wasting canisters, the immutability feature of the
+status proxy can be called in debug mode.
 In this case, the status proxy will save the previous controller list and will allow to revert the action.
 
 Note: Currently, the status proxy is not actually blackholed.
@@ -126,7 +142,8 @@ This is because we are at the hackathon stage and intend to still add more featu
 
 ### Public page
 
-Each canister created by hosty.live also has a public page. Its URL can be obtained by the owner by clicking on the "Share" button.
+Each canister created by hosty.live also has a public page. Its URL can be obtained by the owner by clicking on the "
+Share" button.
 If this URL is published then anyone can see information about the canister such as, for example, the cycle balance.
 This is mainly done so that immutable canisters can be monitored and topped-up by the public.
 
@@ -137,17 +154,23 @@ This is mainly done so that immutable canisters can be monitored and topped-up b
 Here is a list of GitHub repo URLs that can be used to try out deployment.
 Note that you can deploy the hosty.live frontend itself through hosty.live into your own canister.
 
-|URL|branch|build command|output directory|comment|
-|---|---|---|---|---|
-|https://github.com/research-ag/hosty-live|main|npm run build|dist|Hosty.live frontend itself!|
-|https://github.com/research-ag/wallet|main|npm run build|dist|ICRC-1 web wallet|
-|https://github.com/itkrivoshei/Vanilla-Js-ToDoList.git|main|true|./|pure assets, no building|
+| URL                                                    | branch | build command | output directory | comment                     |
+|--------------------------------------------------------|--------|---------------|------------------|-----------------------------|
+| https://github.com/research-ag/hosty-live              | main   | npm run build | dist             | Hosty.live frontend itself! |
+| https://github.com/research-ag/wallet                  | main   | npm run build | dist             | ICRC-1 web wallet           |
+| https://github.com/itkrivoshei/Vanilla-Js-ToDoList.git | main   | true          | ./               | pure assets, no building    |
 
 ### Archive URLs
 
 Here is a list of Archive URLs that can be used to try out deployment.
 
-|URL|build command|output directory|comment|
-|---|---|---|---|
-|https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.zip|npm run build|dist|ICRC-1 web wallet|
-|https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.tar.gz|npm run build|dist|ICRC-1 web wallet|
+| URL                                                                                             | build command | output directory                                                          | comment                    |
+|-------------------------------------------------------------------------------------------------|---------------|---------------------------------------------------------------------------|----------------------------|
+| https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.zip                          | npm run build | dist                                                                      | ICRC-1 web wallet          |
+| https://github.com/research-ag/wallet/archive/refs/tags/test-0.0.1.tar.gz                       | npm run build | dist                                                                      | ICRC-1 web wallet          |
+| https://github.com/aribudin/tailmater/archive/refs/tags/v1.0.0.zip                              | -             | tailmater-1.0.0                                                           | Tailmater UI Kit           |
+| https://github.com/dawidolko/Website-Templates/archive/refs/tags/%23fresh.zip                   | -             | Website-Templates--fresh/reveal                                           | Website example            |
+| https://github.com/dawidolko/Website-Templates/archive/refs/tags/%23fresh.zip                   | -             | Website-Templates--fresh/webtrends-free-bootstrap-responsive-web-template | Responsive website example |
+| https://github.com/dawidolko/Website-Templates/archive/refs/tags/%23fresh.zip                   | -             | Website-Templates--fresh/smartapp-free-html5-landing-page                 | Smart app landing page     |
+| https://github.com/StartBootstrap/startbootstrap-sb-admin/archive/refs/tags/v7.0.7.zip          | -             | dist                                                                      | Admin app                  |
+| https://github.com/StartBootstrap/startbootstrap-stylish-portfolio/archive/refs/tags/v6.0.6.zip | -             | dist                                                                      | Portfolio website          |
