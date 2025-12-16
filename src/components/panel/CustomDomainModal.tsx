@@ -42,6 +42,8 @@ interface CustomDomainModalProps {
 
 type TabType = "configure" | "register";
 
+type DnsProvider = "cloudflare" | "route53" | "google" | "other";
+
 const getDomainParts = (domain: string) => {
   if (!domain) return { isApex: false, subdomain: null, baseDomain: domain };
 
@@ -78,6 +80,9 @@ export function CustomDomainModal({
     isOwnCanister: boolean;
   } | null>(null);
   const [isCheckingRegistration, setIsCheckingRegistration] = useState(false);
+
+  // DNS Provider selection
+  const [dnsProvider, setDnsProvider] = useState<DnsProvider>("cloudflare");
 
   // Cloudflare auto-configure state
   const [showCloudflare, setShowCloudflare] = useState(false);
@@ -512,26 +517,88 @@ export function CustomDomainModal({
             <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4">
               <div className="flex items-start gap-2">
                 <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                <div className="text-sm text-blue-700 dark:text-blue-300">
+                <div className="text-sm text-blue-700 dark:text-blue-300 w-full">
                   <p className="font-medium mb-2">Configure DNS Records</p>
-                  <p className="mb-2">
-                    Add these 3 DNS records in your domain provider. Cloudflare
-                    recommended: faster propagation + global DNS resolution.
+                  <p className="mb-3">
+                    Add these 3 DNS records in your DNS provider. Select your provider below to see tailored steps.
                   </p>
-                  <ul className="space-y-1 text-xs ml-4 mb-3">
-                    <li>
-                      • <strong>Cloudflare:</strong> Set Proxy Status to "DNS
-                      only" for all records
-                    </li>
-                    <li>
-                      • TXT value format:{" "}
-                      <code className="bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded">
-                        "canister-id"
-                      </code>{" "}
-                      (with quotes)
-                    </li>
-                  </ul>
-                  <p className="text-xs">
+
+                  {/* Provider selector */}
+                  <div className="flex rounded-md border bg-white/60 dark:bg-slate-900/40 overflow-hidden w-full max-w-xl mb-3">
+                    {(
+                      [
+                        { id: "cloudflare", label: "Cloudflare" },
+                        { id: "route53", label: "AWS Route 53" },
+                        { id: "google", label: "Google Cloud DNS" },
+                        { id: "other", label: "Other" },
+                      ] as { id: DnsProvider; label: string }[]
+                    ).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setDnsProvider(p.id)}
+                        className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                          dnsProvider === p.id
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-muted/60"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Provider-specific instructions */}
+                  {dnsProvider === "cloudflare" && (
+                    <div className="text-xs space-y-1.5">
+                      <p className="font-medium">Cloudflare</p>
+                      <ol className="list-decimal ml-4 space-y-1.5">
+                        <li>Open your zone in Cloudflare Dashboard → DNS.</li>
+                        <li>Create the 3 records shown below (CNAME alias, CNAME for _acme-challenge, and TXT for canister-id).</li>
+                        <li>Set Proxy Status to <strong>DNS only</strong> for both CNAME records (disable orange cloud).</li>
+                        <li>Click "Check DNS" below to verify propagation, then proceed to Register.</li>
+                      </ol>
+                    </div>
+                  )}
+                  {dnsProvider === "route53" && (
+                    <div className="text-xs space-y-1.5">
+                      <p className="font-medium">AWS Route 53</p>
+                      <ol className="list-decimal ml-4 space-y-1.5">
+                        <li>Open Route 53 → Hosted zones → select your zone.</li>
+                        <li>Create a <strong>CNAME</strong> record for the domain (or subdomain) pointing to the alias value shown below. For apex domains, Route 53 supports CNAME-like behavior via alias/flattening — a standard CNAME also works when not using AWS load balancers.</li>
+                        <li>Create a <strong>CNAME</strong> record for <code>_acme-challenge</code> pointing to the ACME target shown below.</li>
+                        <li>Create a <strong>TXT</strong> record with name shown below and value <code>"canister-id"</code> (include the quotes).</li>
+                        <li>Routing policy: <em>Simple</em>. TTL: e.g. 60s–300s.</li>
+                        <li>Click "Check DNS" below to verify propagation, then proceed to Register.</li>
+                      </ol>
+                    </div>
+                  )}
+                  {dnsProvider === "google" && (
+                    <div className="text-xs space-y-1.5">
+                      <p className="font-medium">Google Cloud DNS</p>
+                      <ol className="list-decimal ml-4 space-y-1.5">
+                        <li>Open Cloud DNS → Managed zones → select your zone.</li>
+                        <li>Add a <strong>CNAME</strong> record for your domain (or subdomain) pointing to the alias value shown below.</li>
+                        <li>Add a <strong>CNAME</strong> record for <code>_acme-challenge</code> pointing to the ACME target shown below.</li>
+                        <li>Add a <strong>TXT</strong> record with name shown below and value <code>"canister-id"</code> (include the quotes).</li>
+                        <li>TTL: e.g. 60s–300s. Propagation may take several minutes.</li>
+                        <li>Click "Check DNS" below to verify propagation, then proceed to Register.</li>
+                      </ol>
+                    </div>
+                  )}
+                  {dnsProvider === "other" && (
+                    <div className="text-xs space-y-1.5">
+                      <p className="font-medium">Other providers</p>
+                      <ol className="list-decimal ml-4 space-y-1.5">
+                        <li>Create the 3 records shown below exactly as displayed.</li>
+                        <li>Ensure no proxy/CDN is enabled for the CNAME records (they must resolve directly).</li>
+                        <li>Keep the TXT value wrapped in quotes: <code>"canister-id"</code>.</li>
+                        <li>After saving, use "Check DNS" below to confirm propagation before registering.</li>
+                      </ol>
+                    </div>
+                  )}
+
+                  <p className="text-xs mt-3">
                     <a
                       href="https://internetcomputer.org/docs/current/developer-docs/web-apps/custom-domains/using-custom-domains"
                       target="_blank"
@@ -658,6 +725,7 @@ export function CustomDomainModal({
             </div>
 
             {/* Cloudflare Auto-Configure Section */}
+            {dnsProvider === "cloudflare" && (
             <div className="border rounded-lg overflow-hidden">
               <button
                 type="button"
@@ -841,7 +909,8 @@ export function CustomDomainModal({
                 </div>
               )}
             </div>
-
+            )}
+            
             {showDnsCheck && domain && isValidDomain(domain) && (
               <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/50 rounded-lg p-4">
                 <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
