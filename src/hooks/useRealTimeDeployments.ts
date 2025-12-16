@@ -52,8 +52,11 @@ function toDeployment(apiDeployment: ApiDeployment): Deployment {
     builtAssetsUrl: apiDeployment.builtAssetsUrl,
     durationMs: apiDeployment.durationMs,
     deployedAt: apiDeployment.deployedAt,
+    redeployedFromId: apiDeployment.redeployedFromId,
     createdAt: apiDeployment.createdAt,
     updatedAt: apiDeployment.updatedAt,
+    isDryRun: apiDeployment.isDryRun,
+    pureAssets: apiDeployment.pureAssets
   };
 }
 

@@ -329,12 +329,12 @@ export function DeploymentsPage() {
                     <p className="text-muted-foreground text-xs font-medium">Duration</p>
                     <p className="font-semibold">{formatDuration(deployment.durationMs)}</p>
                   </div>
-                  <div>
+                  {!deployment.pureAssets && <div>
                     <p className="text-muted-foreground text-xs font-medium">Build</p>
                     <p className="font-mono text-xs bg-muted px-2 py-1 rounded truncate">
                       {deployment.buildCommand || 'npm run build'}
                     </p>
-                  </div>
+                  </div>}
                 </div>
 
                 <div>
