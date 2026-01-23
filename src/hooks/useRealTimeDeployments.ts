@@ -13,7 +13,7 @@ import type {
 function getWebSocketUrl(): string {
   let apiBase =
     (import.meta as any).env?.VITE_HOSTY_API_BASE ||
-    "https://mrresearch.xyz/hosty-live-api";
+    "https://api.hosty.live";
 
   apiBase = apiBase.replace(/\/api\/?$/, "");
   apiBase = apiBase.replace(/\/hosty-live-api\/?$/, "");

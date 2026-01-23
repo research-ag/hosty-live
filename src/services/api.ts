@@ -6,7 +6,7 @@ import { getBackendActor } from "../api/backend";
 import { isValidDomain } from "../utils/domains.ts";
 
 const API_BASE = `${
-  import.meta.env.VITE_HOSTY_API_BASE || "https://mrresearch.xyz/hosty-live-api"
+  import.meta.env.VITE_HOSTY_API_BASE || "https://api.hosty.live"
 }`;
 
 // Token storage keys
