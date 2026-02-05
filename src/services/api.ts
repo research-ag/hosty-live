@@ -184,11 +184,10 @@ export const customDomainApi = {
     }
   },
 
-  // Add or update custom domain (upload ic-domains + register/update with IC)
+  // Add or update custom domain (upload ic-domains + conditionally register/update with IC)
   async addDomain(
     canisterId: string,
-    domain: string,
-    isUpdate: boolean = false
+    domain: string
   ): Promise<{
     success: boolean;
     error?: string;
@@ -202,7 +201,7 @@ export const customDomainApi = {
       };
     }
     try {
-      // STEP 1: Upload ic-domains file
+      // STEP 1: Upload ic-domains file (idempotent)
       const uploadResult = await this.uploadIcDomainsFile(canisterId, domain);
       if (!uploadResult.success) {
         return {
@@ -211,33 +210,110 @@ export const customDomainApi = {
         };
       }
 
-      // STEP 2: Wait for boundary node propagation (2 seconds is sufficient)
+      // STEP 2: Wait briefly for boundary nodes to notice the new ic-domains file
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // STEP 3: Register or update domain with IC
-      const method = isUpdate ? "PATCH" : "POST";
-      console.log(`📝 ${isUpdate ? "Updating" : "Registering"} domain with IC...`);
-      const response = await fetch(
-        `https://icp0.io/custom-domains/v1/${domain}`,
-        { method }
-      );
+      // STEP 3: Read current ICP Custom Domains status to decide next steps
+      let icStatus: string | undefined;
+      let icCanisterId: string | undefined;
+      try {
+        const preCheck = await fetch(`https://icp0.io/custom-domains/v1/${domain}`);
+        if (preCheck.ok) {
+          const preData = await preCheck.json();
+          icStatus = preData?.data?.registration_status;
+          icCanisterId = preData?.data?.canister_id;
+        }
+      } catch (e) {
+        // Ignore and proceed as unknown status
+      }
+
+      const sameOwner = icCanisterId === canisterId;
+
+      // STEP 4: Act only on what is necessary based on flags
+      if (icStatus === "registering") {
+        // Another task is already in progress. Do not POST/PATCH again.
+        console.log("⏳ ICP registration is in progress. Skipping ICP call.");
+        // If it's already targeting this canister, we can safely sync backend now (optional)
+        if (sameOwner) {
+          try {
+            const backend = await getBackendActor();
+            await backend.updateCanister(Principal.fromText(canisterId), {
+              alias: [],
+              description: [],
+              frontendUrl: [domain],
+            });
+            console.log("✅ Backend synced while ICP task is in progress");
+          } catch (e) {
+            console.warn("⚠️ Failed to sync backend while ICP task in progress", e);
+          }
+        }
+        return {
+          success: true,
+          domain,
+          registrationStatus: "registering",
+        };
+      }
+
+      if (icStatus === "registered") {
+        if (sameOwner) {
+          // Already registered to this canister; just ensure backend is synced
+          console.log("🔁 Domain already registered to this canister. Syncing backend only...");
+          const backend = await getBackendActor();
+          await backend.updateCanister(Principal.fromText(canisterId), {
+            alias: [],
+            description: [],
+            frontendUrl: [domain],
+          });
+          console.log("✅ Backend updated");
+          return {
+            success: true,
+            domain,
+            registrationStatus: "registered",
+          };
+        } else {
+          return {
+            success: false,
+            error:
+              `DNS mismatch: Domain is registered to ${icCanisterId}, not this canister. ` +
+              `Update your _canister-id TXT record to "${canisterId}" and try again.`,
+          };
+        }
+      }
+
+      // If we reached here, domain is not registered yet according to ICP → perform registration
+      console.log("📝 Registering domain with IC...");
+      const response = await fetch(`https://icp0.io/custom-domains/v1/${domain}`, {
+        method: "POST",
+      });
 
       if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ errors: "Unknown error" }));
+        let errorMsg = "Unknown error";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.errors || errorData.message || errorMsg;
+        } catch (_) {
+          // ignore
+        }
+        // Treat conflicts/in-progress as a non-fatal registering state
+        const lower = (errorMsg || "").toLowerCase();
+        if (response.status === 409 || lower.includes("conflict") || lower.includes("in progress")) {
+          console.warn("⚠️ ICP reported conflict/in-progress. Marking as registering and skipping.");
+          return {
+            success: true,
+            domain,
+            registrationStatus: "registering",
+          };
+        }
         return {
           success: false,
-          error: `Domain ${isUpdate ? "update" : "registration"} failed: ${
-            errorData.errors || errorData.message
-          }`,
+          error: `Domain registration failed: ${errorMsg}`,
         };
       }
 
       const result = await response.json();
-      console.log(`✅ Domain ${isUpdate ? "updated" : "registered"} with IC`);
+      console.log("✅ Domain registered with IC");
 
-      // STEP 4: Update backend database
+      // STEP 5: Update backend database
       console.log("💾 Updating backend database...");
       const backend = await getBackendActor();
       await backend.updateCanister(Principal.fromText(canisterId), {

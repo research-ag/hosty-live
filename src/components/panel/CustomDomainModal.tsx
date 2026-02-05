@@ -392,7 +392,6 @@ export function CustomDomainModal({
       const result = await customDomainApi.addDomain(
         canister.id,
         registerDomain,
-        isUpdate
       );
 
       if (!result.success) {
