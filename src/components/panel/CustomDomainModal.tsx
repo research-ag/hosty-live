@@ -219,7 +219,7 @@ export function CustomDomainModal({
           const isOwnCanister = result.data.canisterId === canister.id;
           setDomainRegistrationInfo({
             isRegistered: true,
-            registeredCanisterId: result.data.canisterId,
+            registeredCanisterId: result.data.canisterId || null,
             isOwnCanister,
           });
         } else {
