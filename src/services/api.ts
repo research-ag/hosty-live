@@ -221,7 +221,7 @@ export const customDomainApi = {
         `https://icp0.io/custom-domains/v1/${domain}`,
         { method }
       );
-      
+
       if (!response.ok) {
         const errorData = await response
           .json()
@@ -233,10 +233,10 @@ export const customDomainApi = {
           }`,
         };
       }
-      
+
       const result = await response.json();
       console.log(`✅ Domain ${isUpdate ? "updated" : "registered"} with IC`);
-      
+
       // STEP 4: Update backend database
       console.log("💾 Updating backend database...");
       const backend = await getBackendActor();
@@ -246,7 +246,7 @@ export const customDomainApi = {
         frontendUrl: [domain],
       });
       console.log("✅ Backend updated");
-      
+
       return {
         success: true,
         domain: result.data?.domain,
@@ -271,22 +271,63 @@ export const customDomainApi = {
         const errorData = await response
           .json()
           .catch(() => ({ errors: "Registration not found" }));
-        return { 
-          success: false, 
+        return {
+          success: false,
           error:
             errorData.errors || errorData.message || "Registration not found",
         };
       }
 
       const data = await response.json();
-      return { 
-        success: true, 
-        data: {
-          domain: data.data?.domain,
-          canisterId: data.data?.canister_id,
-          status: data.data?.registration_status,
-          message: data.message,
-        },
+      const payload: {
+        domain?: string;
+        canisterId?: string;
+        status?: string;
+        message?: string;
+      } = {
+        domain: data.data?.domain,
+        canisterId: data.data?.canister_id,
+        status: data.data?.registration_status,
+        message: data.message,
+      };
+      if (payload.canisterId && payload.status === "registered") {
+        try {
+          const backend = await getBackendActor();
+          const info = await backend.getCanister(Principal.fromText(payload.canisterId));
+          const normalizeUrl = (val?: string) =>
+            (val || "")
+              .toLowerCase()
+              .trim()
+              .replace(/^https?:\/\//, "")
+              .replace(/\/$/, "");
+          if (normalizeUrl(domain) !== normalizeUrl(info.frontendUrl)) {
+            return {
+              success: true,
+              data: {
+                ...payload,
+                status: undefined,
+                message:
+                  payload.message ||
+                  "Domain registered in IC, but backend frontendUrl is not in sync.",
+              },
+            };
+          }
+        } catch (e) {
+          return {
+            success: true,
+            data: {
+              ...payload,
+              status: undefined,
+              message:
+                payload.message ||
+                "Unable to verify frontendUrl on a backend canister.",
+            },
+          };
+        }
+      }
+      return {
+        success: true,
+        data: payload,
       };
     } catch (err) {
       return {
@@ -310,15 +351,15 @@ export const customDomainApi = {
         const errorData = await response
           .json()
           .catch(() => ({ errors: "Failed to remove domain" }));
-        return { 
-          success: false, 
+        return {
+          success: false,
           error:
             errorData.errors || errorData.message || "Failed to remove domain",
         };
       }
 
       const data = await response.json();
-      return { 
+      return {
         success: true,
         message: data.message,
       };
@@ -535,7 +576,7 @@ export const deploymentsApi = {
       const formData = new FormData();
       formData.append("canisterId", data.canisterId);
       formData.append("zip", data.zipFile);
-      
+
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
         if (data.buildCommand) {
@@ -545,7 +586,7 @@ export const deploymentsApi = {
           formData.append("envVars", JSON.stringify(data.envVars));
         }
       }
-      
+
       if (data.outputDir) {
         formData.append("outputDir", data.outputDir);
       }
@@ -615,7 +656,7 @@ export const deploymentsApi = {
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets,
       };
-      
+
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
         if (data.buildCommand) payload.buildCommand = data.buildCommand;
@@ -669,7 +710,7 @@ export const deploymentsApi = {
   }) {
     try {
       const headers = await getAuthHeaders();
-      
+
       // Build payload, omitting build-related fields for pure assets
       const payload: any = {
         canisterId: data.canisterId,
@@ -678,13 +719,13 @@ export const deploymentsApi = {
         isDryRun: data.isDryRun,
         pureAssets: data.pureAssets,
       };
-      
+
       // Only include build-related fields if not pure assets
       if (!data.pureAssets) {
         if (data.buildCommand) payload.buildCommand = data.buildCommand;
         if (data.envVars) payload.envVars = data.envVars;
       }
-      
+
       const response = await fetch(`${API_BASE}/deployments/deploy-url`, {
         method: "POST",
         headers,
