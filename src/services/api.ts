@@ -834,3 +834,53 @@ export const deploymentsApi = {
     }
   },
 };
+
+// API tokens (AI agent access)
+export interface ApiTokenInfo {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+export const API_BASE_URL = API_BASE;
+
+export const tokensApi = {
+  async list(): Promise<ApiTokenInfo[]> {
+    const response = await fetch(`${API_BASE}/tokens`, {
+      headers: await getAuthHeaders(),
+    });
+    checkUnauthorized(response);
+    if (!response.ok) {
+      throw new Error(`Failed to load tokens (HTTP ${response.status})`);
+    }
+    const data = await response.json();
+    return data.tokens as ApiTokenInfo[];
+  },
+
+  async create(name: string): Promise<ApiTokenInfo & { token: string }> {
+    const response = await fetch(`${API_BASE}/tokens`, {
+      method: "POST",
+      headers: await getAuthHeaders(),
+      body: JSON.stringify({ name }),
+    });
+    checkUnauthorized(response);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Failed to create token (HTTP ${response.status})`);
+    }
+    return response.json();
+  },
+
+  async revoke(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE}/tokens/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: await getAuthHeaders(),
+    });
+    checkUnauthorized(response);
+    if (!response.ok) {
+      throw new Error(`Failed to revoke token (HTTP ${response.status})`);
+    }
+  },
+};

@@ -323,14 +323,35 @@ persistent actor class Backend() = self {
     };
   };
 
-  public query ({ caller }) func listCanisters() : async [CanisterInfo] {
-    let ?userCanisterIndices = Map.get(userCanistersMap, Principal.compare, caller) else return [];
+  func listCanisters_(user : Principal) : [CanisterInfo] {
+    let ?userCanisterIndices = Map.get(userCanistersMap, Principal.compare, user) else return [];
     userCanisterIndices
     |> List.values(_)
     |> Iter.map<Nat, CanisterData>(_, func(i) = List.at(canisters, i))
     |> Iter.filter(_, func(c) = Option.isNull(c.deletedAt))
     |> Iter.map<CanisterData, CanisterInfo>(_, freezeCanisterData_)
     |> Iter.toArray(_);
+  };
+
+  public query ({ caller }) func listCanisters() : async [CanisterInfo] {
+    listCanisters_(caller);
+  };
+
+  // Used by the builder (hosty API) to act on behalf of an authenticated user
+  public query func listUserCanisters(user : Principal) : async {
+    owned : [CanisterInfo];
+    rented : ?(CanisterInfo, Nat64);
+  } {
+    let rented = switch (Map.get(profiles, Principal.compare, user)) {
+      case (?p) {
+        switch (p.rentedCanister) {
+          case (?(idx, ts)) ?(freezeCanisterData_(List.at<CanisterData>(canisters, idx)), ts);
+          case (null) null;
+        };
+      };
+      case (null) null;
+    };
+    { owned = listCanisters_(user); rented };
   };
 
   public shared ({ caller }) func registerCanister(cid : Principal) : async CanisterInfo {
@@ -469,9 +490,28 @@ persistent actor class Backend() = self {
     for (f in futures.values()) {
       await f;
     };
+    // builders deploy assets on behalf of users (web UI and AI agents via hosty API)
+    for (builder in CONSTANTS.BUILDER_PRINCIPALS.values()) {
+      await Assets.getAssetActor(cid).grant_permission({
+        permission = #Commit;
+        to_principal = builder;
+      });
+    };
   };
 
   public shared ({ caller }) func rentCanister() : async R.Result<CanisterInfo, Text> {
+    await* rentCanister_(caller);
+  };
+
+  // Used by the builder (hosty API) to rent a free canister on behalf of an authenticated user
+  public shared ({ caller }) func rentCanisterFor(user : Principal) : async R.Result<CanisterInfo, Text> {
+    if (Option.isNull(Array.indexOf(CONSTANTS.BUILDER_PRINCIPALS, Principal.equal, caller))) {
+      throw Error.reject("Permission denied");
+    };
+    await* rentCanister_(user);
+  };
+
+  func rentCanister_(caller : Principal) : async* R.Result<CanisterInfo, Text> {
     let profile = getOrCreateProfile_(caller);
     switch (profile.rentedCanister) {
       case (?_) return #err("Free canister already rented");
