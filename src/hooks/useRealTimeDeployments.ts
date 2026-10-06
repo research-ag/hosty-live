@@ -87,7 +87,7 @@ export function useRealTimeDeployments(
   const queryClient = useQueryClient();
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const isUnmountingRef = useRef(false);
   const optionsRef = useRef(options);
 

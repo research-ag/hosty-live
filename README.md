@@ -118,7 +118,7 @@ Hosty.live will perform the necessary call in the background.
 Additional controllers can be added to the individual hosting canisters.
 For example, after an initial phase of operating under hosty.live an advanced user may decide to take sole custody of a
 hosting canister.
-The user can add a dfx principal through the frontend and then use dfx to remove all other controllers.
+The user can add an icp-cli principal through the frontend and then use `icp canister settings update` to remove all other controllers.
 
 ### Immutable canisters
 

@@ -4,3 +4,12 @@ promtracker = "0.6.0"
 
 [toolchain]
 moc = "0.16.3"
+
+[canisters.status-proxy]
+main = "canisters/src/status-proxy/main.mo"
+
+[canisters.auth]
+main = "canisters/src/auth/main.mo"
+
+[canisters.backend]
+main = "canisters/src/backend/main.mo"

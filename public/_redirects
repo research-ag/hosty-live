@@ -1,0 +1,3 @@
+# SPA fallback (react-router BrowserRouter): serve the shell for any unmatched path.
+# A 200 makes this a rewrite, so deep links survive a fresh load or reload.
+/*  /index.html  200

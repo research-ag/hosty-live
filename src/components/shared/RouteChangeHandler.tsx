@@ -66,7 +66,7 @@ export function RouteChangeHandler() {
       const loadTime = endTime - startTime
       
       // Log route performance in development
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log(`Route ${location.pathname} loaded in ${loadTime.toFixed(2)}ms`)
       }
       

@@ -53,6 +53,6 @@ coverage/
 !public/.well-known/
 !public/.well-known/**
 
-.dfx/
+.icp/cache/
 .idea/
 .mops/

@@ -80,7 +80,7 @@ export function TransferOwnershipModal({
             </h4>
           </div>
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            This adds your IC principal as a controller to the canister, giving you direct access to manage it using IC tools like dfx. You'll be able to deploy and modify the canister independently from this platform.
+            This adds your IC principal as a controller to the canister, giving you direct access to manage it using IC tools like icp-cli. You'll be able to deploy and modify the canister independently from this platform.
           </p>
         </div>
 

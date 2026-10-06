@@ -39,7 +39,7 @@ export function ImportCanisterModal({
 
   const { principal } = useAuth();
 
-  const dfxCmd = `dfx canister --network ic update-settings ${canisterId || '<canister-id>'} --add-controller ${principal || '...'}`
+  const icpCmd = `icp canister settings update ${canisterId || '<canister-id>'} -n ic --add-controller ${principal || '...'}`
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Import existing canister" className="max-w-xl">
@@ -66,13 +66,13 @@ export function ImportCanisterModal({
             Make sure your current II principal is a controller of this canister. If not, add yourself as a controller first:
           </p>
           <div className="bg-muted/50 border rounded-lg p-3 text-xs font-mono break-all select-text">
-            {dfxCmd}
+            {icpCmd}
             <Button
               type="button"
               variant="ghost"
               size="sm"
               className="ml-2 h-6 px-2 inline-flex items-center"
-              onClick={() => copy(dfxCmd)}
+              onClick={() => copy(icpCmd)}
             >
               <Copy className="h-3 w-3 mr-1" /> Copy
             </Button>
