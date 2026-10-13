@@ -110,6 +110,10 @@ persistent actor class Backend() = self {
   var maxRentals : Nat = 100;
 
   var assetsModule : (hash : Blob, wasm : Blob) = (Assets.HOSTY_ASSETS_MODULE_HASH, Assets.HOSTY_ASSETS_MODULE);
+  // Stable, so the previous module would survive an upgrade: always re-assign the
+  // embedded one so a deploy ships the module compiled in. setAssetsModule only
+  // overrides it until the next upgrade.
+  assetsModule := (Assets.HOSTY_ASSETS_MODULE_HASH, Assets.HOSTY_ASSETS_MODULE);
 
   let deploymentExamples : List.List<DeploymentExample> = List.empty();
   if (List.size(deploymentExamples) == 0) {
