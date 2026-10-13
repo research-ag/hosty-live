@@ -8,7 +8,7 @@ module {
     }) -> async ({ canister_id : Principal });
     update_settings : shared ({
       canister_id : Principal;
-      settings : { controllers : ?[Principal] };
+      settings : { controllers : ?[Principal]; freezing_threshold : ?Nat };
     }) -> async ();
     install_code : (InstallCodeArgs) -> async ();
     deposit_cycles : ({ canister_id : Principal }) -> async ();

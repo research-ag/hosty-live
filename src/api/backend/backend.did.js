@@ -76,6 +76,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'onCanisterDeployed' : IDL.Func([IDL.Principal], [], []),
+    'preparePoolCanisters' : IDL.Func([], [IDL.Nat], []),
     'registerCanister' : IDL.Func([IDL.Principal], [CanisterInfo], []),
     'rentCanister' : IDL.Func([], [Result], []),
     'rentCanisterFor' : IDL.Func([IDL.Principal], [Result], []),

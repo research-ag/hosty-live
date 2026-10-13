@@ -60,6 +60,11 @@ persistent actor class Backend() = self {
     RENT_TAKEBACK_INTERVAL : Nat64 = 1_800; // 30 minutes
     POOL_CANISTER_MIN_CYCLES = 1_000_000_000_000;
     POOL_CANISTER_CYCLES_THRESHOLD = 800_000_000_000;
+    // Pool canisters often arrive with a 365-day freezing threshold (set by the web app
+    // on reset). The assets canister grows memory on its first sync, and with such a
+    // threshold the frozen reserve exceeds the pool balance, so installs fail with
+    // "cannot grow memory due to insufficient cycles". 30 days keeps the reserve small.
+    POOL_CANISTER_FREEZING_THRESHOLD = 30 * 24 * 60 * 60;
   };
 
   type CanisterData = {
@@ -474,15 +479,34 @@ persistent actor class Backend() = self {
     Queue.size(renters) < maxRentals and not Queue.isEmpty(canistersPool) and Option.isNull(getOrCreateProfile_(caller).rentedCanister);
   };
 
-  // Install (or reinstall) the hosty assets module and upload the default page.
+  // Bring a pool canister to a clean, usable state: sane freezing threshold, enough
+  // cycles, the hosty assets module (always (re)installed) and the default page.
   // The canister ends up clean: no user assets, no authorized principals.
-  private func installAssetsModule_(cid : Principal, currentModule : ?Blob) : async* () {
-    Prim.debugPrint("installing module...");
+  private func installAssetsModule_(cid : Principal, canisterStatus : Management.CanisterStatus) : async* () {
+    if (canisterStatus.settings.freezing_threshold != CONSTANTS.POOL_CANISTER_FREEZING_THRESHOLD) {
+      Prim.debugPrint("setting freezing threshold...");
+      await Management.getActor().update_settings({
+        canister_id = cid;
+        settings = {
+          controllers = null;
+          freezing_threshold = ?CONSTANTS.POOL_CANISTER_FREEZING_THRESHOLD;
+        };
+      });
+    };
+    if (canisterStatus.cycles < CONSTANTS.POOL_CANISTER_CYCLES_THRESHOLD) {
+      Prim.debugPrint("topping up canister...");
+      await (with cycles = CONSTANTS.POOL_CANISTER_MIN_CYCLES - canisterStatus.cycles) Management.getActor().deposit_cycles({
+        canister_id = cid;
+      });
+    } else {
+      Prim.debugPrint("no need to top up canister");
+    };
+    Prim.debugPrint("installing module... current wasm hash: " # debug_show canisterStatus.module_hash # "; expected: " # debug_show assetsModule.0);
     await Management.getActor().install_code({
       canister_id = cid;
       arg = to_candid (null : ?Assets.InitArgs);
       wasm_module = assetsModule.1;
-      mode = switch (currentModule) {
+      mode = switch (canisterStatus.module_hash) {
         case (?_) #reinstall;
         case (null) #install;
       };
@@ -504,8 +528,22 @@ persistent actor class Backend() = self {
     };
     if (not isCorrectModule) {
       Prim.debugPrint("pool canister " # debug_show cid # " runs an outdated module, reinstalling");
-      await* installAssetsModule_(cid, canisterStatus.module_hash);
+      await* installAssetsModule_(cid, canisterStatus);
     };
+  };
+
+  // Rent setup failed half-way (e.g. the canister ran out of cycles): repair the
+  // canister in the background and only then return it to the pool, so the next
+  // rent does not hit the same broken canister.
+  private func recoverPoolCanister_(cidx : Nat) : async () {
+    let cid = List.at(canisters, cidx).canisterId;
+    Prim.debugPrint("RECOVERING POOL CANISTER " # debug_show cid # "...");
+    try {
+      await preparePoolCanister_(cidx);
+    } catch (err) {
+      Prim.debugPrint("recovery of " # debug_show cid # " failed: " # Error.message(err));
+    };
+    Queue.pushBack(canistersPool, cidx);
   };
 
   private func setupUserOwnership_(cid : Principal, user : Principal) : async* () {
@@ -513,6 +551,7 @@ persistent actor class Backend() = self {
       canister_id = cid;
       settings = {
         controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self), user];
+        freezing_threshold = null;
       };
     });
     // Controllers may always upload; list the user explicitly anyway so access
@@ -553,7 +592,7 @@ persistent actor class Backend() = self {
       await* ensureAssetsModule_(cid);
       await* setupUserOwnership_(cid, caller);
     } catch (err) {
-      Queue.pushBack(canistersPool, cidx);
+      let _ = recoverPoolCanister_(cidx);
       return #err(Error.message(err));
     };
 
@@ -585,6 +624,7 @@ persistent actor class Backend() = self {
         canister_id = cid;
         settings = {
           controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self)];
+          freezing_threshold = null;
         };
       });
     } catch (err) {
@@ -611,19 +651,9 @@ persistent actor class Backend() = self {
     let canisterStatus = await Management.getActor().canister_status({
       canister_id = cid;
     });
-    if (canisterStatus.cycles < CONSTANTS.POOL_CANISTER_CYCLES_THRESHOLD) {
-      Prim.debugPrint("topping up canister...");
-      await (with cycles = CONSTANTS.POOL_CANISTER_MIN_CYCLES - canisterStatus.cycles) Management.getActor().deposit_cycles({
-        canister_id = cid;
-      });
-    } else {
-      Prim.debugPrint("no need to top up canister");
-    };
-
-    Prim.debugPrint("canister wasm hash: " # debug_show canisterStatus.module_hash # "; expected: " # debug_show assetsModule.0);
     // Always reinstall: a canister returning to the pool must be clean (no user
     // assets, no authorized principals, no stale module). Data in it is not important.
-    await* installAssetsModule_(cid, canisterStatus.module_hash);
+    await* installAssetsModule_(cid, canisterStatus);
 
     if (canisterStatus.cycles > CONSTANTS.POOL_CANISTER_MIN_CYCLES) {
       Prim.debugPrint("taking cycles out...");
@@ -702,6 +732,28 @@ persistent actor class Backend() = self {
       throw Error.reject("Permission denied");
     };
     assetsModule := (hash, wasm);
+  };
+
+  // Recovery tool: re-prepare every canister currently in the pool (freezing
+  // threshold, cycles, module, default page), one after another in the background.
+  // Returns the number of canisters scheduled.
+  public shared ({ caller }) func preparePoolCanisters() : async Nat {
+    if (not Principal.isController(caller)) {
+      throw Error.reject("Permission denied");
+    };
+    let pool = Iter.toArray(Queue.values(canistersPool));
+    let _ = preparePoolCanistersSequentially_(pool);
+    pool.size();
+  };
+
+  private func preparePoolCanistersSequentially_(pool : [Nat]) : async () {
+    for (cidx in pool.values()) {
+      try {
+        await preparePoolCanister_(cidx);
+      } catch (err) {
+        Prim.debugPrint("preparing pool canister " # debug_show (List.at(canisters, cidx).canisterId) # " failed: " # Error.message(err));
+      };
+    };
   };
 
   public shared ({ caller }) func setMaxRentals(v : Nat) : async () {

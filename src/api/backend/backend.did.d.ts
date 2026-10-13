@@ -17,6 +17,7 @@ export interface Backend {
     { 'rented' : [] | [[CanisterInfo, bigint]], 'owned' : Array<CanisterInfo> }
   >,
   'onCanisterDeployed' : ActorMethod<[Principal], undefined>,
+  'preparePoolCanisters' : ActorMethod<[], bigint>,
   'registerCanister' : ActorMethod<[Principal], CanisterInfo>,
   'rentCanister' : ActorMethod<[], Result>,
   'rentCanisterFor' : ActorMethod<[Principal], Result>,
