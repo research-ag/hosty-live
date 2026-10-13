@@ -1,0 +1,73 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+# Single semver for every crate in the workspace; also the release identity the
+# canister and sync plugin share (see crates/wire-types/src/version.rs). Bump it
+# per the breaking/non-breaking rule documented there, then `make tag`.
+version = "0.4.1"
+authors = ["DFINITY Stiftung <sdk@dfinity.org>"]
+edition = "2024"
+repository = "https://github.com/dfinity/certified-assets"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+# From response-verification
+ic-certification = "3.0.3"
+ic-http-certification = "3.0.3"
+ic-response-verification = "3.0.3"
+ic-representation-independent-hash = "3.0.3"
+
+# Compressors. Their output bytes are part of what a deployed canister stores and
+# what `state_hash` covers, and semver doesn't protect them: a compatible bump may
+# re-tune an encoder, and flate2's bytes also depend on which backend feature
+# unification selects. Left unpinned deliberately — a version pin can't see a
+# backend swap, and `asset-prep`'s golden vectors fail on any drift either way.
+brotli = "8.0.2"
+flate2 = "1.0"
+
+# Others
+anyhow = "1.0.103"
+assert_cmd = "2"
+base64 = "0.22.1"
+canbench-rs = "0.6.0"
+candid = "0.10.18"
+candid_parser = "0.4.0"
+ciborium = "0.2.2"
+futures = "0.3"
+# Pinned to the versions icp-cli uses so recipe-gen's tests render recipes the
+# same way the real CLI does.
+handlebars = "6.3.2"
+hex = "0.4.3"
+http = "1.4.2"
+ic-agent = "0.49"
+ic-cdk = "0.20.1"
+ic-cdk-management-canister = "0.1.1"
+ic-stable-structures = "0.7.2"
+itertools = "0.15.0"
+mime = "0.3"
+mime_guess = "2.0"
+num-traits = "0.2.14"
+percent-encoding = "2.3.2"
+# Drives the PocketIC instance behind `icp network start` directly; only the SNS
+# governance e2e needs it. Version-matched to the server icp-cli-network-launcher
+# runs, so the client and instance speak the same protocol.
+pocket-ic = "16.0.0"
+reqwest = { version = "0.13", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_bytes = "0.11.5"
+serde_json = "1.0"
+serde_yaml = "0.9.34"
+sha2 = "0.11.0"
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
+url = "2.5.8"
+wit-bindgen = "0.58.0"
+tempfile = "3.27.0"
+
+[profile.canister-release]
+inherits = "release"
+debug = false
+lto = true
+opt-level = 'z'

@@ -470,32 +470,54 @@ persistent actor class Backend() = self {
     Queue.size(renters) < maxRentals and not Queue.isEmpty(canistersPool) and Option.isNull(getOrCreateProfile_(caller).rentedCanister);
   };
 
-  private func setupUserOwnership_(cid : Principal, user : Principal) : async* () {
-    let futures : [async ()] = [
-      Management.getActor().update_settings({
-        canister_id = cid;
-        settings = {
-          controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self), user];
-        };
-      }),
-      Assets.getAssetActor(cid).grant_permission({
-        permission = #Prepare;
-        to_principal = user;
-      }),
-      Assets.getAssetActor(cid).grant_permission({
-        permission = #Commit;
-        to_principal = user;
-      }),
-    ];
-    for (f in futures.values()) {
-      await f;
+  // Install (or reinstall) the hosty assets module and upload the default page.
+  // The canister ends up clean: no user assets, no authorized principals.
+  private func installAssetsModule_(cid : Principal, currentModule : ?Blob) : async* () {
+    Prim.debugPrint("installing module...");
+    await Management.getActor().install_code({
+      canister_id = cid;
+      arg = to_candid (null : ?Assets.InitArgs);
+      wasm_module = assetsModule.1;
+      mode = switch (currentModule) {
+        case (?_) #reinstall;
+        case (null) #install;
+      };
+      sender_canister_version = null;
+    });
+    Prim.debugPrint("installing default page...");
+    await* Assets.uploadDefaultPage(cid);
+  };
+
+  // A pool canister prepared before an assets module upgrade still runs the old
+  // module; bring it up to date before handing it to a user.
+  private func ensureAssetsModule_(cid : Principal) : async* () {
+    let canisterStatus = await Management.getActor().canister_status({
+      canister_id = cid;
+    });
+    let isCorrectModule = switch (canisterStatus.module_hash) {
+      case (?mod) Blob.equal(mod, assetsModule.0);
+      case (null) false;
     };
-    // builders deploy assets on behalf of users (web UI and AI agents via hosty API)
+    if (not isCorrectModule) {
+      Prim.debugPrint("pool canister " # debug_show cid # " runs an outdated module, reinstalling");
+      await* installAssetsModule_(cid, canisterStatus.module_hash);
+    };
+  };
+
+  private func setupUserOwnership_(cid : Principal, user : Principal) : async* () {
+    await Management.getActor().update_settings({
+      canister_id = cid;
+      settings = {
+        controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self), user];
+      };
+    });
+    // Controllers may always upload; list the user explicitly anyway so access
+    // survives controller changes. Builders deploy assets on behalf of users
+    // (web UI and AI agents via hosty API).
+    let assets = Assets.getAssetActor(cid);
+    await assets.authorize(user);
     for (builder in CONSTANTS.BUILDER_PRINCIPALS.values()) {
-      await Assets.getAssetActor(cid).grant_permission({
-        permission = #Commit;
-        to_principal = builder;
-      });
+      await assets.authorize(builder);
     };
   };
 
@@ -524,6 +546,7 @@ persistent actor class Backend() = self {
     let cid = List.at(canisters, cidx).canisterId;
 
     try {
+      await* ensureAssetsModule_(cid);
       await* setupUserOwnership_(cid, caller);
     } catch (err) {
       Queue.pushBack(canistersPool, cidx);
@@ -593,44 +616,10 @@ persistent actor class Backend() = self {
       Prim.debugPrint("no need to top up canister");
     };
 
-    let isCorrectModule = switch (canisterStatus.module_hash) {
-      case (?mod) Blob.equal(mod, assetsModule.0);
-      case (null) false;
-    };
-    Prim.debugPrint("Is correct module? " # debug_show isCorrectModule # "; canister wasm hash: " # debug_show canisterStatus.module_hash # "; expected: " # debug_show assetsModule.0);
-    if (not isCorrectModule) {
-      Prim.debugPrint("installing module...");
-      let arg = to_candid ({
-        Init = {
-          set_permissions = ?{
-            prepare = [Principal.fromActor(self)];
-            commit = [Principal.fromActor(self)];
-            manage_permissions = [Principal.fromActor(self)];
-          };
-        };
-      });
-      await Management.getActor().install_code({
-        canister_id = cid;
-        arg;
-        wasm_module = assetsModule.1;
-        mode = switch (canisterStatus.module_hash) {
-          case (?_) #reinstall;
-          case (null) #install;
-        };
-        sender_canister_version = null;
-      });
-    } else {
-      await Assets.getAssetActor(cid).take_ownership();
-    };
-
-    Prim.debugPrint("installing default page...");
-    await Assets.getAssetActor(cid).store({
-      key = "/index.html";
-      content = Assets.getDefaultPage(cid) |> Text.encodeUtf8(_) |> Blob.toArray(_);
-      sha256 = null;
-      content_type = "text/html";
-      content_encoding = "identity";
-    });
+    Prim.debugPrint("canister wasm hash: " # debug_show canisterStatus.module_hash # "; expected: " # debug_show assetsModule.0);
+    // Always reinstall: a canister returning to the pool must be clean (no user
+    // assets, no authorized principals, no stale module). Data in it is not important.
+    await* installAssetsModule_(cid, canisterStatus.module_hash);
 
     if (canisterStatus.cycles > CONSTANTS.POOL_CANISTER_MIN_CYCLES) {
       Prim.debugPrint("taking cycles out...");

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deploymentsApi } from '../services/api'
 import type { ApiDeployment, Deployment, DeploymentStatus, SourceType } from '../types'
-import { getAssetStorageActor } from "../api/asset-storage";
+import { grantDeployAccess } from "../api/certified-assets";
 import { Principal } from "@icp-sdk/core/principal";
 
 // Simple conversion from API response to typed deployment
@@ -117,11 +117,7 @@ export function useDeployments() {
   })
 
   const grantBackendCommitPermission = async (canisterId: string) => {
-    const assets = await getAssetStorageActor(canisterId)
-    await assets.grant_permission({
-      permission: { Commit: null },
-      to_principal: Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL),
-    })
+    await grantDeployAccess(canisterId, Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL))
   }
 
   // Deploy to canister function

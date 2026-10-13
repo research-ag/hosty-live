@@ -1,0 +1,432 @@
+//! The `impl State` methods that drive a sync — `start_sync`, `upload_chunks`,
+//! `execute_operations` — alongside the small helpers they rely on.
+//!
+//! This is the `State`-bound half of the sync domain; the pure data types it
+//! operates on — [`SyncSession`], [`ComputationStatus`],
+//! [`ExecuteOperationsProgress`], and [`SYNC_IDLE_TIMEOUT_NANOS`] — live in the
+//! `State`-free data layer at [`crate::sync`]. Other `State` behavior lives in
+//! the sibling submodules of [`crate::state`].
+
+use super::State;
+use crate::redirect;
+use crate::runtime::SystemContext;
+use crate::sync::{
+    ComputationStatus, ExecuteOperationsProgress, SYNC_IDLE_TIMEOUT_NANOS, SyncSession,
+};
+use candid::Principal;
+use wire_types::{
+    ChunkId, ExecuteOperationsArguments, Operation, SessionId, StartSyncResult,
+    UploadChunksArguments,
+};
+
+impl State {
+    /// Begins a sync, returning a fresh session id.
+    ///
+    /// At most one sync runs at a time. If a sync is already in progress:
+    /// - the **same owner** can always reclaim it immediately (retrying their
+    ///   own deploy shouldn't have to wait), and
+    /// - a **different** caller may reclaim it only once it has gone stale
+    ///   (`SYNC_IDLE_TIMEOUT_NANOS` since its last call); otherwise the call
+    ///   returns `Busy` so a teammate can't barge into an active deploy.
+    ///
+    /// While a sync is *finalizing* (computing its state hash) nobody may
+    /// reclaim it, not even its owner, until it goes stale — see the guard
+    /// below. This is the one exception to the "same owner reclaims
+    /// immediately" rule above, and it is part of the public `start_sync`
+    /// contract (see `certified-assets.did`).
+    ///
+    /// Reclaiming clears the previous session's staged chunks, and starting
+    /// invalidates the cached state hash. The session id counter is monotonic
+    /// and never reused.
+    pub fn start_sync(
+        &mut self,
+        owner: Principal,
+        system_context: &SystemContext,
+    ) -> StartSyncResult {
+        let now = system_context.current_timestamp_ns;
+
+        if let Some(active) = &self.sync_session {
+            let idle = now.saturating_sub(active.last_activity_ns);
+            let stale = idle >= SYNC_IDLE_TIMEOUT_NANOS;
+            // A finalizing session holds the lock against *everyone*, including
+            // its own owner, so nothing mutates the state the staged hasher is
+            // walking. It still yields to the idle timeout, though: a
+            // finalization that never completes (a trap in a later hashing
+            // step, out of cycles, a dropped self-call callback) would
+            // otherwise wedge the sync lock until the next upgrade, since
+            // `finalizing` is only ever cleared on the success path.
+            let reclaimable = if active.finalizing {
+                stale
+            } else {
+                active.owner == owner || stale
+            };
+            if !reclaimable {
+                return StartSyncResult::Busy {
+                    owner: active.owner,
+                    idle_for_secs: idle / 1_000_000_000,
+                };
+            }
+        }
+
+        // In by-proposal mode a *staged* batch is waiting for its proposal, and
+        // its content is what the next commit will publish. Starting another
+        // sync would prepare on top of it, so it is refused outright — commit
+        // the batch or discard it first. (This mirrors the old asset canister's
+        // "batch N is already proposed"; `discard_proposed_state` is the escape
+        // hatch when a proposal is rejected.) A batch that is *not* staged is an
+        // abandoned upload, and gets cleaned up on the ordinary reclaim rules
+        // already applied above.
+        //
+        // Reported as `Busy` because that is the only "come back later" shape
+        // `StartSyncResult` has, and it names the principal to talk to. It reads
+        // as a concurrent-deploy collision rather than "a batch is awaiting its
+        // proposal", which is imprecise but not wrong; a clearer variant is a
+        // wire change, so it belongs with the plugin's by-proposal support.
+        match self.store.prepared_batch() {
+            Some(batch) if batch.staged => {
+                return StartSyncResult::Busy {
+                    owner: batch.owner,
+                    idle_for_secs: 0,
+                };
+            }
+            Some(_) => self.discard_proposed_state(),
+            None => {}
+        }
+
+        // No active sync, or we're taking over: drop any staged chunks left by
+        // the previous session before starting fresh.
+        self.chunks.clear();
+
+        if self.governance_enabled() {
+            // A by-proposal sync only *prepares*: it writes content that nothing
+            // references and metadata that lives beside the live keyspace, so
+            // the assets the canister serves — and therefore its cached hash —
+            // stay valid and verifiable for the whole voting period. Open a
+            // batch to collect the prepare instead of invalidating anything.
+            //
+            // One thing a prepare does still publish: the caller above captures
+            // the environment, which re-certifies the `ic_env` cookie on HTML
+            // responses if it changed. That is outside the overlay by design —
+            // the cookie carries controller-set `PUBLIC_*` vars and the root
+            // key, it is not part of the state-hash manifest, and any
+            // sync-authorized caller can already publish it on its own with
+            // `refresh_env`. So it moves no hash and grants no new power; it is
+            // simply not content, and not gated on the proposal.
+            self.open_prepared_batch(owner);
+        } else {
+            // From here on this sync may mutate served content, so the cached
+            // hash no longer describes what the canister serves. Drop it: a sync
+            // that finalizes caches the real one again, and a sync that is
+            // abandoned leaves the canister reporting "no verifiable hash"
+            // instead of a clean hash for content it no longer serves.
+            self.invalidate_cached_state_hash();
+        }
+
+        let session_id = self.alloc_session_id();
+        self.sync_session = Some(SyncSession {
+            id: session_id,
+            owner,
+            last_activity_ns: now,
+            finalizing: false,
+        });
+
+        StartSyncResult::Started { session_id }
+    }
+
+    /// Checks that `session_id` still names the active sync and that the sync is
+    /// accepting mutations.
+    ///
+    /// Every step of a sync runs in its own message: `execute_operations` yields
+    /// to a bogus self-call whenever the instruction budget runs low, and any
+    /// other update call can land in that window. The step's progress rides
+    /// across the gap in a local variable, *not* in `State`, so a resumed step
+    /// must re-check the session rather than assume the world is as it left it —
+    /// its sync may have been finalized (its hash already cached, so a further
+    /// mutation would leave the canister reporting a hash that doesn't describe
+    /// what it serves) or reclaimed by someone else entirely.
+    fn require_mutable_session(&self, session_id: SessionId) -> Result<(), String> {
+        match &self.sync_session {
+            Some(s) if s.id == session_id && !s.finalizing => Ok(()),
+            Some(s) if s.id == session_id => Err("sync is finalizing".to_string()),
+            _ => Err("no active sync for this session id".to_string()),
+        }
+    }
+
+    /// Checks that `session_id` still names the active sync *and* that the sync
+    /// is the one this call put into its finalizing phase — the precondition for
+    /// caching a hash and releasing the lock. Fails if the session was reclaimed
+    /// while the staged hasher was suspended, in which case the hash under
+    /// construction no longer describes the live state.
+    fn require_own_finalizing_session(&self, session_id: SessionId) -> Result<(), String> {
+        match &self.sync_session {
+            Some(s) if s.id == session_id && s.finalizing => Ok(()),
+            _ => Err("sync was superseded while the state hash was being computed".to_string()),
+        }
+    }
+
+    /// Marks the active session as touched (resets its idle clock). Returns an
+    /// error if `session_id` does not match the active session — the sync was
+    /// superseded or never started.
+    fn touch_session(&mut self, session_id: SessionId, now: u64) -> Result<(), String> {
+        self.require_mutable_session(session_id)?;
+        if let Some(s) = &mut self.sync_session {
+            s.last_activity_ns = now;
+        }
+        Ok(())
+    }
+
+    /// Stages chunks for the active sync and returns the id assigned to each, in
+    /// the same order as `chunks`. Chunks are appended in arrival order; each
+    /// chunk's id is its index in `self.chunks` (the numbering restarts at 0
+    /// every sync, since the staging area is cleared on sync start). Echoing the
+    /// ids back lets the caller map them positionally per call, so uploads may
+    /// run concurrently without relying on a shared arrival order.
+    pub fn upload_chunks(
+        &mut self,
+        UploadChunksArguments { session_id, chunks }: UploadChunksArguments,
+        system_context: &SystemContext,
+    ) -> Result<Vec<ChunkId>, String> {
+        self.touch_session(session_id, system_context.current_timestamp_ns)?;
+
+        let mut ids = Vec::with_capacity(chunks.len());
+        for chunk in chunks {
+            ids.push(self.chunks.len() as ChunkId);
+            self.chunks.push(Some(chunk));
+        }
+
+        Ok(ids)
+    }
+
+    /// Completes with the canonical state hash recomputed over the now-final
+    /// state when `arg.is_final`, and `None` otherwise — so the finalizing call
+    /// hands the client its hash without a second round trip.
+    pub fn execute_operations(
+        &mut self,
+        arg: &ExecuteOperationsArguments,
+        progress: ExecuteOperationsProgress,
+        system_context: &SystemContext,
+    ) -> ComputationStatus<Option<[u8; 32]>, ExecuteOperationsProgress, String> {
+        match progress {
+            ExecuteOperationsProgress::Starting => {
+                // Reject calls that don't belong to the active sync, and reset
+                // its idle clock so a concurrent reclaim can't steal it
+                // mid-flight.
+                if let Err(e) =
+                    self.touch_session(arg.session_id, system_context.current_timestamp_ns)
+                {
+                    return ComputationStatus::Error(e);
+                }
+                let initial_progress =
+                    ExecuteOperationsProgress::ProcessingOperations { operation_index: 0 };
+                ComputationStatus::InProgress(initial_progress)
+            }
+            ExecuteOperationsProgress::ProcessingOperations { operation_index } => {
+                // This step resumes in a fresh message, so the session it was
+                // started under may be gone (see `require_mutable_session`).
+                // Re-check it before mutating anything.
+                if let Err(e) = self.require_mutable_session(arg.session_id) {
+                    return ComputationStatus::Error(e);
+                }
+
+                // Process one operation per call
+                if operation_index >= arg.operations.len() {
+                    // Asset ops in this call may have clobbered tree entries
+                    // that redirect rules own (any rule whose source path
+                    // collides with an asset's `<$>` slot). Re-cert them so
+                    // the call ends with a consistent rule tree. A by-proposal
+                    // prepare certifies nothing and changes no live rule, so it
+                    // has nothing to repair; the commit rebuilds them instead.
+                    if !self.by_proposal() {
+                        self.on_redirect_rules_change();
+                    }
+
+                    // Finalize the sync only when the caller signals this is the
+                    // last call; otherwise keep the session open for further
+                    // operations and don't touch the cached hash yet.
+                    if arg.is_final {
+                        // Keep the session active and mark it finalizing until
+                        // hashing completes. Otherwise another sync (including
+                        // one from the same owner) could mutate the state while
+                        // the staged hasher is suspended between assets. The
+                        // guard above proved this is our own session, so the
+                        // flag can't land on a session that replaced it.
+                        match &mut self.sync_session {
+                            Some(session) if session.id == arg.session_id => {
+                                session.finalizing = true;
+                            }
+                            _ => {
+                                return ComputationStatus::Error(
+                                    "no active sync for this session id".to_string(),
+                                );
+                            }
+                        }
+                        self.chunks.clear();
+                        // Recompute the cached state hash over the now-final
+                        // state, staged one asset per step. Under a by-proposal
+                        // prepare this folds the *prospective* state — live plus
+                        // the pending overlay — producing the hash that goes in
+                        // the proposal and that the commit will install verbatim.
+                        let hasher = state_hash::StateHasher::begin(self.effective_asset_count());
+                        return ComputationStatus::InProgress(
+                            ExecuteOperationsProgress::HashingState {
+                                hasher,
+                                resume_after: None,
+                            },
+                        );
+                    }
+
+                    return ComputationStatus::Done(None);
+                }
+
+                let op = &arg.operations[operation_index];
+                let result = match op {
+                    Operation::CreateAsset(arg) => self.create_asset(arg.clone()),
+                    Operation::SetAssetContent(arg) => {
+                        if !self.effective_contains_asset(&arg.key) {
+                            return ComputationStatus::Error("asset not found".to_string());
+                        }
+                        if arg.chunk_ids.is_empty() {
+                            return ComputationStatus::Error(
+                                "encoding must have at least one chunk".to_string(),
+                            );
+                        }
+
+                        // A chunk id is a slot index into the staging area.
+                        // Reject the whole op up front if any id doesn't point at
+                        // a still-present chunk, so a bad id fails cleanly rather
+                        // than leaving earlier chunks half-consumed.
+                        let staged = self.chunks();
+                        if arg
+                            .chunk_ids
+                            .iter()
+                            .any(|&id| !matches!(staged.get(id as usize), Some(Some(_))))
+                        {
+                            return ComputationStatus::Error("chunk not found".to_string());
+                        }
+
+                        // Take each chunk out of the staging area so its bytes are
+                        // freed as soon as it's consumed (the slot is left as a
+                        // `None` hole, preserving later indices).
+                        let content_chunks: Vec<_> = arg
+                            .chunk_ids
+                            .iter()
+                            .map(|&id| self.chunks[id as usize].take().expect("validated above"))
+                            .collect();
+
+                        // The client supplied the content hashes; the canister
+                        // trusts them, so there's no per-chunk hashing pass to
+                        // spread across calls — write the encoding and certify it
+                        // in this single step.
+                        self.complete_set_asset_content(arg.clone(), content_chunks)
+                    }
+                    Operation::UnsetAssetContent(arg) => self.unset_asset_content(arg.clone()),
+                    Operation::DeleteAsset(arg) => {
+                        self.delete_asset(arg.clone());
+                        Ok(())
+                    }
+                    Operation::SetAssetHeaders(arg) => self.set_asset_headers(arg.clone()),
+                    Operation::SetPreparationCanary(arg) => match arg.canary.as_ref().try_into() {
+                        Ok(canary) => {
+                            if self.by_proposal() {
+                                self.stage_preparation_canary(canary);
+                            } else {
+                                self.set_preparation_canary(canary);
+                            }
+                            Ok(())
+                        }
+                        Err(_) => Err(format!(
+                            "preparation canary must be 32 bytes, got {}",
+                            arg.canary.len()
+                        )),
+                    },
+                    Operation::SetRedirectRules(arg) => {
+                        // Validate every rule before mutating state so a single
+                        // bad rule fails the whole op with no partial update.
+                        let mut validation: Result<(), String> = Ok(());
+                        for rule in &arg.rules {
+                            if let Err(e) = redirect::validate(rule) {
+                                validation = Err(e);
+                                break;
+                            }
+                            // A 404/410 custom error page is served as a single
+                            // inline body, so its target must be single-chunk
+                            // (see `State::build_alias_rule_entry`). Reject up
+                            // front when the target already exists and is
+                            // multi-chunk. A target that doesn't exist yet is
+                            // allowed — the rule stays inert until it does. The
+                            // sync-plugin enforces the same cross-check at deploy
+                            // time; this guards against other callers.
+                            if matches!(rule.status, 404 | 410)
+                                && self.target_is_multichunk(&rule.to)
+                            {
+                                validation = Err(format!(
+                                    "redirect rule to '{}' with status {} points to a \
+                                     multi-chunk asset; 404/410 error pages must be small \
+                                     enough to serve as a single chunk (< ~1.9 MB)",
+                                    rule.to, rule.status
+                                ));
+                                break;
+                            }
+                        }
+                        validation.map(|_| {
+                            if self.by_proposal() {
+                                self.stage_redirect_rules(arg.rules.clone());
+                            } else {
+                                self.set_redirect_rules(arg.rules.clone());
+                            }
+                        })
+                    }
+                };
+                if let Err(e) = result {
+                    return ComputationStatus::Error(e);
+                }
+
+                let progress = ExecuteOperationsProgress::ProcessingOperations {
+                    operation_index: operation_index + 1,
+                };
+                ComputationStatus::InProgress(progress)
+            }
+            ExecuteOperationsProgress::HashingState {
+                mut hasher,
+                resume_after,
+            } => {
+                // Hashing is staged across messages too, so this step can resume
+                // into a world where the finalization it belongs to was reclaimed
+                // (the idle timeout applies to a finalizing session as well).
+                // Bail rather than fold state someone else is now mutating, cache
+                // a hash that doesn't describe it, or tear down their session.
+                if let Err(e) = self.require_own_finalizing_session(arg.session_id) {
+                    return ComputationStatus::Error(e);
+                }
+
+                // Fold one asset per step, in key order, resuming after the last.
+                if let Some((key, asset)) = self.next_effective_manifest_asset(&resume_after) {
+                    hasher.write_asset(&asset);
+                    return ComputationStatus::InProgress(
+                        ExecuteOperationsProgress::HashingState {
+                            hasher,
+                            resume_after: Some(key),
+                        },
+                    );
+                }
+                // Keyspace exhausted: fold the redirect rules, finalize, and hand
+                // the hash back to the client that finalized the sync.
+                self.fold_effective_redirect_rules(&mut hasher);
+                let hash = hasher.finish();
+                if self.by_proposal() {
+                    // Nothing about the live state changed, so its cached hash
+                    // stands. Record this one as what committing the batch will
+                    // produce — the number that goes in the proposal.
+                    self.stage_prepared_batch(hash, system_context.current_timestamp_ns);
+                } else {
+                    self.cache_state_hash(hash);
+                }
+                // Release the sync lock only after the hash covers the complete
+                // finalized state and has been cached. The guard above proved the
+                // session is still ours to release.
+                self.sync_session = None;
+                ComputationStatus::Done(Some(hash))
+            }
+        }
+    }
+}

@@ -5,10 +5,16 @@ import { getMyCanisters } from '../services/canisters'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
 import { Principal } from "@icp-sdk/core/principal";
-import { getAssetStorageActor } from "../api/asset-storage";
 import { getAuthClient } from "./useInternetIdentity.ts";
 import { backendCanisterId, getBackendActor } from "../api/backend";
-import { init as assetStorageInit } from "../api/asset-storage/asset_storage.did";
+import { init as certifiedAssetsInit } from "../api/certified-assets/certified_assets.did";
+import {
+  forgetAssetsKind,
+  getCertifiedAssetsActor,
+  grantDeployAccess,
+  replaceSite,
+  revokeDeployAccess,
+} from "../api/certified-assets";
 import { IDL } from "@icp-sdk/core/candid";
 import defaultPage from "../constants/default-page.ts";
 import { canister_status_result } from "../api/management/management.did";
@@ -40,35 +46,29 @@ export function useCanisters() {
     userPrincipals: Principal[],
     reinstall: boolean = false,
   ) => {
-    // install asset canister
+    // install the certified-assets canister (hosty build, see canisters/certified-assets)
     await management.install_code.withOptions({
       effectiveCanisterId: Principal.fromText(canisterId),
     })({
-      arg: new Uint8Array(IDL.encode(assetStorageInit({ IDL }), [[]])),
+      arg: new Uint8Array(IDL.encode(certifiedAssetsInit({ IDL }), [[]])),
       wasm_module: [...wasmBinary],
       mode: reinstall ? { reinstall: null } : { install: null },
       canister_id: Principal.fromText(canisterId),
       sender_canister_version: [],
     });
-    const assetCanister = await getAssetStorageActor(canisterId);
-    await Promise.all([
-      ...userPrincipals.map(p => assetCanister.grant_permission({
-        permission: { Prepare: null },
-        to_principal: p,
-      })),
-      ...userPrincipals.map(p => assetCanister.grant_permission({
-        permission: { Commit: null },
-        to_principal: p,
-      }))
-    ])
+    forgetAssetsKind(canisterId);
+    // controllers can always upload; listing the owners explicitly keeps that true if they
+    // are ever removed from controllers
+    const assetCanister = getCertifiedAssetsActor(canisterId);
+    for (const p of userPrincipals) {
+      await assetCanister.authorize(p);
+    }
     // upload default page
-    await assetCanister.store({
-      key: "/index.html",
+    await replaceSite(canisterId, [{
+      path: "/index.html",
       content: new TextEncoder().encode(defaultPage(canisterId)),
-      sha256: [],
-      content_type: "text/html",
-      content_encoding: "identity",
-    });
+      contentType: "text/html",
+    }]);
   }
 
   // Mutation for creating canisters
@@ -326,23 +326,9 @@ export function useCanisters() {
         sender_canister_version: [],
       });
 
-      // If asset canister, grant all permissions: Prepare, ManagePermissions, Commit
+      // If asset canister, allow the new controller to deploy
       try {
-        const assetCanister = await getAssetStorageActor(canister.id);
-        await Promise.all([
-          assetCanister.grant_permission({
-            permission: { Prepare: null },
-            to_principal: Principal.fromText(userPrincipal),
-          }),
-          assetCanister.grant_permission({
-            permission: { ManagePermissions: null },
-            to_principal: Principal.fromText(userPrincipal),
-          }),
-          assetCanister.grant_permission({
-            permission: { Commit: null },
-            to_principal: Principal.fromText(userPrincipal),
-          })
-        ]);
+        await grantDeployAccess(canister.id, Principal.fromText(userPrincipal));
       } catch {
         // not an asset canister, pass
       }
@@ -435,23 +421,9 @@ export function useCanisters() {
         sender_canister_version: [],
       });
 
-      // If asset canister, revoke permissions: Prepare, ManagePermissions, Commit
+      // If asset canister, revoke deploy access
       try {
-        const assetCanister = await getAssetStorageActor(canister.id);
-        await Promise.all([
-          assetCanister.revoke_permission({
-            permission: { Prepare: null },
-            of_principal: toRemove,
-          }),
-          assetCanister.revoke_permission({
-            permission: { ManagePermissions: null },
-            of_principal: toRemove,
-          }),
-          assetCanister.revoke_permission({
-            permission: { Commit: null },
-            of_principal: toRemove,
-          }),
-        ]);
+        await revokeDeployAccess(canister.id, toRemove);
       } catch {
         // not an asset canister, pass
       }

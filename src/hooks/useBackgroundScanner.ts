@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from './useAuth'
 import { getMyCanisters } from '../services/canisters'
-import { getAssetStorageActor } from '../api/asset-storage'
+import { listDeployers, revokeDeployAccess } from '../api/certified-assets'
 import { Principal } from '@icp-sdk/core/principal'
 import { deploymentsApi } from '../services/api'
 import { getManagementActor } from "../api/management";
@@ -52,8 +52,7 @@ export function useBackgroundScanner() {
 
         for (const cid of canisters) {
           try {
-            const assets = await getAssetStorageActor(cid.toText())
-            const principals = await assets.list_permitted({ permission: { Commit: null } })
+            const principals = await listDeployers(cid.toText())
             if (principals.find(p => backendPrincipal?.toText() == p.toText())) {
               filtered.push(cid)
             }
@@ -81,13 +80,10 @@ export function useBackgroundScanner() {
         canisters = filtered
         console.debug('🧮 [BG] Canisters matching criteria (no running deployment + commit granted to backend):', canisters.length)
 
+        if (!backendPrincipal) return
         for (const cid of canisters) {
           try {
-            const assets = await getAssetStorageActor(cid.toText())
-            await assets.revoke_permission({
-              permission: { Commit: null },
-              of_principal: backendPrincipal,
-            })
+            await revokeDeployAccess(cid.toText(), backendPrincipal)
             console.debug('🧮 [BG] Revoked backend commit permission on canister ' + cid.toText())
           } catch (err) {
             console.warn('⚠️ [BG] Could not revoke backend commit permissions from canister ' + cid.toText() + ': ' + err)

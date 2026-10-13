@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useApiTokens } from '../../hooks/useApiTokens'
 import { useCanisters } from '../../hooks/useCanisters'
 import { useToast } from '../../hooks/useToast'
-import { getAssetStorageActor } from '../../api/asset-storage'
+import { grantDeployAccess } from '../../api/certified-assets'
 import { API_BASE_URL, ApiTokenInfo } from '../../services/api'
 
 const MCP_URL = `${API_BASE_URL}/mcp`
@@ -75,7 +75,7 @@ export function AgentAccessCard() {
     }
   }
 
-  // Agents deploy through the hosty.live builder, which needs Commit permission on each canister.
+  // Agents deploy through the hosty.live builder, which needs deploy access on each canister.
   // The web UI grants it before every deploy; agents cannot, so grant it upfront here.
   const handleGrantAccess = async () => {
     const builder = import.meta.env.VITE_BACKEND_PRINCIPAL as string | undefined
@@ -93,11 +93,7 @@ export function AgentAccessCard() {
     const failed: string[] = []
     for (const canister of targets) {
       try {
-        const assets = await getAssetStorageActor(canister.id)
-        await assets.grant_permission({
-          permission: { Commit: null },
-          to_principal: Principal.fromText(builder),
-        })
+        await grantDeployAccess(canister.id, Principal.fromText(builder))
         granted++
       } catch {
         failed.push(canister.alias || canister.id)

@@ -1,0 +1,485 @@
+//! Assets canister API: client-side call wrappers.
+//!
+//! The Candid wire types live in the [`wire_types`] crate, shared with the
+//! canister, and are re-exported here so the rest of `sync-core` can keep
+//! referring to them via `crate::canister::*`. This module adds the call
+//! wrappers and the [`CanisterCall`] transport trait.
+
+#![allow(dead_code)]
+
+use candid::{CandidType, Decode, Encode, Principal};
+use serde::de::DeserializeOwned;
+use serde_bytes::ByteBuf;
+use std::collections::HashMap;
+
+use wire_types::{
+    AssetDetails, ChunkId, ExecuteOperationsArguments, ProposedState, RedirectRule,
+    StartSyncResult, UploadChunksArguments, Version,
+};
+
+#[derive(Debug, Clone, Copy)]
+pub enum CallType {
+    Update,
+    Query,
+}
+
+/// One canister call, ready for the wire: the method name, its candid-encoded
+/// argument, and the routing flags. `sync-core` builds these via the typed layer
+/// ([`CanisterCall::call`] / [`CanisterCall::call_batch`]); a transport moves the
+/// bytes to the canister and back.
+pub struct Call {
+    /// Method name. Owned to keep the struct free of lifetimes; the allocation
+    /// is negligible next to a canister round-trip.
+    pub method: String,
+    /// Candid-encoded argument, produced by the typed layer.
+    pub arg: Vec<u8>,
+    pub call_type: CallType,
+    /// Call the canister directly (`true`) or route through the proxy (`false`).
+    pub direct: bool,
+}
+
+/// Transport seam between `sync-core` and a canister.
+///
+/// Two layers. The **raw layer** ([`dispatch`](Self::dispatch), required, and
+/// [`dispatch_batch`](Self::dispatch_batch), an overridable default) moves opaque
+/// candid bytes — so a transport can batch and run calls concurrently without
+/// knowing their types. The **typed layer** ([`call`](Self::call) /
+/// [`call_batch`](Self::call_batch), defaults never overridden) is the
+/// Encode/Decode sugar the rest of `sync-core` uses, so callers never hand-roll
+/// candid and single/batch stay symmetric.
+///
+/// The trait is not object-safe (its typed methods are generic), which is fine:
+/// every user is generic over `C: CanisterCall`; no `dyn CanisterCall` exists.
+pub trait CanisterCall {
+    // ── raw layer: transports implement `dispatch`; may override `dispatch_batch` ──
+
+    /// The one required method: move an encoded [`Call`] to the canister and
+    /// return the raw reply bytes.
+    fn dispatch(&self, call: Call) -> Result<Vec<u8>, String>;
+
+    /// Independent calls that MAY run concurrently. Results are **positional** —
+    /// `result[i]` is the reply to `calls[i]` — which is exactly what lets the
+    /// upload path map returned chunk ids back by position (see
+    /// `pack_and_upload_chunks`). This is the concurrency seam. The default runs
+    /// them sequentially via `dispatch`, so a transport that can't parallelize is
+    /// still correct, just not fast.
+    fn dispatch_batch(&self, calls: Vec<Call>) -> Vec<Result<Vec<u8>, String>> {
+        calls.into_iter().map(|c| self.dispatch(c)).collect()
+    }
+
+    // ── typed sugar: defaults, never overridden ──
+
+    /// Typed single call. Uses `Encode!`/`Decode!` (not `encode_one`/
+    /// `decode_one`) so no-arg methods like `version` encode to an empty argument
+    /// list rather than a one-tuple of unit.
+    fn call<A, R>(
+        &self,
+        method: &str,
+        arg: A,
+        call_type: CallType,
+        direct: bool,
+    ) -> Result<R, String>
+    where
+        A: CandidType,
+        R: CandidType + DeserializeOwned,
+    {
+        let arg = Encode!(&arg).map_err(|e| format!("encode arg for {method}: {e}"))?;
+        let bytes = self.dispatch(Call {
+            method: method.to_string(),
+            arg,
+            call_type,
+            direct,
+        })?;
+        Decode!(&bytes, R).map_err(|e| format!("decode reply from {method}: {e}"))
+    }
+
+    /// Typed homogeneous batch: every call is the same `method` with the same
+    /// argument/return types (all we ever batch). Returns a flat, **positional**
+    /// `Vec<Result<R>>`. Arguments are moved into the [`Call`]s (no clone of the
+    /// ~MB chunk payloads); a per-item encode failure becomes that item's `Err`
+    /// without consuming a `dispatch_batch` slot, and `slots` stitches the
+    /// replies back so positions line up.
+    fn call_batch<A, R>(
+        &self,
+        method: &str,
+        args: Vec<A>,
+        call_type: CallType,
+        direct: bool,
+    ) -> Vec<Result<R, String>>
+    where
+        A: CandidType,
+        R: CandidType + DeserializeOwned,
+    {
+        let mut calls = Vec::with_capacity(args.len());
+        let mut slots: Vec<Result<(), String>> = Vec::with_capacity(args.len());
+        for arg in args {
+            match Encode!(&arg) {
+                Ok(arg) => {
+                    calls.push(Call {
+                        method: method.to_string(),
+                        arg,
+                        call_type,
+                        direct,
+                    });
+                    slots.push(Ok(()));
+                }
+                Err(e) => slots.push(Err(format!("encode arg for {method}: {e}"))),
+            }
+        }
+        let mut replies = self.dispatch_batch(calls).into_iter();
+        slots
+            .into_iter()
+            .map(|slot| {
+                slot?; // this slot's arg failed to encode; it was never dispatched
+                let bytes = replies.next().expect("one reply per dispatched call")?;
+                Decode!(&bytes, R).map_err(|e| format!("decode reply from {method}: {e}"))
+            })
+            .collect()
+    }
+}
+
+pub fn version(c: &impl CanisterCall) -> Result<Version, String> {
+    c.call("version", (), CallType::Query, true)
+}
+
+/// The compression fingerprint recorded by the client that last prepared every
+/// asset, or `None` when the canister reports the "unknown" value (32 zero
+/// bytes) or something that isn't a 32-byte hash — both of which mean the same
+/// thing to a caller: nothing here may be trusted to match local compression.
+pub fn preparation_canary(c: &impl CanisterCall) -> Result<Option<[u8; 32]>, String> {
+    let reported: ByteBuf = c.call("preparation_canary", (), CallType::Query, true)?;
+    let Ok(canary) = <[u8; 32]>::try_from(reported.as_ref()) else {
+        return Ok(None);
+    };
+    Ok((canary != [0u8; 32]).then_some(canary))
+}
+
+// Fetch the complete asset list by paging through `get_asset_details`, returned
+// as a map keyed by asset key — the shape the sync diff consumes. Building the
+// map directly avoids materializing an intermediate Vec of every asset and a
+// second pass to index it. Keys never collide: the canister returns assets
+// ordered by key and `start_after` is exclusive, so each page begins strictly
+// after the last.
+//
+// The canister owns the page size; we just follow its cursor, passing the last
+// key we saw as `start_after`. We never need to know the page size: a page
+// shorter than the previous full page is the last one (stop without the extra
+// empty round-trip), and an empty page also ends the walk.
+pub fn list_all_assets(c: &impl CanisterCall) -> Result<HashMap<String, AssetDetails>, String> {
+    let mut all: HashMap<String, AssetDetails> = HashMap::new();
+    let mut start_after: Option<String> = None;
+    let mut prev_page_size: Option<usize> = None;
+    loop {
+        let entries: Vec<AssetDetails> =
+            c.call("get_asset_details", &start_after, CallType::Query, true)?;
+        let n = entries.len();
+        let Some(last) = entries.last() else {
+            break;
+        };
+        start_after = Some(last.key.clone());
+        for d in entries {
+            all.insert(d.key.clone(), d);
+        }
+        if let Some(prev) = prev_page_size
+            && n < prev
+        {
+            break;
+        }
+        prev_page_size = Some(n);
+    }
+    Ok(all)
+}
+
+/// Begins a sync, returning its session id. A `Busy` result (another non-stale
+/// sync is in progress) is surfaced as an error with the holder's principal and
+/// idle time so the caller can decide whether to wait.
+pub fn start_sync(c: &impl CanisterCall) -> Result<u64, String> {
+    let resp: StartSyncResult = c.call("start_sync", (), CallType::Update, true)?;
+    match resp {
+        StartSyncResult::Started { session_id } => Ok(session_id),
+        StartSyncResult::Busy {
+            owner,
+            idle_for_secs,
+        } => Err(busy_reason(c, owner, idle_for_secs)),
+    }
+}
+
+/// Explains a `Busy`, which covers two situations the operator has to act on
+/// very differently.
+///
+/// A canister in governance mode also reports `Busy` when a prepared state
+/// change is waiting for its proposal — the variant carries no room to say
+/// which, and "idle for 0s" reads like a colleague's deploy. Waiting it out
+/// would never work, so ask the canister rather than guess. A failed or
+/// unrecognised answer falls back to the concurrent-sync wording, which is the
+/// right reading for every canister that has governance switched off.
+fn busy_reason(c: &impl CanisterCall, owner: Principal, idle_for_secs: u64) -> String {
+    // Both fields come from the *same* observation. Taking the owner from the
+    // earlier `Busy` instead would let a discard-and-re-prepare in between
+    // produce a message naming one batch's owner beside another's hash.
+    if let Ok(ProposedState::Staged {
+        owner: staged_by,
+        prospective_state_hash,
+        ..
+    }) = proposed_state(c)
+    {
+        return format!(
+            "this canister has a prepared state change awaiting its governance proposal, \
+             so deploys are blocked until it is resolved.\n\
+             \x20 prepared by:  {staged_by}\n\
+             \x20 state hash:   {prospective_state_hash}\n\
+             Commit it by adopting a proposal that calls `commit_proposed_state` with that \
+             hash, or abandon it with `discard_proposed_state`."
+        );
+    }
+    format!(
+        "a sync is already in progress on this canister (started by {owner}, \
+         idle for {idle_for_secs}s); retry once it completes, or after it goes stale"
+    )
+}
+
+/// What the canister currently has prepared, if anything.
+pub fn proposed_state(c: &impl CanisterCall) -> Result<ProposedState, String> {
+    c.call("proposed_state", (), CallType::Query, true)
+}
+
+/// Stage content chunks under the sync. Takes ownership of the chunk bytes:
+/// Candid copies them into the request buffer on encode regardless, so moving
+/// them in (rather than borrowing) costs nothing and lets the caller hand off
+/// its buffers directly.
+///
+/// Returns the id the canister assigned to each chunk, in the same order as
+/// `chunks`. The batched upload path (`pack_and_upload_chunks`) issues these
+/// calls via `call_batch` instead; this single-call helper stays for callers
+/// that upload one batch at a time.
+pub fn upload_chunks(
+    c: &impl CanisterCall,
+    session_id: u64,
+    chunks: Vec<ByteBuf>,
+) -> Result<Vec<ChunkId>, String> {
+    let req = UploadChunksArguments { session_id, chunks };
+    c.call("upload_chunks", req, CallType::Update, true)
+}
+
+/// Applies a group of operations. The call flagged `is_final` finalizes the sync
+/// and returns the canonical state hash the canister recomputed over the now-
+/// final state; every other call returns `None`.
+pub fn execute_operations(
+    c: &impl CanisterCall,
+    args: ExecuteOperationsArguments,
+) -> Result<Option<ByteBuf>, String> {
+    c.call("execute_operations", args, CallType::Update, true)
+}
+
+// Fetch the complete redirect-rule list by paging through `get_redirect_rules`,
+// preserving order — the diff matches rules positionally and the canister
+// applies them first-match-wins, so order is significant (unlike the asset map).
+// The cursor is a positional `start_index` (the count seen so far) rather than a
+// value cursor like the asset walk uses: rules have no unique key, so only a
+// position can name "where we left off".
+//
+// As with `list_all_assets`, the canister owns the page size; a page shorter
+// than the previous full page is the last one (stop without the extra empty
+// round-trip), and an empty page also ends the walk.
+pub fn list_all_redirect_rules(c: &impl CanisterCall) -> Result<Vec<RedirectRule>, String> {
+    let mut all: Vec<RedirectRule> = Vec::new();
+    let mut start_index: u64 = 0;
+    let mut prev_page_size: Option<usize> = None;
+    loop {
+        let page: Vec<RedirectRule> =
+            c.call("get_redirect_rules", start_index, CallType::Query, true)?;
+        let n = page.len();
+        if n == 0 {
+            break;
+        }
+        start_index += n as u64;
+        all.extend(page);
+        if let Some(prev) = prev_page_size
+            && n < prev
+        {
+            break;
+        }
+        prev_page_size = Some(n);
+    }
+    Ok(all)
+}
+
+// Whether the signing identity may sync assets (authorized or a controller).
+// Called directly (not via proxy) so it reflects the identity's own access.
+pub fn can_sync(c: &impl CanisterCall) -> Result<bool, String> {
+    c.call("can_sync", (), CallType::Query, true)
+}
+
+// Routes through the proxy (direct: false) so the proxy canister — the
+// controller — can authorise the call on the assets canister.
+pub fn authorize_via_proxy(c: &impl CanisterCall, principal: Principal) -> Result<(), String> {
+    c.call("authorize", principal, CallType::Update, false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::collections::VecDeque;
+    use wire_types::RulePattern;
+
+    struct PagedMock {
+        pages: RefCell<VecDeque<Vec<AssetDetails>>>,
+    }
+
+    impl PagedMock {
+        fn new(pages: Vec<Vec<AssetDetails>>) -> Self {
+            Self {
+                pages: RefCell::new(VecDeque::from(pages)),
+            }
+        }
+    }
+
+    impl CanisterCall for PagedMock {
+        fn dispatch(&self, call: Call) -> Result<Vec<u8>, String> {
+            assert_eq!(call.method, "get_asset_details");
+            let page = self.pages.borrow_mut().pop_front().unwrap_or_default();
+            candid::encode_one(page).map_err(|e| e.to_string())
+        }
+    }
+
+    // Pages of assets with globally unique keys, mirroring the canister's
+    // ordered-by-key, exclusive-cursor pagination (no key repeats across pages).
+    fn mk_assets(start: usize, n: usize) -> Vec<AssetDetails> {
+        (start..start + n)
+            .map(|i| AssetDetails {
+                key: format!("/asset-{i}"),
+                encodings: vec![],
+                content_type: "text/plain".to_string(),
+                headers: vec![],
+            })
+            .collect()
+    }
+
+    #[test]
+    fn list_all_assets_empty_canister_returns_empty() {
+        let result = list_all_assets(&PagedMock::new(vec![])).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn list_all_assets_single_partial_page_returns_all() {
+        // 5 assets — one partial page, then the implicit empty page terminates the loop.
+        let result = list_all_assets(&PagedMock::new(vec![mk_assets(0, 5)])).unwrap();
+        assert_eq!(result.len(), 5);
+    }
+
+    #[test]
+    fn list_all_assets_partial_last_page_terminates_early() {
+        // 100 + 50: the 50-item page is smaller than the 100-item page, so the loop
+        // breaks without making a third request.
+        let mock = PagedMock::new(vec![mk_assets(0, 100), mk_assets(100, 50)]);
+        let result = list_all_assets(&mock).unwrap();
+        assert_eq!(result.len(), 150);
+        assert!(
+            mock.pages.borrow().is_empty(),
+            "no third request should be made"
+        );
+    }
+
+    #[test]
+    fn list_all_assets_full_pages_then_empty_returns_all() {
+        // 100 + 100 + 0: two full pages followed by an empty page.
+        let result = list_all_assets(&PagedMock::new(vec![
+            mk_assets(0, 100),
+            mk_assets(100, 100),
+            vec![],
+        ]))
+        .unwrap();
+        assert_eq!(result.len(), 200);
+    }
+
+    #[test]
+    fn list_all_assets_multiple_full_pages_then_partial() {
+        // 100 + 100 + 73: terminates on the smaller page.
+        let result = list_all_assets(&PagedMock::new(vec![
+            mk_assets(0, 100),
+            mk_assets(100, 100),
+            mk_assets(200, 73),
+        ]))
+        .unwrap();
+        assert_eq!(result.len(), 273);
+    }
+
+    struct RulePagedMock {
+        pages: RefCell<VecDeque<Vec<RedirectRule>>>,
+    }
+
+    impl RulePagedMock {
+        fn new(pages: Vec<Vec<RedirectRule>>) -> Self {
+            Self {
+                pages: RefCell::new(VecDeque::from(pages)),
+            }
+        }
+    }
+
+    impl CanisterCall for RulePagedMock {
+        fn dispatch(&self, call: Call) -> Result<Vec<u8>, String> {
+            assert_eq!(call.method, "get_redirect_rules");
+            let page = self.pages.borrow_mut().pop_front().unwrap_or_default();
+            candid::encode_one(page).map_err(|e| e.to_string())
+        }
+    }
+
+    // Rules whose `to` encodes a global index, so a reassembled walk can be
+    // checked for both completeness and order.
+    fn mk_rules(start: usize, n: usize) -> Vec<RedirectRule> {
+        (start..start + n)
+            .map(|i| RedirectRule {
+                from: RulePattern::Exact(format!("/from-{i}")),
+                to: format!("/to-{i}"),
+                status: 301,
+                headers: vec![],
+            })
+            .collect()
+    }
+
+    #[test]
+    fn list_all_redirect_rules_empty_canister_returns_empty() {
+        let result = list_all_redirect_rules(&RulePagedMock::new(vec![])).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn list_all_redirect_rules_single_partial_page_returns_all() {
+        let result = list_all_redirect_rules(&RulePagedMock::new(vec![mk_rules(0, 5)])).unwrap();
+        assert_eq!(result.len(), 5);
+    }
+
+    #[test]
+    fn list_all_redirect_rules_partial_last_page_terminates_early() {
+        // 100 + 50: the smaller second page ends the walk with no third request.
+        let mock = RulePagedMock::new(vec![mk_rules(0, 100), mk_rules(100, 50)]);
+        let result = list_all_redirect_rules(&mock).unwrap();
+        assert_eq!(result.len(), 150);
+        assert!(
+            mock.pages.borrow().is_empty(),
+            "no third request should be made"
+        );
+    }
+
+    #[test]
+    fn list_all_redirect_rules_full_pages_then_empty_preserve_order() {
+        // 100 + 100 + 0: order must survive across pages. Unlike the asset walk
+        // (which dedupes into a map), rules are matched positionally, so the
+        // concatenation order is the contract.
+        let result = list_all_redirect_rules(&RulePagedMock::new(vec![
+            mk_rules(0, 100),
+            mk_rules(100, 100),
+            vec![],
+        ]))
+        .unwrap();
+        assert_eq!(result.len(), 200);
+        assert!(
+            result
+                .iter()
+                .enumerate()
+                .all(|(i, r)| r.to == format!("/to-{i}"))
+        );
+    }
+}

@@ -1,0 +1,50 @@
+[package]
+name = "canister-core"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# `rlib` for the `canister` crate (and unit tests) to link against; `cdylib` so
+# `canbench` can build this crate directly into a benchmark wasm (see
+# `canbench.yml` and `src/benches.rs`, both gated behind the `canbench-rs` feature).
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Compiles the canbench microbenchmarks (`src/benches.rs`) into the wasm. Off by
+# default, so normal builds and the `canister` crate are unaffected.
+canbench-rs = ["dep:canbench-rs"]
+
+[dependencies]
+wire-types = { path = "../wire-types" }
+state-hash = { path = "../state-hash" }
+canbench-rs = { workspace = true, optional = true }
+base64.workspace = true
+candid.workspace = true
+hex.workspace = true
+http.workspace = true
+ic-cdk.workspace = true
+ic-cdk-management-canister.workspace = true
+ic-stable-structures.workspace = true
+ic-certification.workspace = true
+ic-response-verification.workspace = true
+ic-representation-independent-hash.workspace = true
+itertools.workspace = true
+num-traits.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+ciborium.workspace = true
+sha2.workspace = true
+percent-encoding.workspace = true
+
+[dev-dependencies]
+# Cross-implementation test only: prepare a `dist/` the same way the sync plugin
+# does, drive it into a `State`, and assert the canister's state hash equals the
+# verifier's. Native dev-dep; never linked into the wasm.
+asset-prep = { path = "../asset-prep" }
+tempfile.workspace = true
+ic-http-certification.workspace = true
+anyhow.workspace = true

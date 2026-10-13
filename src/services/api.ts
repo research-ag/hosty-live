@@ -1,7 +1,5 @@
 // Base API configuration
-import { AssetManager } from "@dfinity/assets";
 import { Principal } from "@icp-sdk/core/principal";
-import { getAgent } from "../hooks/useInternetIdentity.ts";
 import { getBackendActor } from "../api/backend";
 import { isValidDomain } from "../utils/domains.ts";
 
@@ -142,37 +140,12 @@ export const customDomainApi = {
     }
     try {
       console.log("📤 Uploading ic-domains file...");
-      const { getAuthClient } = await import("../hooks/useInternetIdentity");
-      const { getAssetStorageActor } = await import("../api/asset-storage");
-
-      const authClient = await getAuthClient();
-      const myPrincipal = authClient.getIdentity().getPrincipal();
-      const assetCanister = await getAssetStorageActor(canisterId);
-
-      // Grant permissions (silent if already granted)
-      try {
-        await assetCanister.grant_permission({
-          permission: { Prepare: null },
-          to_principal: myPrincipal,
-        });
-        await assetCanister.grant_permission({
-          permission: { Commit: null },
-          to_principal: myPrincipal,
-        });
-      } catch (permErr) {
-        console.warn("⚠️ Could not grant permissions:", permErr);
-      }
-
-      // Upload file
-      const assetManager = new AssetManager({
-        canisterId: Principal.fromText(canisterId),
-        agent: getAgent(),
-      });
-      await assetManager.store(new TextEncoder().encode(domain), {
-        fileName: ".well-known/ic-domains",
+      const { putFiles } = await import("../api/certified-assets");
+      await putFiles(canisterId, [{
+        path: ".well-known/ic-domains",
+        content: new TextEncoder().encode(domain),
         contentType: "text/plain",
-        contentEncoding: "identity",
-      });
+      }]);
       console.log("✅ ic-domains file uploaded");
 
       return { success: true };

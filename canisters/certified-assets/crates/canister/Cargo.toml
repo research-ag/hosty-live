@@ -1,0 +1,22 @@
+[package]
+name = "canister"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+canister-core = { path = "../canister-core" }
+ic-cdk.workspace = true
+candid.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+
+[dev-dependencies]
+candid_parser.workspace = true

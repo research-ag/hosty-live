@@ -1,19 +1,24 @@
 {
   "version": 3,
-  "mopsTomlDepsHash": "c9c0002627bc5e18811c2b80f5a2af5a3fbd3e012b374cf6cc1fc29b13304cf7",
+  "mopsTomlDepsHash": "a05413ca4870f99a071c27c206068d69dcf2ccd2bec3180ce068945849491eba",
   "deps": {
     "base": "0.14.13",
     "core": "1.0.0",
     "new-base": "0.4.0",
-    "promtracker": "0.6.0"
+    "promtracker": "0.6.0",
+    "sha2": "0.1.5"
   },
   "graph": {
     "base@0.14.13": {},
+    "base@0.14.9": {},
     "core@1.0.0": {},
     "new-base@0.4.0": {},
     "promtracker@0.6.0": {
       "base": "0.14.13",
       "new-base": "0.4.0"
+    },
+    "sha2@0.1.5": {
+      "base": "0.14.9"
     }
   },
   "hashes": {
@@ -186,6 +191,14 @@
       "promtracker@0.6.0/mops.toml": "0579eb08efeb7400f9972224a91b01a3408c2dc6d6367b5f67736741027ca807",
       "promtracker@0.6.0/src/lib.mo": "7dd74ecec8f32f898f34f13020a25fc5b65814bd3699ccf9427a90e11acef89f",
       "promtracker@0.6.0/src/testable.mo": "fdf29c485f56f2c9a0478dc03833ea26edda9f838445b6260d429560554827bc"
+    },
+    "sha2@0.1.5": {
+      "sha2@0.1.5/LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "sha2@0.1.5/NOTICE": "9e95e2265712704574d13aaa6cab885a11e6ca6d46d70a7dd5286791ed59a1c3",
+      "sha2@0.1.5/README.md": "968ade7f520180a097085f468d79a2de8d61b3785057e363ed5117a7eba5a56c",
+      "sha2@0.1.5/mops.toml": "5ad40009e39c2113262473d9f7e51549887854be0bc0a5f0b0c71c111ffc0b8e",
+      "sha2@0.1.5/src/Sha256.mo": "dc0d0e5a5950f7786648eee417d1a1a3b8d0e48d1faf48ce4af6378fee6f8453",
+      "sha2@0.1.5/src/Sha512.mo": "9983910bc2e8e92dffb58d89607f62cc35a243d6cb5f1bd13076f377d0d8d261"
     }
   }
 }
