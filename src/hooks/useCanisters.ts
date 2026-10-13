@@ -20,6 +20,12 @@ import defaultPage from "../constants/default-page.ts";
 import { canister_status_result } from "../api/management/management.did";
 import { arrayBufferToHex } from "../utils/bufffer-utils.ts";
 
+// Freezing threshold applied when a canister is reset. The assets canister grows memory
+// on its first upload, and the frozen reserve is idle burn x threshold, so a long
+// threshold (we used 365 days) makes the first deploy fail on a ~1T balance with
+// "cannot grow memory due to insufficient cycles". 30 days matches the backend pool.
+const RESET_FREEZING_THRESHOLD_SECONDS = 30 * 24 * 60 * 60;
+
 export function useCanisters() {
   const queryClient = useQueryClient()
   // State for creation progress UI
@@ -467,7 +473,7 @@ export function useCanisters() {
       })({
         canister_id: Principal.fromText(canisterId),
         settings: {
-          freezing_threshold: [BigInt(365 * 24 * 60 * 60)],
+          freezing_threshold: [BigInt(RESET_FREEZING_THRESHOLD_SECONDS)],
           controllers: [[...canisterOwners, Principal.fromText(statusProxyCanisterId)]],
           reserved_cycles_limit: [],
           log_visibility: [],
