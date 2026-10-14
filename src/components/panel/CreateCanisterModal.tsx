@@ -1,11 +1,13 @@
+import { useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
-import { Server } from 'lucide-react'
+import { Cpu, Globe, Server } from 'lucide-react'
+import type { CanisterKind } from '../../types'
 
 interface CreateCanisterModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateCanister: () => void
+  onCreateCanister: (kind: CanisterKind) => void
   isLoading?: boolean
   statusMessage?: string
   error?: string
@@ -20,10 +22,17 @@ export function CreateCanisterModal({
   error 
 }: CreateCanisterModalProps) {
 
+  const [kind, setKind] = useState<CanisterKind>('frontend')
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onCreateCanister()
+    onCreateCanister(kind)
   }
+
+  const options: { value: CanisterKind; title: string; text: string; icon: typeof Globe }[] = [
+    { value: 'frontend', title: 'Frontend', text: 'Static site: upload built files, custom domains.', icon: Globe },
+    { value: 'backend', title: 'Backend', text: 'Your own Wasm module (Motoko, Rust, Azle). Created empty.', icon: Cpu },
+  ]
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Create New Canister" className="max-w-lg">
@@ -43,6 +52,25 @@ export function CreateCanisterModal({
             <p className="text-sm text-muted-foreground mb-4">
               This will create a new Internet Computer canister for hosting your applications.
             </p>
+            <div className="grid grid-cols-2 gap-3 mb-4 text-left">
+              {options.map(({ value, title, text, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => setKind(value)}
+                  className={`rounded-lg border p-3 transition-colors ${
+                    kind === value ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-medium text-sm mb-1">
+                    <Icon className="h-4 w-4" />
+                    {title}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{text}</p>
+                </button>
+              ))}
+            </div>
             <div className="bg-muted/50 border rounded-lg p-4 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Cost:</span>

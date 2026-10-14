@@ -203,6 +203,11 @@ export function useRealTimeDeployments(
       optionsRef.current.onDeploymentUpdated?.(deployment);
     });
 
+    // Deploy session requested / approved / ended: refresh the sessions query
+    socket.on("session:updated", () => {
+      queryClient.invalidateQueries({ queryKey: ["deploy-sessions"] });
+    });
+
     // Listen for deployment logs
     socket.on("deployment:log", (data: DeploymentLogEvent) => {
       console.log(

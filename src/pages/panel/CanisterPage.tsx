@@ -24,6 +24,10 @@ import { TextInputModal } from "../../components/ui/TextInputModal";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { Badge } from "../../components/ui/Badge";
 import { DeployModal } from "../../components/panel/DeployModal";
+import { DeployWasmModal } from "../../components/panel/DeployWasmModal";
+import { BackendModuleCard } from "../../components/panel/BackendModuleCard";
+import { useDeploySessions } from "../../hooks/useDeploySessions";
+import type { DeployWasmInput } from "../../services/api";
 import { TransferOwnershipModal } from "../../components/panel/TransferOwnershipModal";
 import { CustomDomainModal } from "../../components/panel/CustomDomainModal";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
@@ -62,7 +66,8 @@ export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { getCanister, addController, removeController, resetCanister, donateCanister } = useCanisters();
-  const { deployToCanister, deployFromGit, deployFromUrl } = useDeployments();
+  const { deployToCanister, deployFromGit, deployFromUrl, deployWasm } = useDeployments();
+  const { ensureActiveSession } = useDeploySessions({ enabled: false });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -86,6 +91,8 @@ export function CanisterPage() {
 
   const canisterStatus = useCanisterStatus(icCanisterId);
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
+  const [isWasmModalOpen, setIsWasmModalOpen] = useState(false);
+  const [wasmError, setWasmError] = useState<string>("");
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
   const [_, setCopied] = useState(false);
@@ -167,6 +174,30 @@ export function CanisterPage() {
   useEffect(() => {
     fetchImmutability().then();
   }, [icCanisterId]);
+
+  // Backend install: the web form approves a short deploy session in place (the user is
+  // clicking Install themselves), then the API installs the module as the user.
+  const handleInstallWasm = async (input: Omit<DeployWasmInput, "canisterId">) => {
+    if (!canister) return;
+    setWasmError("");
+    try {
+      await ensureActiveSession(15);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not open a deploy session";
+      setWasmError(message);
+      toast.error("Deploy session failed", message);
+      return;
+    }
+    const result = await deployWasm({ canisterId: canister.id, ...input });
+    if (result.success) {
+      setIsWasmModalOpen(false);
+      toast.success("Install started", "Follow the progress on the deployments page.");
+      navigate(result.data?.id ? `/panel/deployment/${result.data.id}` : "/panel/deployments");
+    } else {
+      setWasmError(result.error || "Failed to start the install");
+      toast.error("Install failed", result.error);
+    }
+  };
 
   const handleDeploy = async (data: {
     file: File;
@@ -585,6 +616,8 @@ export function CanisterPage() {
     }
   };
 
+  const isBackend = canister.kind === "backend";
+  const isController = !!principal && !!canisterStatus.controllers?.includes(principal);
   const canDeploy = !!canisterStatus.moduleHash && isAssetCanister(canisterStatus.moduleHash);
   const deployTooltip = !canDeploy
     ? "Deployment disabled: Canister is not an asset canister"
@@ -620,6 +653,7 @@ export function CanisterPage() {
           </div>
           <div className="flex items-center space-x-2">
             {getStatusIcon(canister.status)}
+            <Badge variant="outline">{isBackend ? "backend" : "frontend"}</Badge>
             <Badge
               variant={canister.status === "active" ? "success" : "secondary"}
             >
@@ -640,14 +674,16 @@ export function CanisterPage() {
             <Share2 className="mr-2 h-4 w-4"/>
             Share
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => setIsCustomDomainModalOpen(true)}
-            className="w-full sm:w-auto"
-          >
-            <Settings className="mr-2 h-4 w-4"/>
-            Custom Domain
-          </Button>
+          {!isBackend && (
+            <Button
+              variant="outline"
+              onClick={() => setIsCustomDomainModalOpen(true)}
+              className="w-full sm:w-auto"
+            >
+              <Settings className="mr-2 h-4 w-4"/>
+              Custom Domain
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => setIsTransferModalOpen(true)}
@@ -657,17 +693,31 @@ export function CanisterPage() {
             <UserCheck className="mr-2 h-4 w-4"/>
             Ownership
           </Button>
-          <TooltipWrapper content={deployTooltip}>
-            <Button
-              variant="default"
-              onClick={() => setIsDeployModalOpen(true)}
-              disabled={!canDeploy}
-              className="w-full sm:w-auto"
-            >
-              <Upload className="mr-2 h-4 w-4"/>
-              Deploy
-            </Button>
-          </TooltipWrapper>
+          {isBackend ? (
+            <TooltipWrapper content="Only a controller can install code" disabled={isController}>
+              <Button
+                variant="default"
+                onClick={() => setIsWasmModalOpen(true)}
+                disabled={!isController}
+                className="w-full sm:w-auto"
+              >
+                <Upload className="mr-2 h-4 w-4"/>
+                Install module
+              </Button>
+            </TooltipWrapper>
+          ) : (
+            <TooltipWrapper content={deployTooltip}>
+              <Button
+                variant="default"
+                onClick={() => setIsDeployModalOpen(true)}
+                disabled={!canDeploy}
+                className="w-full sm:w-auto"
+              >
+                <Upload className="mr-2 h-4 w-4"/>
+                Deploy
+              </Button>
+            </TooltipWrapper>
+          )}
         </div>
       </div>
 
@@ -929,7 +979,15 @@ export function CanisterPage() {
           </CardContent>
         </Card>
 
-        {/* Frontend Section */}
+        {/* Frontend / Backend Section */}
+        {isBackend ? (
+          <BackendModuleCard
+            canisterId={canister.id}
+            moduleHash={canisterStatus.moduleHash}
+            canInstall={isController}
+            onInstall={() => setIsWasmModalOpen(true)}
+          />
+        ) : (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1067,7 +1125,20 @@ export function CanisterPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
+
+      <DeployWasmModal
+        isOpen={isWasmModalOpen}
+        onClose={() => {
+          setIsWasmModalOpen(false);
+          setWasmError("");
+        }}
+        onInstall={handleInstallWasm}
+        canister={canister}
+        currentModuleHash={canisterStatus.moduleHash}
+        error={wasmError}
+      />
 
       <DeployModal
         isOpen={isDeployModalOpen}
@@ -1175,7 +1246,7 @@ export function CanisterPage() {
             </p>
             <ul className="list-disc pl-5 text-sm mt-2 space-y-1">
               <li>Controllers set to you and the status-proxy canister</li>
-              <li>Asset wasm module re-installed</li>
+              <li>Asset wasm module re-installed{isBackend ? " (your backend module and its state are deleted)" : ""}</li>
               <li>Asset permissions cleared and default grants reapplied</li>
               <li>Default index.html deployed to the asset canister</li>
             </ul>

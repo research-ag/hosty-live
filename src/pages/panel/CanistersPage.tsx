@@ -17,7 +17,8 @@ import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
 import { getBackendActor } from "../../api/backend";
-import { Canister } from "../../types";
+import { Canister, CanisterKind } from "../../types";
+import { candidUiUrl } from "../../components/panel/BackendModuleCard";
 import { useQueryClient } from "@tanstack/react-query";
 
 function CyclesCell({ canisterId }: { canisterId: string }) {
@@ -162,11 +163,11 @@ export function CanistersPage() {
     currentPage * itemsPerPage
   );
 
-  const handleCreateCanister = async () => {
+  const handleCreateCanister = async (kind: CanisterKind) => {
     setIsCreating(true);
     setActionError("");
 
-    const result = await createCanister();
+    const result = await createCanister(kind);
 
     if (result.success) {
       toast.success(
@@ -462,7 +463,10 @@ export function CanistersPage() {
                     </p>
                   </div>
                 </div>
-                {getStatusBadge(canister.status)}
+                <div className="flex items-center gap-1">
+                  <Badge variant="outline">{canister.kind}</Badge>
+                  {getStatusBadge(canister.status)}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-4">
@@ -558,7 +562,19 @@ export function CanistersPage() {
                     Delete
                   </Button>)}
                 </div>
-                {canister.frontendUrl && (
+                {canister.kind === "backend" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(candidUiUrl(canister.id), "_blank");
+                    }}
+                    className="text-xs font-medium"
+                  >
+                    Candid UI
+                  </Button>
+                ) : canister.frontendUrl && (
                   <Button
                     variant="default"
                     size="sm"

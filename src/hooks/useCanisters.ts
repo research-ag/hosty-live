@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Canister, mapCanister, Response } from '../types'
+import { Canister, CanisterKind, mapCanister, Response } from '../types'
 import { getMyCanisters } from '../services/canisters'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
@@ -79,31 +79,40 @@ export function useCanisters() {
 
   // Mutation for creating canisters
   const createCanisterMutation = useMutation({
-    mutationFn: async () => {
-      // Step 0: prepare asset canister binary
+    mutationFn: async (kind: CanisterKind = 'frontend') => {
+      // Step 0: prepare asset canister binary (frontends only; backends start empty and
+      // get their module through a deploy session)
       setCreationMessage('Preparing...')
-      const response = await fetch("/assetstorage.wasm.gz");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+      let wasmBinary: Uint8Array | null = null
+      if (kind === 'frontend') {
+        const response = await fetch("/assetstorage.wasm.gz");
+        if (!response.ok) {
+          throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+        }
+        wasmBinary = new Uint8Array(await response.arrayBuffer())
       }
-      const wasmBinary = new Uint8Array(await response.arrayBuffer())
       const management = await getManagementActor()
       const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
       // Step 1: creating on ledger
       setCreationMessage('Creating your canister...')
       const { canisterId } = await createCanisterOnLedger()
       // Step 2: preparing via backend
-      setCreationMessage('Preparing your canister...')
-      try {
-        await performInitialCanisterSetup(canisterId, management, wasmBinary, [myPrincipal]);
-      } catch (err) {
-        // TODO implement a way to setup canister again later. We need to register it anyway
-        console.error(err);
+      if (wasmBinary) {
+        setCreationMessage('Preparing your canister...')
+        try {
+          await performInitialCanisterSetup(canisterId, management, wasmBinary, [myPrincipal]);
+        } catch (err) {
+          // TODO implement a way to setup canister again later. We need to register it anyway
+          console.error(err);
+        }
       }
       // Step 3: register
       setCreationMessage('Registering your canister...')
       const backend = await getBackendActor();
-      const registered = await backend.registerCanister(Principal.fromText(canisterId));
+      let registered = await backend.registerCanister(Principal.fromText(canisterId));
+      if (kind === 'backend') {
+        registered = await backend.setCanisterKind(Principal.fromText(canisterId), { backend: null });
+      }
 
       return mapCanister(registered)
     },
@@ -252,9 +261,9 @@ export function useCanisters() {
   }
 
   // Wrapper functions to maintain the same interface
-  const createCanister = async (): Promise<{ success: boolean; error?: string; data?: Canister }> => {
+  const createCanister = async (kind: CanisterKind = 'frontend'): Promise<{ success: boolean; error?: string; data?: Canister }> => {
     try {
-      const result = await createCanisterMutation.mutateAsync()
+      const result = await createCanisterMutation.mutateAsync(kind)
       return { success: true, data: result }
     } catch (err) {
       return {

@@ -118,8 +118,9 @@ export function AgentAccessCard() {
           AI agent access
         </CardTitle>
         <CardDescription>
-          Let Claude Code, Cursor or any MCP-capable agent deploy frontends to your canisters.
-          Three steps: create a token, grant deploy access, connect the agent.
+          Let Claude Code, Cursor or any MCP-capable agent deploy frontends and backend canisters.
+          Three steps: create a token, grant deploy access, connect the agent. Backend installs
+          additionally ask you to approve a time-boxed deploy session, right here in the panel.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

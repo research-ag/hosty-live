@@ -53,6 +53,8 @@ export function getSourceTypeLabel(sourceType: SourceType): string {
       return 'Git Repository'
     case 'URL':
       return 'Archive URL'
+    case 'WASM':
+      return 'Wasm module'
     default:
       return sourceType
   }

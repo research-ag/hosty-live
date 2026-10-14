@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import {
+import { Cpu,
   AlertCircle,
   CheckCircle,
   ChevronLeft,
@@ -165,6 +165,8 @@ export function DeploymentsPage() {
         return <Github className="h-4 w-4 text-blue-500"/>
       case 'URL':
         return <LinkIcon className="h-4 w-4 text-purple-500"/>
+      case 'WASM':
+        return <Cpu className="h-4 w-4 text-orange-500"/>
       case 'ZIP':
       default:
         return <Upload className="h-4 w-4 text-green-500"/>

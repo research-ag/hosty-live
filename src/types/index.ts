@@ -5,7 +5,9 @@ import type {
 
 // Use backend enums directly as source of truth
 export type DeploymentStatus = 'PENDING' | 'BUILDING' | 'DEPLOYING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
-export type SourceType = 'ZIP' | 'GIT' | 'URL'
+export type SourceType = 'ZIP' | 'GIT' | 'URL' | 'WASM'
+export type DeploymentKind = 'FRONTEND' | 'BACKEND'
+export type InstallMode = 'INSTALL' | 'UPGRADE' | 'REINSTALL'
 
 export interface Deployment {
   id: string
@@ -30,6 +32,14 @@ export interface Deployment {
   updatedAt: string
   isDryRun?: boolean
   pureAssets?: boolean
+  kind?: DeploymentKind
+  installMode?: InstallMode
+  wasmHash?: string
+  initArgText?: string
+  wasmMemoryPersistence?: string
+  skipPreUpgrade?: boolean
+  postInstallMethod?: string
+  sessionId?: string
 }
 
 export interface User {
@@ -138,6 +148,14 @@ export interface ApiDeployment {
   updatedAt: string
   isDryRun?: boolean
   pureAssets?: boolean
+  kind?: string
+  installMode?: string
+  wasmHash?: string
+  initArgText?: string
+  wasmMemoryPersistence?: string
+  skipPreUpgrade?: boolean
+  postInstallMethod?: string
+  sessionId?: string
 }
 
 export interface DeploymentsListResponseDto {
