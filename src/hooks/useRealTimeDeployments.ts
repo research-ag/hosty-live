@@ -100,14 +100,16 @@ function setSharedStatus(status: ConnectionStatus) {
 
 function connectShared(queryClient: QueryClient) {
   if (sharedSocket?.connected || subscribers.size === 0) return;
-  if (sharedSocket) {
-    sharedSocket.connect();
-    return;
-  }
 
   const token = getStoredAccessToken();
   if (!token) {
     console.log("🔌 [useRealTimeDeployments] No auth token, skipping connection");
+    return;
+  }
+  if (sharedSocket) {
+    // A reconnect must present the current session token, not the one it was created with.
+    sharedSocket.auth = { token: `Bearer ${token}` };
+    sharedSocket.connect();
     return;
   }
 

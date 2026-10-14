@@ -57,6 +57,7 @@ export function CreateCanisterModal({
                 <button
                   key={value}
                   type="button"
+                  aria-pressed={kind === value}
                   disabled={isLoading}
                   onClick={() => setKind(value)}
                   className={`rounded-lg border p-3 transition-colors ${

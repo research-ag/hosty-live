@@ -568,7 +568,7 @@ export function CanistersPage() {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.open(candidUiUrl(canister.id), "_blank");
+                      window.open(candidUiUrl(canister.id), "_blank", "noopener");
                     }}
                     className="text-xs font-medium"
                   >

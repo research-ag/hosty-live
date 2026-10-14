@@ -111,7 +111,23 @@ export function useCanisters() {
       const backend = await getBackendActor();
       let registered = await backend.registerCanister(Principal.fromText(canisterId));
       if (kind === 'backend') {
-        registered = await backend.setCanisterKind(Principal.fromText(canisterId), { backend: null });
+        // The canister exists and is registered at this point; a failure here must not
+        // read as "creation failed" nor pass the canister off as a working backend.
+        try {
+          registered = await backend.setCanisterKind(Principal.fromText(canisterId), { backend: null });
+        } catch (first) {
+          try {
+            registered = await backend.setCanisterKind(Principal.fromText(canisterId), { backend: null });
+          } catch (err) {
+            console.error('setCanisterKind failed', first, err);
+            queryClient.invalidateQueries({ queryKey: ['canisters'] });
+            throw new Error(
+              `Canister ${canisterId} was created and registered, but marking it as a backend failed: ${
+                err instanceof Error ? err.message : String(err)
+              }. It is listed as a frontend; retry marking it later or reset it.`,
+            );
+          }
+        }
       }
 
       return mapCanister(registered)

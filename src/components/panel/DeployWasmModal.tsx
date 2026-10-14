@@ -40,18 +40,32 @@ export function DeployWasmModal({
   const [mode, setMode] = useState<Mode>(defaultMode);
   const [initArg, setInitArg] = useState("");
   const [argStatus, setArgStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [argChecking, setArgChecking] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [persistence, setPersistence] = useState<"" | "keep" | "replace">("");
   const [skipPreUpgrade, setSkipPreUpgrade] = useState(false);
   const [postInstallMethod, setPostInstallMethod] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
+  // Bumped on every open so the file pickers (which keep their own state) remount empty.
+  const [openCount, setOpenCount] = useState(0);
 
+  // Every open starts from a clean form.
   useEffect(() => {
     if (isOpen) {
+      setOpenCount((n) => n + 1);
+      setWasm(null);
+      setCandid(null);
+      setCandidText(undefined);
       setMode(defaultMode);
-      setConfirmText("");
+      setInitArg("");
       setArgStatus(null);
+      setArgChecking(false);
+      setAdvanced(false);
+      setPersistence("");
+      setSkipPreUpgrade(false);
+      setPostInstallMethod("");
+      setConfirmText("");
     }
   }, [isOpen, defaultMode]);
 
@@ -68,15 +82,19 @@ export function DeployWasmModal({
     const arg = initArg.trim();
     if (!arg || arg === "()") {
       setArgStatus(null);
+      setArgChecking(false);
       return;
     }
     let cancelled = false;
+    setArgChecking(true);
     const timer = setTimeout(async () => {
       try {
         const hex = await wasmDeploymentsApi.validateArg(arg, candidText);
         if (!cancelled) setArgStatus({ ok: true, message: `${hex.length / 2} bytes` });
       } catch (err) {
         if (!cancelled) setArgStatus({ ok: false, message: err instanceof Error ? err.message : String(err) });
+      } finally {
+        if (!cancelled) setArgChecking(false);
       }
     }, 500);
     return () => {
@@ -86,7 +104,7 @@ export function DeployWasmModal({
   }, [initArg, candidText]);
 
   const reinstallConfirmed = mode !== "reinstall" || confirmText.trim() === canister.id;
-  const canSubmit = !!wasm && reinstallConfirmed && !busy && (!argStatus || argStatus.ok);
+  const canSubmit = !!wasm && reinstallConfirmed && !busy && !argChecking && (!argStatus || argStatus.ok);
 
   const modeHelp = useMemo(() => {
     switch (mode) {
@@ -151,7 +169,7 @@ export function DeployWasmModal({
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Wasm module</label>
-          <FileUploader onFileSelect={setWasm} accept=".wasm,.gz" maxSize={MAX_WASM} disabled={busy} />
+          <FileUploader key={`wasm-${openCount}`} onFileSelect={setWasm} accept=".wasm,.gz" maxSize={MAX_WASM} disabled={busy} />
           <p className="text-xs text-muted-foreground">
             Any IC Wasm module (Motoko, Rust, Azle, …), optionally gzipped. Up to 100 MB.
           </p>
@@ -245,7 +263,7 @@ export function DeployWasmModal({
           <div className="space-y-4 rounded-md border p-3">
             <div className="space-y-2">
               <label className="text-sm font-medium">Candid interface (.did)</label>
-              <FileUploader onFileSelect={setCandid} accept=".did" maxSize={2 * 1024 * 1024} disabled={busy} />
+              <FileUploader key={`candid-${openCount}`} onFileSelect={setCandid} accept=".did" maxSize={2 * 1024 * 1024} disabled={busy} />
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium">Wasm memory persistence (upgrade)</label>
