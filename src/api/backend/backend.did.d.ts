@@ -26,6 +26,11 @@ export interface Backend {
     [Uint8Array | number[], Uint8Array | number[]],
     undefined
   >,
+  'setCanisterKind' : ActorMethod<[Principal, CanisterKind], CanisterInfo>,
+  'setCanisterKindFor' : ActorMethod<
+    [Principal, Principal, CanisterKind],
+    CanisterInfo
+  >,
   'setMaxRentals' : ActorMethod<[bigint], undefined>,
   'undoDonation' : ActorMethod<[Principal, Principal], undefined>,
   'updateCanister' : ActorMethod<
@@ -44,6 +49,7 @@ export interface Backend {
 export interface CanisterInfo {
   'alias' : [] | [string],
   'deployedAt' : [] | [bigint],
+  'kind' : CanisterKind,
   'createdAt' : bigint,
   'description' : [] | [string],
   'userIds' : Array<Principal>,
@@ -52,6 +58,8 @@ export interface CanisterInfo {
   'canisterId' : Principal,
   'ownedBySystem' : boolean,
 }
+export type CanisterKind = { 'frontend' : null } |
+  { 'backend' : null };
 export interface DeploymentExample {
   'url' : string,
   'owner' : [] | [Principal],

@@ -10,9 +10,14 @@ export const idlFactory = ({ IDL }) => {
     'assetsDir' : IDL.Text,
   });
   const Result_1 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
+  const CanisterKind = IDL.Variant({
+    'frontend' : IDL.Null,
+    'backend' : IDL.Null,
+  });
   const CanisterInfo = IDL.Record({
     'alias' : IDL.Opt(IDL.Text),
     'deployedAt' : IDL.Opt(IDL.Nat64),
+    'kind' : CanisterKind,
     'createdAt' : IDL.Nat64,
     'description' : IDL.Opt(IDL.Text),
     'userIds' : IDL.Vec(IDL.Principal),
@@ -84,6 +89,16 @@ export const idlFactory = ({ IDL }) => {
     'setAssetsModule' : IDL.Func(
         [IDL.Vec(IDL.Nat8), IDL.Vec(IDL.Nat8)],
         [],
+        [],
+      ),
+    'setCanisterKind' : IDL.Func(
+        [IDL.Principal, CanisterKind],
+        [CanisterInfo],
+        [],
+      ),
+    'setCanisterKindFor' : IDL.Func(
+        [IDL.Principal, IDL.Principal, CanisterKind],
+        [CanisterInfo],
         [],
       ),
     'setMaxRentals' : IDL.Func([IDL.Nat], [], []),

@@ -38,8 +38,11 @@ export interface User {
   email: string
 }
 
+export type CanisterKind = 'frontend' | 'backend';
+
 export type Canister = {
   id: string;
+  kind: CanisterKind;
   alias: string;
   description: string | null;
   cycles: number;
@@ -69,6 +72,8 @@ export function mapCanister(b: BackendCanisterInfo, rentedUntil: string | null =
     : undefined;
   return {
     id: icId,
+    // `kind` is absent while the backend canister has not been upgraded yet
+    kind: b.kind && 'backend' in b.kind ? 'backend' : 'frontend',
     alias: b.alias[0] || `Canister ${icId.slice(0, 5)}`,
     description: b.description[0] || null,
     cycles: 0,
