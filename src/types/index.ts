@@ -5,7 +5,9 @@ import type {
 
 // Use backend enums directly as source of truth
 export type DeploymentStatus = 'PENDING' | 'BUILDING' | 'DEPLOYING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
-export type SourceType = 'ZIP' | 'GIT' | 'URL'
+export type SourceType = 'ZIP' | 'GIT' | 'URL' | 'WASM'
+export type DeploymentKind = 'FRONTEND' | 'BACKEND'
+export type InstallMode = 'INSTALL' | 'UPGRADE' | 'REINSTALL'
 
 export interface Deployment {
   id: string
@@ -30,6 +32,14 @@ export interface Deployment {
   updatedAt: string
   isDryRun?: boolean
   pureAssets?: boolean
+  kind?: DeploymentKind
+  installMode?: InstallMode
+  wasmHash?: string
+  initArgText?: string
+  wasmMemoryPersistence?: string
+  skipPreUpgrade?: boolean
+  postInstallMethod?: string
+  sessionId?: string
 }
 
 export interface User {
@@ -38,8 +48,11 @@ export interface User {
   email: string
 }
 
+export type CanisterKind = 'frontend' | 'backend';
+
 export type Canister = {
   id: string;
+  kind: CanisterKind;
   alias: string;
   description: string | null;
   cycles: number;
@@ -69,6 +82,8 @@ export function mapCanister(b: BackendCanisterInfo, rentedUntil: string | null =
     : undefined;
   return {
     id: icId,
+    // `kind` is absent while the backend canister has not been upgraded yet
+    kind: b.kind && 'backend' in b.kind ? 'backend' : 'frontend',
     alias: b.alias[0] || `Canister ${icId.slice(0, 5)}`,
     description: b.description[0] || null,
     cycles: 0,
@@ -133,6 +148,14 @@ export interface ApiDeployment {
   updatedAt: string
   isDryRun?: boolean
   pureAssets?: boolean
+  kind?: string
+  installMode?: string
+  wasmHash?: string
+  initArgText?: string
+  wasmMemoryPersistence?: string
+  skipPreUpgrade?: boolean
+  postInstallMethod?: string
+  sessionId?: string
 }
 
 export interface DeploymentsListResponseDto {

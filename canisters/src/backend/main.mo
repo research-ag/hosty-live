@@ -49,6 +49,34 @@ import Http "../shared/tiny_http";
 //     };
 //   }
 // )
+(
+  with migration = func(
+    old : {
+      canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+    }
+  ) : {
+    canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+  } {
+    // Every canister registered before this version ran the hosty assets module.
+    {
+      canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
+        old.canisters,
+        func(c) = {
+          canisterId = c.canisterId;
+          var alias = c.alias;
+          var description = c.description;
+          var userIds = c.userIds;
+          var frontendUrl = c.frontendUrl;
+          var ownedBySystem = c.ownedBySystem;
+          var kind = #frontend;
+          createdAt = c.createdAt;
+          var deployedAt = c.deployedAt;
+          var deletedAt = c.deletedAt;
+        },
+      );
+    };
+  }
+)
 persistent actor class Backend() = self {
 
   transient let CONSTANTS = {
@@ -67,6 +95,11 @@ persistent actor class Backend() = self {
     POOL_CANISTER_FREEZING_THRESHOLD = 30 * 24 * 60 * 60;
   };
 
+  // What the canister is used for. Frontends run the hosty assets module and are
+  // deployed by uploading files; backends run a user supplied module installed by
+  // the hosty API under a delegation from the user.
+  type CanisterKind = { #frontend; #backend };
+
   type CanisterData = {
     canisterId : Principal;
     var alias : ?Text;
@@ -74,6 +107,7 @@ persistent actor class Backend() = self {
     var userIds : [Principal];
     var frontendUrl : Text;
     var ownedBySystem : Bool;
+    var kind : CanisterKind;
     createdAt : Nat64;
     var deployedAt : ?Nat64;
     var deletedAt : ?Nat64;
@@ -216,6 +250,7 @@ persistent actor class Backend() = self {
     userIds : [Principal];
     frontendUrl : Text;
     ownedBySystem : Bool;
+    kind : CanisterKind;
     createdAt : Nat64;
     deployedAt : ?Nat64;
     deletedAt : ?Nat64;
@@ -227,6 +262,7 @@ persistent actor class Backend() = self {
     userIds = cd.userIds;
     frontendUrl = cd.frontendUrl;
     ownedBySystem = cd.ownedBySystem;
+    kind = cd.kind;
     createdAt = cd.createdAt;
     deployedAt = cd.deployedAt;
     deletedAt = cd.deletedAt;
@@ -261,6 +297,7 @@ persistent actor class Backend() = self {
   ignore pt.addPullValue("num_profiles", "", func() = Map.size(profiles));
   ignore pt.addPullValue("num_canisters", "", func() = List.size(canisters));
   ignore pt.addPullValue("num_canisters_in_pool", "", func() = Queue.size(canistersPool));
+  ignore pt.addPullValue("num_backend_canisters", "", func() = List.size(List.filter<CanisterData>(canisters, func(c) = c.kind == #backend and Option.isNull(c.deletedAt))));
   ignore pt.addPullValue("num_canisters_rent", "", func() = Queue.size(renters));
   ignore pt.addPullValue("max_canisters_rentals", "", func() = maxRentals);
 
@@ -415,6 +452,7 @@ persistent actor class Backend() = self {
           var userIds = [caller];
           var frontendUrl = "https://" # Principal.toText(cid) # ".icp0.io/";
           var ownedBySystem = false;
+          var kind = #frontend;
           createdAt = Prim.time();
           var deployedAt = null;
           var deletedAt = null;
@@ -461,6 +499,49 @@ persistent actor class Backend() = self {
       case (null) {};
     };
     freezeCanisterData_(canisterData);
+  };
+
+  // Switching to #frontend is only allowed while the canister runs the hosty assets
+  // module: the web app resets a backend canister first, otherwise the frontend
+  // flows (file upload, custom domains) would talk to a module they do not understand.
+  func setCanisterKind_(cid : Principal, user : Principal, kind : CanisterKind) : async* CanisterInfo {
+    let ?(_, canisterData) = getCanister_(cid) else throw Error.reject("Not found");
+    switch (Array.indexOf(canisterData.userIds, Principal.equal, user)) {
+      case (null) throw Error.reject("Permission denied");
+      case (_) {};
+    };
+    if (canisterData.kind != kind) {
+      if (kind == #frontend) {
+        let statusProxy : (
+          actor {
+            loadState : shared (canisterId : Principal) -> async (Nat64, Management.CanisterStatus);
+          }
+        ) = actor (CONSTANTS.STATUS_PROXY_CID |> Principal.toText(_));
+        let (_, status) = await statusProxy.loadState(cid);
+        let runsAssetsModule = switch (status.module_hash) {
+          case (?h) Blob.equal(h, assetsModule.0);
+          case (null) false;
+        };
+        if (not runsAssetsModule) {
+          throw Error.reject("Canister does not run the hosty assets module. Reset it first");
+        };
+      };
+      canisterData.kind := kind;
+    };
+    freezeCanisterData_(canisterData);
+  };
+
+  public shared ({ caller }) func setCanisterKind(cid : Principal, kind : CanisterKind) : async CanisterInfo {
+    await* setCanisterKind_(cid, caller, kind);
+  };
+
+  // Used by the builder (hosty API) on behalf of an authenticated user, e.g. on the
+  // first backend deployment to a canister.
+  public shared ({ caller }) func setCanisterKindFor(user : Principal, cid : Principal, kind : CanisterKind) : async CanisterInfo {
+    if (Option.isNull(Array.indexOf(CONSTANTS.BUILDER_PRINCIPALS, Principal.equal, caller))) {
+      throw Error.reject("Permission denied");
+    };
+    await* setCanisterKind_(cid, user, kind);
   };
 
   public shared ({ caller }) func deleteCanister(cid : Principal) : async () {
@@ -606,6 +687,7 @@ persistent actor class Backend() = self {
       var userIds = [caller];
       var frontendUrl = "https://" # Principal.toText(cid) # ".icp0.io/";
       var ownedBySystem = true;
+      var kind = #frontend;
       createdAt = Prim.time();
       var deployedAt = null;
       var deletedAt = null;
@@ -641,6 +723,7 @@ persistent actor class Backend() = self {
       };
     };
     canisterData.userIds := [];
+    canisterData.kind := #frontend;
     Queue.pushBack(canistersPool, cidx);
   };
 

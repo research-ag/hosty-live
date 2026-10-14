@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { deploymentsApi } from '../services/api'
+import { deploymentsApi, wasmDeploymentsApi, DeployWasmInput } from '../services/api'
 import type { ApiDeployment, Deployment, DeploymentStatus, SourceType } from '../types'
 import { grantDeployAccess } from "../api/certified-assets";
 import { Principal } from "@icp-sdk/core/principal";
@@ -30,6 +30,14 @@ function toDeployment(apiDeployment: ApiDeployment): Deployment {
     updatedAt: apiDeployment.updatedAt,
     isDryRun: apiDeployment.isDryRun,
     pureAssets: apiDeployment.pureAssets,
+    kind: apiDeployment.kind as Deployment['kind'],
+    installMode: apiDeployment.installMode as Deployment['installMode'],
+    wasmHash: apiDeployment.wasmHash,
+    initArgText: apiDeployment.initArgText,
+    wasmMemoryPersistence: apiDeployment.wasmMemoryPersistence,
+    skipPreUpgrade: apiDeployment.skipPreUpgrade,
+    postInstallMethod: apiDeployment.postInstallMethod,
+    sessionId: apiDeployment.sessionId,
   }
 }
 
@@ -105,6 +113,23 @@ export function useDeployments() {
       }
     },
   })
+
+  // Mutation for installing a Wasm module on a backend canister
+  const deployWasmMutation = useMutation({
+    mutationFn: (input: DeployWasmInput) => wasmDeploymentsApi.deploy(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deployments'] })
+    },
+  })
+
+  const deployWasm = async (input: DeployWasmInput): Promise<{ success: boolean; error?: string; data?: { id: string } }> => {
+    try {
+      const result = await deployWasmMutation.mutateAsync(input)
+      return { success: true, data: { id: result.id } }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to install module' }
+    }
+  }
 
   // Mutation for redeploying
   const redeployMutation = useMutation({
@@ -258,6 +283,7 @@ export function useDeployments() {
     deployFromGit,
     deployFromUrl,
     redeploy,
+    deployWasm,
     isRedeploying: redeployMutation.isPending,
     refreshDeployments
   }

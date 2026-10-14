@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ChevronRight, ExternalLink, Github, Link as LinkIcon, RefreshCw, RotateCcw, Upload } from 'lucide-react'
+import { Cpu, ChevronRight, ExternalLink, Github, Link as LinkIcon, RefreshCw, RotateCcw, Upload } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -423,19 +423,53 @@ export function DeploymentPage() {
             <CardTitle>Technical Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!deployment.pureAssets && (
+            {deployment.sourceType === 'WASM' && (
+              <>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Install mode</label>
+                  <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{(deployment.installMode || '').toLowerCase()}</p>
+                </div>
+                {deployment.wasmHash && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Module hash</label>
+                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded break-all">{deployment.wasmHash}</p>
+                  </div>
+                )}
+                {deployment.initArgText && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Argument</label>
+                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded break-all">{deployment.initArgText}</p>
+                  </div>
+                )}
+                {deployment.wasmMemoryPersistence && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Wasm memory persistence</label>
+                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.wasmMemoryPersistence.toLowerCase()}</p>
+                  </div>
+                )}
+                {deployment.postInstallMethod && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Post-install method</label>
+                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.postInstallMethod}</p>
+                  </div>
+                )}
+              </>
+            )}
+            {deployment.sourceType !== 'WASM' && !deployment.pureAssets && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Build Command</label>
                 <p
                   className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.buildCommand || 'npm run build'}</p>
               </div>
             )}
+            {deployment.sourceType !== 'WASM' && (
             <div>
               <label className="text-sm font-medium text-muted-foreground">
                 {deployment.pureAssets ? 'Assets Directory' : 'Output Directory'}
               </label>
               <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.outputDir || 'dist'}</p>
             </div>
+            )}
             {deployment.sourceType === 'GIT' && deployment.sourceGitRepo && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Repository</label>

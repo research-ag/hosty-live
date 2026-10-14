@@ -2,6 +2,7 @@
 import { Principal } from "@icp-sdk/core/principal";
 import { getBackendActor } from "../api/backend";
 import { isValidDomain } from "../utils/domains.ts";
+import type { ApiDeployment } from "../types";
 
 const API_BASE = `${
   import.meta.env.VITE_HOSTY_API_BASE || "https://api.hosty.live"
@@ -809,6 +810,104 @@ export const deploymentsApi = {
 };
 
 // API tokens (AI agent access)
+export interface DeployWasmInput {
+  canisterId: string;
+  wasm: File;
+  candid?: File;
+  mode?: "install" | "upgrade" | "reinstall";
+  initArg?: string;
+  initArgHex?: string;
+  wasmMemoryPersistence?: "keep" | "replace";
+  skipPreUpgrade?: boolean;
+  postInstallMethod?: string;
+  confirmReinstall?: boolean;
+}
+
+async function readError(response: Response): Promise<string> {
+  const body = await response.json().catch(() => ({}));
+  const message = Array.isArray(body.message) ? body.message.join("; ") : body.message;
+  return message || body.error || `HTTP ${response.status}`;
+}
+
+export const wasmDeploymentsApi = {
+  async deploy(input: DeployWasmInput): Promise<ApiDeployment> {
+    const accessToken = getStoredAccessToken();
+    if (!accessToken) throw new Error("No active session");
+    const form = new FormData();
+    form.append("canisterId", input.canisterId);
+    form.append("wasm", input.wasm);
+    if (input.candid) form.append("candid", input.candid);
+    if (input.mode) form.append("mode", input.mode);
+    if (input.initArg) form.append("initArg", input.initArg);
+    if (input.initArgHex) form.append("initArgHex", input.initArgHex);
+    if (input.wasmMemoryPersistence) form.append("wasmMemoryPersistence", input.wasmMemoryPersistence);
+    if (input.skipPreUpgrade) form.append("skipPreUpgrade", "true");
+    if (input.postInstallMethod) form.append("postInstallMethod", input.postInstallMethod);
+    if (input.confirmReinstall) form.append("confirmReinstall", "true");
+    const response = await fetch(`${API_BASE}/deployments/deploy-wasm`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
+    });
+    checkUnauthorized(response);
+    if (!response.ok) throw new Error(await readError(response));
+    return response.json();
+  },
+
+  async validateArg(initArg: string, candid?: string): Promise<string> {
+    const response = await fetch(`${API_BASE}/deployments/validate-arg`, {
+      method: "POST",
+      headers: await getAuthHeaders(),
+      body: JSON.stringify({ initArg, candid }),
+    });
+    checkUnauthorized(response);
+    if (!response.ok) throw new Error(await readError(response));
+    const data = await response.json();
+    return data.initArgHex as string;
+  },
+
+  async readiness(canisterId: string, kind: "frontend" | "backend"): Promise<{
+    ready: boolean;
+    problems: string[];
+    sessionActive?: boolean;
+    sessionExpiresAt?: string;
+    cycles?: string;
+    moduleHash?: string;
+  }> {
+    const response = await fetch(
+      `${API_BASE}/canisters/${encodeURIComponent(canisterId)}/readiness?kind=${kind}`,
+      { headers: await getAuthHeaders() },
+    );
+    checkUnauthorized(response);
+    if (!response.ok) throw new Error(await readError(response));
+    return response.json();
+  },
+
+  async candid(canisterId: string): Promise<string | undefined> {
+    const response = await fetch(`${API_BASE}/canisters/${encodeURIComponent(canisterId)}/candid`, {
+      headers: await getAuthHeaders(),
+    });
+    checkUnauthorized(response);
+    if (!response.ok) throw new Error(await readError(response));
+    const data = await response.json();
+    return data.candid ?? undefined;
+  },
+
+  async moduleMeta(hash: string): Promise<{
+    hash: string;
+    size: number;
+    gzipped: boolean;
+    candid?: string;
+    verified: boolean;
+    downloadUrl: string;
+  } | null> {
+    const response = await fetch(`${API_BASE}/modules/${encodeURIComponent(hash)}/meta`);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(await readError(response));
+    return response.json();
+  },
+};
+
 export interface ApiTokenInfo {
   id: string;
   name: string;

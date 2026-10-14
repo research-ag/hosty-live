@@ -1,6 +1,7 @@
 import { User, Shield } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
 import { AgentAccessCard } from '../../components/panel/AgentAccessCard'
+import { DeploySessionsSettingsCard } from '../../components/panel/DeploySessionsSettingsCard'
 import { useAuth } from '../../hooks/useAuth'
 
 export function SettingsPage() {
@@ -15,6 +16,7 @@ export function SettingsPage() {
 
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
         <AgentAccessCard />
+        <DeploySessionsSettingsCard />
 
         <Card>
           <CardHeader>
