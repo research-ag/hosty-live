@@ -44,6 +44,18 @@ export const idlFactory = ({ IDL }) => {
     'headers' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'status_code' : IDL.Nat16,
   });
+  const CanisterInstallMode = IDL.Variant({
+    'reinstall' : IDL.Null,
+    'upgrade' : IDL.Opt(
+      IDL.Record({
+        'wasm_memory_persistence' : IDL.Opt(
+          IDL.Variant({ 'keep' : IDL.Null, 'replace' : IDL.Null })
+        ),
+        'skip_pre_upgrade' : IDL.Opt(IDL.Bool),
+      })
+    ),
+    'install' : IDL.Null,
+  });
   const DeploymentExample = IDL.Record({
     'url' : IDL.Text,
     'owner' : IDL.Opt(IDL.Principal),
@@ -56,14 +68,28 @@ export const idlFactory = ({ IDL }) => {
     'assetsDir' : IDL.Text,
   });
   const Result = IDL.Variant({ 'ok' : CanisterInfo, 'err' : IDL.Text });
+  const ChunkHash = IDL.Record({ 'hash' : IDL.Vec(IDL.Nat8) });
   const Backend = IDL.Service({
     'addDeploymentExample' : IDL.Func([DeploymentExampleInput], [], []),
     'canRentCanister' : IDL.Func([], [IDL.Bool], ['query']),
+    'clearWasmChunks' : IDL.Func([IDL.Principal, IDL.Principal], [], []),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'donateCanister' : IDL.Func([IDL.Principal], [Result_1], []),
     'getCanister' : IDL.Func([IDL.Principal], [CanisterInfo], ['query']),
     'getProfile' : IDL.Func([], [IDL.Opt(ProfileInfo)], ['query']),
     'http_request' : IDL.Func([Request], [Response], ['query']),
+    'installCode' : IDL.Func(
+        [
+          IDL.Principal,
+          IDL.Principal,
+          CanisterInstallMode,
+          IDL.Vec(IDL.Nat8),
+          IDL.Vec(IDL.Nat8),
+          IDL.Vec(IDL.Vec(IDL.Nat8)),
+        ],
+        [],
+        [],
+      ),
     'listCanisters' : IDL.Func([], [IDL.Vec(CanisterInfo)], ['query']),
     'listDeploymentExamples' : IDL.Func(
         [],
@@ -118,6 +144,11 @@ export const idlFactory = ({ IDL }) => {
     'updateProfile' : IDL.Func(
         [IDL.Record({ 'username' : IDL.Opt(IDL.Text) })],
         [ProfileInfo],
+        [],
+      ),
+    'uploadWasmChunk' : IDL.Func(
+        [IDL.Principal, IDL.Principal, IDL.Vec(IDL.Nat8)],
+        [ChunkHash],
         [],
       ),
   });

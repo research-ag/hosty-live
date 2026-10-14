@@ -5,11 +5,23 @@ import type { IDL } from '@dfinity/candid';
 export interface Backend {
   'addDeploymentExample' : ActorMethod<[DeploymentExampleInput], undefined>,
   'canRentCanister' : ActorMethod<[], boolean>,
+  'clearWasmChunks' : ActorMethod<[Principal, Principal], undefined>,
   'deleteCanister' : ActorMethod<[Principal], undefined>,
   'donateCanister' : ActorMethod<[Principal], Result_1>,
   'getCanister' : ActorMethod<[Principal], CanisterInfo>,
   'getProfile' : ActorMethod<[], [] | [ProfileInfo]>,
   'http_request' : ActorMethod<[Request], Response>,
+  'installCode' : ActorMethod<
+    [
+      Principal,
+      Principal,
+      CanisterInstallMode,
+      Uint8Array | number[],
+      Uint8Array | number[],
+      Array<Uint8Array | number[]>,
+    ],
+    undefined
+  >,
   'listCanisters' : ActorMethod<[], Array<CanisterInfo>>,
   'listDeploymentExamples' : ActorMethod<[], Array<DeploymentExample>>,
   'listUserCanisters' : ActorMethod<
@@ -45,6 +57,10 @@ export interface Backend {
     CanisterInfo
   >,
   'updateProfile' : ActorMethod<[{ 'username' : [] | [string] }], ProfileInfo>,
+  'uploadWasmChunk' : ActorMethod<
+    [Principal, Principal, Uint8Array | number[]],
+    ChunkHash
+  >,
 }
 export interface CanisterInfo {
   'alias' : [] | [string],
@@ -58,8 +74,22 @@ export interface CanisterInfo {
   'canisterId' : Principal,
   'ownedBySystem' : boolean,
 }
+export type CanisterInstallMode = { 'reinstall' : null } |
+  {
+    'upgrade' : [] | [
+      {
+        'wasm_memory_persistence' : [] | [
+          { 'keep' : null } |
+            { 'replace' : null }
+        ],
+        'skip_pre_upgrade' : [] | [boolean],
+      }
+    ]
+  } |
+  { 'install' : null };
 export type CanisterKind = { 'frontend' : null } |
   { 'backend' : null };
+export interface ChunkHash { 'hash' : Uint8Array | number[] }
 export interface DeploymentExample {
   'url' : string,
   'owner' : [] | [Principal],

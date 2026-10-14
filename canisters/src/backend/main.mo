@@ -49,34 +49,35 @@ import Http "../shared/tiny_http";
 //     };
 //   }
 // )
-(
-  with migration = func(
-    old : {
-      canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
-    }
-  ) : {
-    canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
-  } {
-    // Every canister registered before this version ran the hosty assets module.
-    {
-      canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
-        old.canisters,
-        func(c) = {
-          canisterId = c.canisterId;
-          var alias = c.alias;
-          var description = c.description;
-          var userIds = c.userIds;
-          var frontendUrl = c.frontendUrl;
-          var ownedBySystem = c.ownedBySystem;
-          var kind = #frontend;
-          createdAt = c.createdAt;
-          var deployedAt = c.deployedAt;
-          var deletedAt = c.deletedAt;
-        },
-      );
-    };
-  }
-)
+// Migration to the canister kind (ran on 2026-10-14):
+// (
+//   with migration = func(
+//     old : {
+//       canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//     }
+//   ) : {
+//     canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//   } {
+//     // Every canister registered before this version ran the hosty assets module.
+//     {
+//       canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
+//         old.canisters,
+//         func(c) = {
+//           canisterId = c.canisterId;
+//           var alias = c.alias;
+//           var description = c.description;
+//           var userIds = c.userIds;
+//           var frontendUrl = c.frontendUrl;
+//           var ownedBySystem = c.ownedBySystem;
+//           var kind = #frontend;
+//           createdAt = c.createdAt;
+//           var deployedAt = c.deployedAt;
+//           var deletedAt = c.deletedAt;
+//         },
+//       );
+//     };
+//   }
+// )
 persistent actor class Backend() = self {
 
   transient let CONSTANTS = {
@@ -297,6 +298,8 @@ persistent actor class Backend() = self {
   ignore pt.addPullValue("num_profiles", "", func() = Map.size(profiles));
   ignore pt.addPullValue("num_canisters", "", func() = List.size(canisters));
   ignore pt.addPullValue("num_canisters_in_pool", "", func() = Queue.size(canistersPool));
+  transient var unattendedInstalls : Nat = 0;
+  ignore pt.addPullValue("num_unattended_installs", "", func() = unattendedInstalls);
   ignore pt.addPullValue("num_backend_canisters", "", func() = List.size(List.filter<CanisterData>(canisters, func(c) = c.kind == #backend and Option.isNull(c.deletedAt))));
   ignore pt.addPullValue("num_canisters_rent", "", func() = Queue.size(renters));
   ignore pt.addPullValue("max_canisters_rentals", "", func() = maxRentals);
@@ -542,6 +545,65 @@ persistent actor class Backend() = self {
       throw Error.reject("Permission denied");
     };
     await* setCanisterKind_(cid, user, kind);
+  };
+
+  // Unattended backend deploys. A user who wants agents to redeploy a backend canister
+  // without approving a session each time adds this canister as a controller of that
+  // one canister (the analog of the Committer grant on frontends: per canister, revocable
+  // by removing the controller, indefinite). The hosty API then installs through these
+  // methods. All check that the user owns the target in the registry and that it is a
+  // backend canister; controllers are never changed here, so the grant cannot widen.
+  func unattendedTarget_(user : Principal, cid : Principal) : CanisterData {
+    let ?(_, canisterData) = getCanister_(cid) else Prim.trap("Not found");
+    if (Option.isSome(canisterData.deletedAt)) Prim.trap("Not found");
+    if (Option.isNull(Array.indexOf(canisterData.userIds, Principal.equal, user))) {
+      Prim.trap("Permission denied: canister is not registered to this user");
+    };
+    if (canisterData.kind != #backend) {
+      Prim.trap("Canister is not a backend canister");
+    };
+    canisterData;
+  };
+
+  func assertBuilder_(caller : Principal) {
+    if (Option.isNull(Array.indexOf(CONSTANTS.BUILDER_PRINCIPALS, Principal.equal, caller))) {
+      Prim.trap("Permission denied");
+    };
+  };
+
+  public shared ({ caller }) func uploadWasmChunk(user : Principal, cid : Principal, chunk : Blob) : async Management.ChunkHash {
+    assertBuilder_(caller);
+    ignore unattendedTarget_(user, cid);
+    await Management.getActor().upload_chunk({ canister_id = cid; chunk });
+  };
+
+  public shared ({ caller }) func clearWasmChunks(user : Principal, cid : Principal) : async () {
+    assertBuilder_(caller);
+    ignore unattendedTarget_(user, cid);
+    await Management.getActor().clear_chunk_store({ canister_id = cid });
+  };
+
+  public shared ({ caller }) func installCode(
+    user : Principal,
+    cid : Principal,
+    mode : Management.CanisterInstallMode,
+    arg : Blob,
+    wasmModuleHash : Blob,
+    chunkHashes : [Blob],
+  ) : async () {
+    assertBuilder_(caller);
+    let canisterData = unattendedTarget_(user, cid);
+    await Management.getActor().install_chunked_code({
+      mode;
+      target_canister = cid;
+      store_canister = null;
+      chunk_hashes_list = Array.map<Blob, Management.ChunkHash>(chunkHashes, func(hash) = { hash });
+      wasm_module_hash = wasmModuleHash;
+      arg;
+      sender_canister_version = null;
+    });
+    canisterData.deployedAt := ?Prim.time();
+    unattendedInstalls += 1;
   };
 
   public shared ({ caller }) func deleteCanister(cid : Principal) : async () {
