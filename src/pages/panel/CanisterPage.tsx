@@ -93,6 +93,7 @@ export function CanisterPage() {
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isWasmModalOpen, setIsWasmModalOpen] = useState(false);
   const [wasmError, setWasmError] = useState<string>("");
+  const [isTogglingGrant, setIsTogglingGrant] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
   const [_, setCopied] = useState(false);
@@ -196,6 +197,26 @@ export function CanisterPage() {
     } else {
       setWasmError(result.error || "Failed to start the install");
       toast.error("Install failed", result.error);
+    }
+  };
+
+  // Unattended deploys: the hosty backend canister as a controller of this one canister.
+  // Its builder-gated installCode re-checks registry ownership and kind on-chain.
+  const handleToggleUnattended = async () => {
+    if (!canister) return;
+    const enabled = !!canisterStatus.controllers?.includes(backendCanisterId);
+    setIsTogglingGrant(true);
+    try {
+      const res = enabled
+        ? await removeController(canister.id, backendCanisterId)
+        : await addController(canister.id, backendCanisterId);
+      if (!res.success) throw new Error(res.error || "Failed to update controllers");
+      toast.success(enabled ? "Unattended deploys disabled" : "Unattended deploys enabled");
+      await queryClient.invalidateQueries({ queryKey: ["canister", "status", canister.id] });
+    } catch (e) {
+      toast.error("Could not update the grant", e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsTogglingGrant(false);
     }
   };
 
@@ -986,6 +1007,12 @@ export function CanisterPage() {
             moduleHash={canisterStatus.moduleHash}
             canInstall={isController}
             onInstall={() => setIsWasmModalOpen(true)}
+            unattended={{
+              enabled: !!canisterStatus.controllers?.includes(backendCanisterId),
+              locked: canister.ownedBySystem || !isController,
+              busy: isTogglingGrant,
+              onToggle: handleToggleUnattended,
+            }}
           />
         ) : (
         <Card>
