@@ -92,7 +92,7 @@ persistent actor class Backend() = self {
     POOL_CANISTER_MIN_CYCLES = 1_000_000_000_000;
     POOL_CANISTER_CYCLES_THRESHOLD = 800_000_000_000;
     // Max storage reservation top-ups per memory-growing step, see withReservationTopup_.
-    MAX_RESERVATION_TOPUPS = 5;
+    MAX_RESERVATION_TOPUPS = 8;
     // Pool canisters often arrive with a 365-day freezing threshold (set by the web app
     // on reset). The assets canister grows memory on its first sync, and with such a
     // threshold the frozen reserve exceeds the pool balance, so installs fail with
@@ -672,15 +672,20 @@ persistent actor class Backend() = self {
   };
 
   // Run a memory-growing step against `cid`. If it is rejected for missing
-  // storage reservation cycles, deposit the requested amount (plus a margin, the
-  // subnet keeps filling) from our own balance and retry the step. A step may
-  // grow memory several times (the default page upload is three calls), and the
-  // replica only reports the shortfall of the growth that failed, so the retry
-  // can fail again asking for a smaller amount (seen 2026-10-15: 125B, then 63B).
-  // Hence a bounded loop rather than a single retry. Any other error, or a
-  // failure after the last top-up, propagates to the caller.
+  // storage reservation cycles, deposit cycles from our own balance and retry.
+  //
+  // The replica grows memory in 8 MiB chunks, reserves cycles per chunk and
+  // reports only the shortfall of the chunk that failed; the trap then rolls
+  // the whole message back. The real need can be far larger: the first sync of
+  // the assets module grows the canister to ~119 MB, which on the saturated
+  // subnet 3hhby... reserved 2.29T in one message (2026-10-15, logs 792-807),
+  // while every failure asked for just ~63B. Depositing only what is reported
+  // therefore crawls, so the deposit doubles on every attempt. Excess ends up
+  // in the target's liquid balance and preparePoolCanister_ takes it back.
+  // Any other error, or a failure after the last top-up, propagates.
   private func withReservationTopup_(cid : Principal, step : () -> async* ()) : async* () {
     var attempt = 0;
+    var lastAmount = 0;
     loop {
       try {
         return await* step();
@@ -688,7 +693,8 @@ persistent actor class Backend() = self {
         let ?required = parseRequiredCycles_(Error.message(err)) else throw err;
         if (attempt >= CONSTANTS.MAX_RESERVATION_TOPUPS) throw err;
         attempt += 1;
-        let amount = required + Nat.max(required / 5, 100_000_000_000);
+        let amount = Nat.max(required + Nat.max(required / 5, 100_000_000_000), 2 * lastAmount);
+        lastAmount := amount;
         Prim.debugPrint("canister " # debug_show cid # " needs " # debug_show required # " more cycles for storage reservation (attempt " # debug_show attempt # ")");
         // Diagnostics: 2026-10-15 five deposits did not move the reported shortfall
         // at all, so record what the target really holds around each deposit.
@@ -891,10 +897,17 @@ persistent actor class Backend() = self {
     // assets, no authorized principals, no stale module). Data in it is not important.
     await* installAssetsModule_(cid, canisterStatus);
 
-    if (canisterStatus.cycles > CONSTANTS.POOL_CANISTER_MIN_CYCLES) {
+    // Reload: the install may have deposited cycles (reservation top-ups) and the
+    // first sync may have moved a large part of the balance into reserved cycles,
+    // which `cycles` no longer includes. Deciding on the pre-install status asked
+    // hfbth... to send out 0.93T of a 0.3T liquid balance (2026-10-15, log 808).
+    let afterInstall = await Management.getActor().canister_status({
+      canister_id = cid;
+    });
+    if (afterInstall.cycles > CONSTANTS.POOL_CANISTER_MIN_CYCLES) {
       Prim.debugPrint("taking cycles out...");
       let resp = await Assets.getAssetActor(cid).wallet_send({
-        amount = Nat64.fromIntWrap(canisterStatus.cycles - CONSTANTS.POOL_CANISTER_MIN_CYCLES);
+        amount = Nat64.fromIntWrap(afterInstall.cycles - CONSTANTS.POOL_CANISTER_MIN_CYCLES);
         canister = Principal.fromActor(self);
       });
       Prim.debugPrint("cycles take out response: " # debug_show resp);
