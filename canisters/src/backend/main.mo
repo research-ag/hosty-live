@@ -1,10 +1,12 @@
 import Array "mo:core/Array";
 import Blob "mo:core/Blob";
+import Char "mo:core/Char";
 import Error "mo:core/Error";
 import Iter "mo:core/Iter";
 import List "mo:core/List";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
+import Nat32 "mo:core/Nat32";
 import Nat64 "mo:core/Nat64";
 import Option "mo:core/Option";
 import Prim "mo:prim";
@@ -302,6 +304,8 @@ persistent actor class Backend() = self {
   ignore pt.addPullValue("num_unattended_installs", "", func() = unattendedInstalls);
   ignore pt.addPullValue("num_backend_canisters", "", func() = List.size(List.filter<CanisterData>(canisters, func(c) = c.kind == #backend and Option.isNull(c.deletedAt))));
   ignore pt.addPullValue("num_canisters_rent", "", func() = Queue.size(renters));
+  transient var reservationTopups : Nat = 0;
+  ignore pt.addPullValue("num_reservation_topups", "", func() = reservationTopups);
   ignore pt.addPullValue("max_canisters_rentals", "", func() = maxRentals);
 
   public query ({ caller }) func getProfile() : async ?ProfileInfo {
@@ -622,6 +626,54 @@ persistent actor class Backend() = self {
     Queue.size(renters) < maxRentals and not Queue.isEmpty(canistersPool) and Option.isNull(getOrCreateProfile_(caller).rentedCanister);
   };
 
+  // On subnets above the storage reservation threshold (e.g. 3hhby..., ~1.1 TB used)
+  // every memory growth reserves cycles: growing by 8 MiB costs around 1T. A pool
+  // canister that passed the POOL_CANISTER_CYCLES_THRESHOLD check can therefore
+  // still fail install_code, the default page upload or authorize with
+  //   "Canister cannot grow memory by 8388608 bytes due to insufficient cycles.
+  //    At least 120_250_237_209 additional cycles are required."
+  // A fixed higher floor would not help since the reservation grows with the
+  // subnet. Instead parse the amount the replica asks for and deposit it.
+  private func parseRequiredCycles_(msg : Text) : ?Nat {
+    let parts = Iter.toArray(Text.split(msg, #text "additional cycles are required"));
+    if (parts.size() < 2) return null;
+    let chars = Iter.toArray(Text.toIter(Text.trimEnd(parts[0], #char ' ')));
+    var n : Nat = 0;
+    var mul : Nat = 1;
+    var found = false;
+    var i = chars.size();
+    label scan while (i > 0) {
+      i -= 1;
+      let c = chars[i];
+      if (c == '_') continue scan;
+      if (not Char.isDigit(c)) break scan;
+      n += Nat32.toNat(Char.toNat32(c) - Char.toNat32('0')) * mul;
+      mul *= 10;
+      found := true;
+    };
+    if (found) ?n else null;
+  };
+
+  // Run a memory-growing step against `cid`. If it is rejected for missing
+  // storage reservation cycles, deposit the requested amount (plus a margin, the
+  // subnet keeps filling) from our own balance and retry the step once. Any other
+  // error, or a second failure, propagates to the caller.
+  private func withReservationTopup_(cid : Principal, step : () -> async* ()) : async* () {
+    try {
+      await* step();
+    } catch (err) {
+      let ?required = parseRequiredCycles_(Error.message(err)) else throw err;
+      let amount = required + Nat.max(required / 5, 100_000_000_000);
+      Prim.debugPrint("canister " # debug_show cid # " needs " # debug_show required # " more cycles for storage reservation");
+      Prim.debugPrint("topping up canister with " # debug_show amount # " cycles...");
+      reservationTopups += 1;
+      await (with cycles = amount) Management.getActor().deposit_cycles({
+        canister_id = cid;
+      });
+      await* step();
+    };
+  };
+
   // Bring a pool canister to a clean, usable state: sane freezing threshold, enough
   // cycles, the hosty assets module (always (re)installed) and the default page.
   // The canister ends up clean: no user assets, no authorized principals.
@@ -645,18 +697,24 @@ persistent actor class Backend() = self {
       Prim.debugPrint("no need to top up canister");
     };
     Prim.debugPrint("installing module... current wasm hash: " # debug_show canisterStatus.module_hash # "; expected: " # debug_show assetsModule.0);
-    await Management.getActor().install_code({
-      canister_id = cid;
-      arg = to_candid (null : ?Assets.InitArgs);
-      wasm_module = assetsModule.1;
-      mode = switch (canisterStatus.module_hash) {
-        case (?_) #reinstall;
-        case (null) #install;
-      };
-      sender_canister_version = null;
+    await* withReservationTopup_(cid, func() : async* () {
+      await Management.getActor().install_code({
+        canister_id = cid;
+        arg = to_candid (null : ?Assets.InitArgs);
+        wasm_module = assetsModule.1;
+        mode = switch (canisterStatus.module_hash) {
+          case (?_) #reinstall;
+          case (null) #install;
+        };
+        sender_canister_version = null;
+      });
     });
     Prim.debugPrint("installing default page...");
-    await* Assets.uploadDefaultPage(cid);
+    // Safe to retry: the assets canister lets the same owner reclaim its own
+    // unfinished sync session, so a second uploadDefaultPage starts over.
+    await* withReservationTopup_(cid, func() : async* () {
+      await* Assets.uploadDefaultPage(cid);
+    });
   };
 
   // A pool canister prepared before an assets module upgrade still runs the old
@@ -701,9 +759,13 @@ persistent actor class Backend() = self {
     // survives controller changes. Builders deploy assets on behalf of users
     // (web UI and AI agents via hosty API).
     let assets = Assets.getAssetActor(cid);
-    await assets.authorize(user);
+    await* withReservationTopup_(cid, func() : async* () {
+      await assets.authorize(user);
+    });
     for (builder in CONSTANTS.BUILDER_PRINCIPALS.values()) {
-      await assets.authorize(builder);
+      await* withReservationTopup_(cid, func() : async* () {
+        await assets.authorize(builder);
+      });
     };
   };
 
