@@ -61,6 +61,23 @@ pub fn wallet_balance() -> BalanceResult {
     }
 }
 
+/// Describes a failed cycles-carrying call. The refund can only be read in a
+/// reply/reject callback; when the call was never performed (e.g. the liquid
+/// balance could not cover `amount`) the future resolves synchronously, still
+/// in update mode, and `msg_cycles_refunded` would trap with
+/// "cannot be executed in update mode" (seen on hfbth..., 2026-10-15).
+fn call_failure_message(amount: u64, e: ic_cdk::call::CallFailed) -> String {
+    match e {
+        ic_cdk::call::CallFailed::CallRejected(_) => {
+            let refund = ic_cdk::api::msg_cycles_refunded();
+            format!(
+                "Cycles sent: {amount}\nCycles refunded: {refund}\nAn error happened during the call: {e}"
+            )
+        }
+        _ => format!("Cycles sent: {amount}\nThe call was not performed: {e}"),
+    }
+}
+
 /// Send `amount` cycles to another canister via the management canister's
 /// `deposit_cycles`.
 pub async fn wallet_send(WalletSendArg { canister, amount }: WalletSendArg) -> Result<(), String> {
@@ -70,12 +87,7 @@ pub async fn wallet_send(WalletSendArg { canister, amount }: WalletSendArg) -> R
         })
         .with_cycles(amount as u128)
         .await
-        .map_err(|e| {
-            let refund = ic_cdk::api::msg_cycles_refunded();
-            format!(
-                "Cycles sent: {amount}\nCycles refunded: {refund}\nAn error happened during the call: {e}"
-            )
-        })?;
+        .map_err(|e| call_failure_message(amount, e))?;
     Ok(())
 }
 
@@ -92,11 +104,6 @@ pub async fn tcycles_deposit(
         .with_arg(deposit_args)
         .with_cycles(amount as u128)
         .await
-        .map_err(|e| {
-            let refund = ic_cdk::api::msg_cycles_refunded();
-            format!(
-                "Cycles sent: {amount}\nCycles refunded: {refund}\nAn error happened during the call: {e}"
-            )
-        })?;
+        .map_err(|e| call_failure_message(amount, e))?;
     Ok(())
 }
