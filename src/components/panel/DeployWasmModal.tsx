@@ -44,6 +44,7 @@ export function DeployWasmModal({
   const [advanced, setAdvanced] = useState(false);
   const [persistence, setPersistence] = useState<"" | "keep" | "replace">("");
   const [skipPreUpgrade, setSkipPreUpgrade] = useState(false);
+  const [snapshotBeforeUpgrade, setSnapshotBeforeUpgrade] = useState(true);
   const [postInstallMethod, setPostInstallMethod] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -64,6 +65,7 @@ export function DeployWasmModal({
       setAdvanced(false);
       setPersistence("");
       setSkipPreUpgrade(false);
+      setSnapshotBeforeUpgrade(true);
       setPostInstallMethod("");
       setConfirmText("");
     }
@@ -131,6 +133,7 @@ export function DeployWasmModal({
         initArg: initArg.trim() || undefined,
         wasmMemoryPersistence: persistence || undefined,
         skipPreUpgrade: skipPreUpgrade || undefined,
+        snapshotBeforeUpgrade: mode === "upgrade" && snapshotBeforeUpgrade ? true : undefined,
         postInstallMethod: postInstallMethod.trim() || undefined,
         confirmReinstall: mode === "reinstall" ? true : undefined,
       });
@@ -214,6 +217,18 @@ export function DeployWasmModal({
             )}
             {modeHelp}
           </p>
+          {mode === "upgrade" && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={snapshotBeforeUpgrade}
+                onChange={(e) => setSnapshotBeforeUpgrade(e.target.checked)}
+                disabled={busy}
+              />
+              Take a snapshot before upgrading
+              <span className="text-xs text-muted-foreground">(replaces the previous one; lets you roll back)</span>
+            </label>
+          )}
           {mode === "reinstall" && (
             <div className="space-y-1">
               <label className="text-xs font-medium">Type the canister id to confirm</label>

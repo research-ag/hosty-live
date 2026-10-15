@@ -612,6 +612,34 @@ persistent actor class Backend() = self {
     unattendedInstalls += 1;
   };
 
+  // Snapshots on canisters with the unattended grant: the same ownership and kind
+  // checks as installCode. A snapshot is taken before an upgrade so a broken
+  // post_upgrade can be rolled back; the caller passes the snapshot to replace so a
+  // canister keeps at most one hosty snapshot.
+  public shared ({ caller }) func takeSnapshot(user : Principal, cid : Principal, replace : ?Blob) : async Management.Snapshot {
+    assertBuilder_(caller);
+    ignore unattendedTarget_(user, cid);
+    await Management.getActor().take_canister_snapshot({ canister_id = cid; replace_snapshot = replace });
+  };
+
+  public shared ({ caller }) func listSnapshots(user : Principal, cid : Principal) : async [Management.Snapshot] {
+    assertBuilder_(caller);
+    ignore unattendedTarget_(user, cid);
+    await Management.getActor().list_canister_snapshots({ canister_id = cid });
+  };
+
+  public shared ({ caller }) func loadSnapshot(user : Principal, cid : Principal, snapshotId : Blob) : async () {
+    assertBuilder_(caller);
+    ignore unattendedTarget_(user, cid);
+    await Management.getActor().load_canister_snapshot({ canister_id = cid; snapshot_id = snapshotId; sender_canister_version = null });
+  };
+
+  public shared ({ caller }) func deleteSnapshot(user : Principal, cid : Principal, snapshotId : Blob) : async () {
+    assertBuilder_(caller);
+    ignore unattendedTarget_(user, cid);
+    await Management.getActor().delete_canister_snapshot({ canister_id = cid; snapshot_id = snapshotId });
+  };
+
   public shared ({ caller }) func deleteCanister(cid : Principal) : async () {
     let ?(_, canisterData) = getCanister_(cid) else throw Error.reject("Not found");
     if (canisterData.ownedBySystem) {

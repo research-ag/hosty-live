@@ -6,7 +6,9 @@ export interface DeploySessionInfo {
   id: string;
   principal: string;
   status: DeploySessionStatus;
-  /** DER encoded public key of the API's ephemeral session key, hex. */
+  /** API: hosty.live holds the session key; AGENT: the agent keeps its own key, hosty.live never gets it. */
+  holder?: "API" | "AGENT";
+  /** DER encoded public key of the session key, hex. */
   publicKeyDer: string;
   requestedUntil: string;
   expiresAt?: string;

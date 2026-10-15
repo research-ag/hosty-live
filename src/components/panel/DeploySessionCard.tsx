@@ -32,10 +32,21 @@ function PendingSession({
             session
           </p>
           <p className="text-sm text-muted-foreground">
-            If you approve, hosty.live will be able to <strong>install code on any canister you
-            control</strong> until {formatTime(session.requestedUntil)}, using a key that only exists
-            for this session. Nothing changes on your canisters until a deployment is sent. You can end
-            the session at any time in Settings.
+            {session.holder === "AGENT" ? (
+              <>
+                If you approve, <strong>the agent itself</strong> will be able to install code on any
+                canister you control until {formatTime(session.requestedUntil)}, with a key it holds;
+                hosty.live never receives that key and cannot install on its own. Nothing changes on
+                your canisters until the agent sends an install.
+              </>
+            ) : (
+              <>
+                If you approve, hosty.live will be able to <strong>install code on any canister you
+                control</strong> until {formatTime(session.requestedUntil)}, using a key that only exists
+                for this session. Nothing changes on your canisters until a deployment is sent. You can end
+                the session at any time in Settings.
+              </>
+            )}
           </p>
           <p className="text-xs text-muted-foreground">Requested {formatTime(session.createdAt)}</p>
         </div>

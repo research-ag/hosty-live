@@ -821,6 +821,7 @@ export interface DeployWasmInput {
   skipPreUpgrade?: boolean;
   postInstallMethod?: string;
   confirmReinstall?: boolean;
+  snapshotBeforeUpgrade?: boolean;
 }
 
 async function readError(response: Response): Promise<string> {
@@ -844,6 +845,7 @@ export const wasmDeploymentsApi = {
     if (input.skipPreUpgrade) form.append("skipPreUpgrade", "true");
     if (input.postInstallMethod) form.append("postInstallMethod", input.postInstallMethod);
     if (input.confirmReinstall) form.append("confirmReinstall", "true");
+    if (input.snapshotBeforeUpgrade) form.append("snapshotBeforeUpgrade", "true");
     const response = await fetch(`${API_BASE}/deployments/deploy-wasm`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
