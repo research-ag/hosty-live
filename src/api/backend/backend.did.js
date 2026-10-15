@@ -67,6 +67,11 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'assetsDir' : IDL.Text,
   });
+  const Snapshot = IDL.Record({
+    'id' : IDL.Vec(IDL.Nat8),
+    'total_size' : IDL.Nat64,
+    'taken_at_timestamp' : IDL.Nat64,
+  });
   const Result = IDL.Variant({ 'ok' : CanisterInfo, 'err' : IDL.Text });
   const ChunkHash = IDL.Record({ 'hash' : IDL.Vec(IDL.Nat8) });
   const Backend = IDL.Service({
@@ -74,6 +79,11 @@ export const idlFactory = ({ IDL }) => {
     'canRentCanister' : IDL.Func([], [IDL.Bool], ['query']),
     'clearWasmChunks' : IDL.Func([IDL.Principal, IDL.Principal], [], []),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
+    'deleteSnapshot' : IDL.Func(
+        [IDL.Principal, IDL.Principal, IDL.Vec(IDL.Nat8)],
+        [],
+        [],
+      ),
     'donateCanister' : IDL.Func([IDL.Principal], [Result_1], []),
     'getCanister' : IDL.Func([IDL.Principal], [CanisterInfo], ['query']),
     'getProfile' : IDL.Func([], [IDL.Opt(ProfileInfo)], ['query']),
@@ -96,6 +106,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(DeploymentExample)],
         ['query'],
       ),
+    'listSnapshots' : IDL.Func(
+        [IDL.Principal, IDL.Principal],
+        [IDL.Vec(Snapshot)],
+        [],
+      ),
     'listUserCanisters' : IDL.Func(
         [IDL.Principal],
         [
@@ -105,6 +120,11 @@ export const idlFactory = ({ IDL }) => {
           }),
         ],
         ['query'],
+      ),
+    'loadSnapshot' : IDL.Func(
+        [IDL.Principal, IDL.Principal, IDL.Vec(IDL.Nat8)],
+        [],
+        [],
       ),
     'onCanisterDeployed' : IDL.Func([IDL.Principal], [], []),
     'preparePoolCanisters' : IDL.Func([], [IDL.Nat], []),
@@ -128,6 +148,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'setMaxRentals' : IDL.Func([IDL.Nat], [], []),
+    'takeSnapshot' : IDL.Func(
+        [IDL.Principal, IDL.Principal, IDL.Opt(IDL.Vec(IDL.Nat8))],
+        [Snapshot],
+        [],
+      ),
     'undoDonation' : IDL.Func([IDL.Principal, IDL.Principal], [], []),
     'updateCanister' : IDL.Func(
         [

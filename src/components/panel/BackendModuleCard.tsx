@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Cpu, ExternalLink, Play, RefreshCw, ScrollText, ShieldCheck, Upload } from "lucide-react";
+import { Camera, Copy, Cpu, ExternalLink, Play, RefreshCw, RotateCcw, ScrollText, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { Principal } from "@icp-sdk/core/principal";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -13,6 +13,9 @@ import { isAssetCanister } from "../../constants/knownHashes";
 import { getManagementActor } from "../../api/management";
 import { parseCandidMethods } from "../../lib/candidMethods";
 export { parseCandidMethods } from "../../lib/candidMethods";
+
+// Snapshots the IC keeps per canister; beyond it take_canister_snapshot needs replace_snapshot.
+const MAX_SNAPSHOTS_PER_CANISTER = 10;
 
 export function candidUiUrl(canisterId: string): string {
   return `https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=${canisterId}`;
@@ -151,6 +154,8 @@ export function BackendModuleCard({ canisterId, moduleHash, canInstall, onInstal
         )}
 
         {unattended && <UnattendedSection grant={unattended} />}
+
+        {hasModule && canInstall && <SnapshotsSection canisterId={canisterId} />}
 
         {hasModule && <LogsSection canisterId={canisterId} />}
       </CardContent>
@@ -383,6 +388,159 @@ function LogsSection({ canisterId }: { canisterId: string }) {
         ) : (
           <p className="text-xs text-muted-foreground">No log records yet.</p>
         ))}
+    </div>
+  );
+}
+
+/**
+ * Canister snapshots, driven directly as a controller from the browser (no deploy session
+ * needed): list, take now, roll back, delete.
+ */
+function SnapshotsSection({ canisterId }: { canisterId: string }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
+  const target = useMemo(() => Principal.fromText(canisterId), [canisterId]);
+
+  const snapshots = useQuery({
+    queryKey: ["canister", "snapshots", canisterId],
+    queryFn: async () => {
+      const management = await getManagementActor();
+      const list = await management.list_canister_snapshots.withOptions({ effectiveCanisterId: target })({
+        canister_id: target,
+      });
+      return list
+        .map((s) => ({
+          id: Array.from(s.id as ArrayLike<number>)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(""),
+          raw: new Uint8Array(s.id as ArrayLike<number>),
+          takenAt: new Date(Number(s.taken_at_timestamp / 1_000_000n)),
+          size: Number(s.total_size),
+        }))
+        .sort((a, b) => b.takenAt.getTime() - a.takenAt.getTime());
+    },
+    staleTime: 30_000,
+  });
+
+  const run = async (key: string, action: () => Promise<void>, done: string) => {
+    setBusy(key);
+    try {
+      await action();
+      toast.success(done);
+      await snapshots.refetch();
+    } catch (e) {
+      toast.error("Snapshot action failed", e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+      setConfirmRestore(null);
+    }
+  };
+
+  const take = () =>
+    run(
+      "take",
+      async () => {
+        const management = await getManagementActor();
+        // A manual snapshot keeps the existing restore points; only at the IC's per-canister
+        // limit does it make room by replacing the oldest one.
+        const existing = snapshots.data ?? [];
+        const oldest = existing.length >= MAX_SNAPSHOTS_PER_CANISTER ? existing[existing.length - 1] : undefined;
+        await management.take_canister_snapshot.withOptions({ effectiveCanisterId: target })({
+          canister_id: target,
+          replace_snapshot: oldest ? [oldest.raw] : [],
+        });
+      },
+      "Snapshot taken",
+    );
+
+  const restore = (raw: Uint8Array, id: string) =>
+    run(
+      `restore-${id}`,
+      async () => {
+        const management = await getManagementActor();
+        await management.load_canister_snapshot.withOptions({ effectiveCanisterId: target })({
+          canister_id: target,
+          snapshot_id: raw,
+          sender_canister_version: [],
+        });
+      },
+      "Snapshot restored",
+    );
+
+  const remove = (raw: Uint8Array, id: string) =>
+    run(
+      `delete-${id}`,
+      async () => {
+        const management = await getManagementActor();
+        await management.delete_canister_snapshot.withOptions({ effectiveCanisterId: target })({
+          canister_id: target,
+          snapshot_id: raw,
+        });
+      },
+      "Snapshot deleted",
+    );
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+          <Camera className="h-4 w-4" />
+          Snapshots
+        </label>
+        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={take} disabled={busy !== null}>
+          <Camera className="h-3 w-3 mr-1" />
+          {busy === "take" ? "Taking…" : "Take snapshot"}
+        </Button>
+      </div>
+      {snapshots.isLoading ? (
+        <p className="text-xs text-muted-foreground">Loading…</p>
+      ) : snapshots.error ? (
+        <p className="text-xs text-destructive break-all">
+          {snapshots.error instanceof Error ? snapshots.error.message : String(snapshots.error)}
+        </p>
+      ) : snapshots.data && snapshots.data.length > 0 ? (
+        <div className="space-y-1">
+          {snapshots.data.map((s) => (
+            <div key={s.id} className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-xs">
+              <span className="font-mono truncate max-w-[12rem]" title={s.id}>
+                {s.id.slice(0, 16)}…
+              </span>
+              <span className="text-muted-foreground">{s.takenAt.toLocaleString()}</span>
+              <span className="text-muted-foreground">{(s.size / 1024).toFixed(0)} KB</span>
+              <span className="ml-auto flex items-center gap-1">
+                {confirmRestore === s.id ? (
+                  <>
+                    <span className="text-destructive">Replace the current state?</span>
+                    <Button variant="destructive" size="sm" className="h-6 px-2 text-xs" onClick={() => restore(s.raw, s.id)} disabled={busy !== null}>
+                      {busy === `restore-${s.id}` ? "Restoring…" : "Yes, restore"}
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setConfirmRestore(null)} disabled={busy !== null}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setConfirmRestore(s.id)} disabled={busy !== null}>
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      Restore
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => remove(s.raw, s.id)} disabled={busy !== null}>
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      {busy === `delete-${s.id}` ? "Deleting…" : "Delete"}
+                    </Button>
+                  </>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          No snapshots. The install dialog takes one before each upgrade by default; restoring rolls module,
+          heap and stable memory back to that point.
+        </p>
+      )}
     </div>
   );
 }

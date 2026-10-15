@@ -7,6 +7,10 @@ export interface Backend {
   'canRentCanister' : ActorMethod<[], boolean>,
   'clearWasmChunks' : ActorMethod<[Principal, Principal], undefined>,
   'deleteCanister' : ActorMethod<[Principal], undefined>,
+  'deleteSnapshot' : ActorMethod<
+    [Principal, Principal, Uint8Array | number[]],
+    undefined
+  >,
   'donateCanister' : ActorMethod<[Principal], Result_1>,
   'getCanister' : ActorMethod<[Principal], CanisterInfo>,
   'getProfile' : ActorMethod<[], [] | [ProfileInfo]>,
@@ -24,9 +28,14 @@ export interface Backend {
   >,
   'listCanisters' : ActorMethod<[], Array<CanisterInfo>>,
   'listDeploymentExamples' : ActorMethod<[], Array<DeploymentExample>>,
+  'listSnapshots' : ActorMethod<[Principal, Principal], Array<Snapshot>>,
   'listUserCanisters' : ActorMethod<
     [Principal],
     { 'rented' : [] | [[CanisterInfo, bigint]], 'owned' : Array<CanisterInfo> }
+  >,
+  'loadSnapshot' : ActorMethod<
+    [Principal, Principal, Uint8Array | number[]],
+    undefined
   >,
   'onCanisterDeployed' : ActorMethod<[Principal], undefined>,
   'preparePoolCanisters' : ActorMethod<[], bigint>,
@@ -44,6 +53,10 @@ export interface Backend {
     CanisterInfo
   >,
   'setMaxRentals' : ActorMethod<[bigint], undefined>,
+  'takeSnapshot' : ActorMethod<
+    [Principal, Principal, [] | [Uint8Array | number[]]],
+    Snapshot
+  >,
   'undoDonation' : ActorMethod<[Principal, Principal], undefined>,
   'updateCanister' : ActorMethod<
     [
@@ -131,6 +144,11 @@ export type Result = { 'ok' : CanisterInfo } |
   { 'err' : string };
 export type Result_1 = { 'ok' : null } |
   { 'err' : string };
+export interface Snapshot {
+  'id' : Uint8Array | number[],
+  'total_size' : bigint,
+  'taken_at_timestamp' : bigint,
+}
 export interface _SERVICE extends Backend {}
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

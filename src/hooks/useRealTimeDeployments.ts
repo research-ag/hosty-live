@@ -65,6 +65,8 @@ function toDeployment(apiDeployment: ApiDeployment): Deployment {
     skipPreUpgrade: apiDeployment.skipPreUpgrade,
     postInstallMethod: apiDeployment.postInstallMethod,
     sessionId: apiDeployment.sessionId,
+    snapshotId: apiDeployment.snapshotId,
+    motokoEntry: apiDeployment.motokoEntry,
   };
 }
 

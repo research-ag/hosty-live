@@ -14,6 +14,10 @@ module {
     upload_chunk : ({ canister_id : Principal; chunk : Blob }) -> async ChunkHash;
     clear_chunk_store : ({ canister_id : Principal }) -> async ();
     install_chunked_code : (InstallChunkedCodeArgs) -> async ();
+    take_canister_snapshot : ({ canister_id : Principal; replace_snapshot : ?Blob }) -> async Snapshot;
+    load_canister_snapshot : ({ canister_id : Principal; snapshot_id : Blob; sender_canister_version : ?Nat64 }) -> async ();
+    list_canister_snapshots : ({ canister_id : Principal }) -> async [Snapshot];
+    delete_canister_snapshot : ({ canister_id : Principal; snapshot_id : Blob }) -> async ();
     deposit_cycles : ({ canister_id : Principal }) -> async ();
     delete_canister : ({ canister_id : Principal }) -> async ();
     start_canister : ({ canister_id : Principal }) -> async ();
@@ -71,6 +75,12 @@ module {
   };
 
   public type ChunkHash = { hash : Blob };
+
+  public type Snapshot = {
+    id : Blob;
+    taken_at_timestamp : Nat64;
+    total_size : Nat64;
+  };
 
   public type InstallChunkedCodeArgs = {
     mode : CanisterInstallMode;

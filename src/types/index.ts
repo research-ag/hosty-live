@@ -40,6 +40,8 @@ export interface Deployment {
   skipPreUpgrade?: boolean
   postInstallMethod?: string
   sessionId?: string
+  snapshotId?: string
+  motokoEntry?: string
 }
 
 export interface User {
@@ -156,6 +158,8 @@ export interface ApiDeployment {
   skipPreUpgrade?: boolean
   postInstallMethod?: string
   sessionId?: string
+  snapshotId?: string
+  motokoEntry?: string
 }
 
 export interface DeploymentsListResponseDto {

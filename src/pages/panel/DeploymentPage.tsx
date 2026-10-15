@@ -423,7 +423,7 @@ export function DeploymentPage() {
             <CardTitle>Technical Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {deployment.sourceType === 'WASM' && (
+            {(deployment.sourceType === 'WASM' || deployment.kind === 'BACKEND') && (
               <>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Install mode</label>
@@ -451,6 +451,18 @@ export function DeploymentPage() {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Post-install method</label>
                     <p className="text-sm font-mono bg-muted px-2 py-1 rounded">{deployment.postInstallMethod}</p>
+                  </div>
+                )}
+                {deployment.snapshotId && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Snapshot taken before the upgrade</label>
+                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded break-all">{deployment.snapshotId}</p>
+                  </div>
+                )}
+                {deployment.motokoEntry && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Motoko entry</label>
+                    <p className="text-sm font-mono bg-muted px-2 py-1 rounded break-all">{deployment.motokoEntry}</p>
                   </div>
                 )}
               </>
