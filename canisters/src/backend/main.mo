@@ -656,6 +656,21 @@ persistent actor class Backend() = self {
     if (found) ?n else null;
   };
 
+  private func logReservationState_(cid : Principal, when : Text) : async* () {
+    try {
+      let st = await Management.getActor().canister_status({ canister_id = cid });
+      Prim.debugPrint(
+        "reservation state " # when # ": cycles=" # debug_show st.cycles
+        # " reserved=" # debug_show st.reserved_cycles
+        # " memory=" # debug_show st.memory_size
+        # " freezing_threshold=" # debug_show st.settings.freezing_threshold
+        # " idle_burn_per_day=" # debug_show st.idle_cycles_burned_per_day
+      );
+    } catch (err) {
+      Prim.debugPrint("reservation state " # when # ": status failed: " # Error.message(err));
+    };
+  };
+
   // Run a memory-growing step against `cid`. If it is rejected for missing
   // storage reservation cycles, deposit the requested amount (plus a margin, the
   // subnet keeps filling) from our own balance and retry the step. A step may
@@ -675,11 +690,15 @@ persistent actor class Backend() = self {
         attempt += 1;
         let amount = required + Nat.max(required / 5, 100_000_000_000);
         Prim.debugPrint("canister " # debug_show cid # " needs " # debug_show required # " more cycles for storage reservation (attempt " # debug_show attempt # ")");
-        Prim.debugPrint("topping up canister with " # debug_show amount # " cycles...");
+        // Diagnostics: 2026-10-15 five deposits did not move the reported shortfall
+        // at all, so record what the target really holds around each deposit.
+        await* logReservationState_(cid, "before deposit");
+        Prim.debugPrint("topping up canister with " # debug_show amount # " cycles... (own balance " # debug_show Prim.cyclesBalance() # ")");
         reservationTopups += 1;
         await (with cycles = amount) Management.getActor().deposit_cycles({
           canister_id = cid;
         });
+        await* logReservationState_(cid, "after deposit");
       };
     };
   };
