@@ -91,6 +91,8 @@ persistent actor class Backend() = self {
     RENT_TAKEBACK_INTERVAL : Nat64 = 1_800; // 30 minutes
     POOL_CANISTER_MIN_CYCLES = 1_000_000_000_000;
     POOL_CANISTER_CYCLES_THRESHOLD = 800_000_000_000;
+    // Max storage reservation top-ups per memory-growing step, see withReservationTopup_.
+    MAX_RESERVATION_TOPUPS = 5;
     // Pool canisters often arrive with a 365-day freezing threshold (set by the web app
     // on reset). The assets canister grows memory on its first sync, and with such a
     // threshold the frozen reserve exceeds the pool balance, so installs fail with
@@ -656,21 +658,29 @@ persistent actor class Backend() = self {
 
   // Run a memory-growing step against `cid`. If it is rejected for missing
   // storage reservation cycles, deposit the requested amount (plus a margin, the
-  // subnet keeps filling) from our own balance and retry the step once. Any other
-  // error, or a second failure, propagates to the caller.
+  // subnet keeps filling) from our own balance and retry the step. A step may
+  // grow memory several times (the default page upload is three calls), and the
+  // replica only reports the shortfall of the growth that failed, so the retry
+  // can fail again asking for a smaller amount (seen 2026-10-15: 125B, then 63B).
+  // Hence a bounded loop rather than a single retry. Any other error, or a
+  // failure after the last top-up, propagates to the caller.
   private func withReservationTopup_(cid : Principal, step : () -> async* ()) : async* () {
-    try {
-      await* step();
-    } catch (err) {
-      let ?required = parseRequiredCycles_(Error.message(err)) else throw err;
-      let amount = required + Nat.max(required / 5, 100_000_000_000);
-      Prim.debugPrint("canister " # debug_show cid # " needs " # debug_show required # " more cycles for storage reservation");
-      Prim.debugPrint("topping up canister with " # debug_show amount # " cycles...");
-      reservationTopups += 1;
-      await (with cycles = amount) Management.getActor().deposit_cycles({
-        canister_id = cid;
-      });
-      await* step();
+    var attempt = 0;
+    loop {
+      try {
+        return await* step();
+      } catch (err) {
+        let ?required = parseRequiredCycles_(Error.message(err)) else throw err;
+        if (attempt >= CONSTANTS.MAX_RESERVATION_TOPUPS) throw err;
+        attempt += 1;
+        let amount = required + Nat.max(required / 5, 100_000_000_000);
+        Prim.debugPrint("canister " # debug_show cid # " needs " # debug_show required # " more cycles for storage reservation (attempt " # debug_show attempt # ")");
+        Prim.debugPrint("topping up canister with " # debug_show amount # " cycles...");
+        reservationTopups += 1;
+        await (with cycles = amount) Management.getActor().deposit_cycles({
+          canister_id = cid;
+        });
+      };
     };
   };
 
