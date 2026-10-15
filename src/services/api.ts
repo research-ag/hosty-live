@@ -893,6 +893,20 @@ export const wasmDeploymentsApi = {
     return data.candid ?? undefined;
   },
 
+  async call(
+    canisterId: string,
+    input: { method: string; arg?: string; update?: boolean },
+  ): Promise<{ reply: string; replyHex: string; caller: string; durationMs: number; candidKnown: boolean }> {
+    const response = await fetch(`${API_BASE}/canisters/${encodeURIComponent(canisterId)}/call`, {
+      method: "POST",
+      headers: await getAuthHeaders(),
+      body: JSON.stringify(input),
+    });
+    checkUnauthorized(response);
+    if (!response.ok) throw new Error(await readError(response));
+    return response.json();
+  },
+
   async moduleMeta(hash: string): Promise<{
     hash: string;
     size: number;

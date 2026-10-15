@@ -11,6 +11,9 @@ module {
       settings : { controllers : ?[Principal]; freezing_threshold : ?Nat };
     }) -> async ();
     install_code : (InstallCodeArgs) -> async ();
+    upload_chunk : ({ canister_id : Principal; chunk : Blob }) -> async ChunkHash;
+    clear_chunk_store : ({ canister_id : Principal }) -> async ();
+    install_chunked_code : (InstallChunkedCodeArgs) -> async ();
     deposit_cycles : ({ canister_id : Principal }) -> async ();
     delete_canister : ({ canister_id : Principal }) -> async ();
     start_canister : ({ canister_id : Principal }) -> async ();
@@ -67,6 +70,18 @@ module {
     response_payload_bytes_total : Nat;
   };
 
+  public type ChunkHash = { hash : Blob };
+
+  public type InstallChunkedCodeArgs = {
+    mode : CanisterInstallMode;
+    target_canister : Principal;
+    store_canister : ?Principal;
+    chunk_hashes_list : [ChunkHash];
+    wasm_module_hash : Blob;
+    arg : Blob;
+    sender_canister_version : ?Nat64;
+  };
+
   public type InstallCodeArgs = {
     mode : CanisterInstallMode;
     canister_id : Principal;
@@ -75,7 +90,7 @@ module {
     sender_canister_version : ?Nat64;
   };
 
-  type CanisterInstallMode = {
+  public type CanisterInstallMode = {
     #install;
     #reinstall;
     #upgrade : ?{
