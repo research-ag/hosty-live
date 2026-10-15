@@ -14,6 +14,9 @@ import { getManagementActor } from "../../api/management";
 import { parseCandidMethods } from "../../lib/candidMethods";
 export { parseCandidMethods } from "../../lib/candidMethods";
 
+// Snapshots the IC keeps per canister; beyond it take_canister_snapshot needs replace_snapshot.
+const MAX_SNAPSHOTS_PER_CANISTER = 10;
+
 export function candidUiUrl(canisterId: string): string {
   return `https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=${canisterId}`;
 }
@@ -439,10 +442,13 @@ function SnapshotsSection({ canisterId }: { canisterId: string }) {
       "take",
       async () => {
         const management = await getManagementActor();
-        const newest = snapshots.data?.[0];
+        // A manual snapshot keeps the existing restore points; only at the IC's per-canister
+        // limit does it make room by replacing the oldest one.
+        const existing = snapshots.data ?? [];
+        const oldest = existing.length >= MAX_SNAPSHOTS_PER_CANISTER ? existing[existing.length - 1] : undefined;
         await management.take_canister_snapshot.withOptions({ effectiveCanisterId: target })({
           canister_id: target,
-          replace_snapshot: newest ? [newest.raw] : [],
+          replace_snapshot: oldest ? [oldest.raw] : [],
         });
       },
       "Snapshot taken",
