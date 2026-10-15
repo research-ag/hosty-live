@@ -1009,7 +1009,11 @@ export function CanisterPage() {
             onInstall={() => setIsWasmModalOpen(true)}
             unattended={{
               enabled: !!canisterStatus.controllers?.includes(backendCanisterId),
-              locked: canister.ownedBySystem || !isController,
+              // A rental keeps the pool canister as controller, so its grant cannot be
+              // removed; a system canister without the grant may still receive it.
+              locked:
+                (canister.ownedBySystem && !!canisterStatus.controllers?.includes(backendCanisterId)) ||
+                !isController,
               busy: isTogglingGrant,
               onToggle: handleToggleUnattended,
             }}

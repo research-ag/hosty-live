@@ -11,30 +11,11 @@ import { wasmDeploymentsApi } from "../../services/api";
 import { useToast } from "../../hooks/useToast";
 import { isAssetCanister } from "../../constants/knownHashes";
 import { getManagementActor } from "../../api/management";
+import { parseCandidMethods } from "../../lib/candidMethods";
+export { parseCandidMethods } from "../../lib/candidMethods";
 
 export function candidUiUrl(canisterId: string): string {
   return `https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=${canisterId}`;
-}
-
-interface CandidMethod {
-  name: string;
-  args: string;
-  returns: string;
-  query: boolean;
-}
-
-/** Method list from a `.did`: enough for a call form, not a full Candid parser. */
-export function parseCandidMethods(candid: string): CandidMethod[] {
-  const serviceStart = candid.search(/service\s*:?[^{]*\{/);
-  if (serviceStart < 0) return [];
-  const body = candid.slice(candid.indexOf("{", serviceStart) + 1);
-  const methods: CandidMethod[] = [];
-  const re = /^\s*"?([A-Za-z_][A-Za-z0-9_]*)"?\s*:\s*\(([^)]*)\)\s*->\s*\(([^)]*)\)\s*(query|composite_query)?\s*;/gm;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(body))) {
-    methods.push({ name: m[1], args: m[2].trim(), returns: m[3].trim(), query: !!m[4] });
-  }
-  return methods;
 }
 
 interface UnattendedGrant {

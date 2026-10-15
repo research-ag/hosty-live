@@ -1,10 +1,15 @@
 #!/bin/bash
 # Typecheck the backend canister, emit its Candid, and check stable-memory compatibility
-# against a reference checkout (default: the sibling main checkout of this repo).
+# against a reference checkout (default: the main worktree of this repository, i.e. the
+# checkout that `git worktree list` prints first; pass a path to compare against another).
 # Usage: tools/moc-check.sh [reference-repo-root] [out-dir]
 set -euo pipefail
 cd "$(dirname "$0")/.."
-REF=${1:-/Users/andy/Development/hosty-live-fe}
+REF=${1:-$(git worktree list --porcelain | sed -n '1s/^worktree //p')}
+if [ -z "$REF" ] || [ ! -f "$REF/canisters/src/backend/main.mo" ]; then
+  echo "reference checkout not found (got '$REF'); pass it as the first argument" >&2
+  exit 2
+fi
 OUT=${2:-/tmp/hosty-moc-check}
 mkdir -p "$OUT/oldsrc/backend" "$OUT/oldsrc/shared"
 SRC=$(mops sources)
