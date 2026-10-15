@@ -74,7 +74,7 @@ fn call_failure_message(amount: u64, e: ic_cdk::call::CallFailed) -> String {
                 "Cycles sent: {amount}\nCycles refunded: {refund}\nAn error happened during the call: {e}"
             )
         }
-        _ => format!("Cycles sent: {amount}\nThe call was not performed: {e}"),
+        _ => format!("Cycles requested: {amount}\nThe call was not performed: {e}"),
     }
 }
 

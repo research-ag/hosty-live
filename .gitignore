@@ -56,3 +56,6 @@ coverage/
 .icp/cache/
 .idea/
 .mops/
+# Claude Code local state (shared .claude/ settings stay tracked)
+.claude/settings.local.json
+.claude/worktrees/
