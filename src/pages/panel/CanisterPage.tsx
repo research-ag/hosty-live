@@ -26,6 +26,7 @@ import { Badge } from "../../components/ui/Badge";
 import { DeployModal } from "../../components/panel/DeployModal";
 import { DeployWasmModal } from "../../components/panel/DeployWasmModal";
 import { BackendModuleCard } from "../../components/panel/BackendModuleCard";
+import { CanisterEnvCard } from "../../components/panel/CanisterEnvCard";
 import { useDeploySessions } from "../../hooks/useDeploySessions";
 import type { DeployWasmInput } from "../../services/api";
 import { TransferOwnershipModal } from "../../components/panel/TransferOwnershipModal";
@@ -1157,6 +1158,8 @@ export function CanisterPage() {
           </CardContent>
         </Card>
         )}
+
+        <CanisterEnvCard canisterId={canister.id} canEdit={isController} />
       </div>
 
       <DeployWasmModal

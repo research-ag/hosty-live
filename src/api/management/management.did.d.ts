@@ -75,6 +75,7 @@ export interface canister_log_record {
   'content' : Uint8Array | number[],
 }
 export interface canister_settings {
+  'environment_variables' : [] | [Array<environment_variable>],
   'freezing_threshold' : [] | [bigint],
   'wasm_memory_threshold' : [] | [bigint],
   'controllers' : [] | [Array<Principal>],
@@ -153,6 +154,7 @@ export interface create_canister_args {
 }
 export interface create_canister_result { 'canister_id' : canister_id }
 export interface definite_canister_settings {
+  'environment_variables' : Array<environment_variable>,
   'freezing_threshold' : bigint,
   'wasm_memory_threshold' : bigint,
   'controllers' : Array<Principal>,
@@ -223,6 +225,7 @@ export interface load_canister_snapshot_args {
   'sender_canister_version' : [] | [bigint],
   'snapshot_id' : snapshot_id,
 }
+export interface environment_variable { 'value' : string, 'name' : string }
 export type log_visibility = { 'controllers' : null } |
   { 'public' : null } |
   { 'allowed_viewers' : Array<Principal> };

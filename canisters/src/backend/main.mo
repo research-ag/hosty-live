@@ -748,6 +748,7 @@ persistent actor class Backend() = self {
         settings = {
           controllers = null;
           freezing_threshold = ?CONSTANTS.POOL_CANISTER_FREEZING_THRESHOLD;
+          environment_variables = null;
         };
       });
     };
@@ -811,11 +812,14 @@ persistent actor class Backend() = self {
   };
 
   private func setupUserOwnership_(cid : Principal, user : Principal) : async* () {
+    // A new renter starts with no environment variables: clears what a canister may still
+    // carry from a rental that ended before setupSystemOwnership_ cleared them.
     await Management.getActor().update_settings({
       canister_id = cid;
       settings = {
         controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self), user];
         freezing_threshold = null;
+        environment_variables = ?[];
       };
     });
     // Controllers may always upload; list the user explicitly anyway so access
@@ -889,11 +893,15 @@ persistent actor class Backend() = self {
     let cid = canisterData.canisterId;
     Prim.debugPrint("updating canister controllers...");
     try {
+      // Clear the environment variables together with the controllers: they survive the
+      // reinstall in preparePoolCanister_, and the next renter's page would otherwise
+      // publish this renter's PUBLIC_* values (e.g. PUBLIC_CANISTER_ID:backend).
       await Management.getActor().update_settings({
         canister_id = cid;
         settings = {
           controllers = ?[CONSTANTS.STATUS_PROXY_CID, Principal.fromActor(self)];
           freezing_threshold = null;
+          environment_variables = ?[];
         };
       });
     } catch (err) {

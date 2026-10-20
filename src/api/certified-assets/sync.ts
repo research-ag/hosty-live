@@ -10,7 +10,8 @@
  * Semantics: "replace everything". After a sync the canister serves exactly the
  * given files (plus the synthesized clean-URL / 404 rules), like the old
  * AssetManager `clear()` + `store()` flow, but encodings whose sha256 already
- * matches are not re-uploaded.
+ * matches are not re-uploaded. `_redirects` and `_headers` (asset-prep's redirects.rs,
+ * headers.rs and glob.rs) are applied, not served.
  *
  * Runtime requirements: `globalThis.crypto.subtle` (browsers, Node >= 20).
  */
@@ -111,6 +112,12 @@ export interface SyncResult {
 /** Matches asset-prep::MAX_CHUNK_SIZE. */
 export const MAX_CHUNK_SIZE = 1_900_000;
 const MAX_OPERATIONS_PER_GROUP = 500;
+/** Inlined header bytes per `execute_operations` call (sync-core: under the 2 MiB ingress cap). */
+const MAX_HEADER_BYTES_PER_GROUP = 1_500_000;
+/** IC ingress message limit on application subnets. */
+const MAX_INGRESS_BYTES = 2 * 1024 * 1024;
+/** Room for the request envelope around the Candid argument (CBOR, sender key, signature, delegation chain). */
+const INGRESS_ENVELOPE_BYTES = 64 * 1024;
 const PAGE_GUARD = 10_000;
 
 export const REDIRECTS_FILENAME = '_redirects';
@@ -119,7 +126,9 @@ export const ROOT_404_KEY = '/404.html';
 
 /**
  * Replace the canister's content with `files`.
- * A `_redirects` file is applied as rules (never served); `_headers` is ignored.
+ * A `_redirects` file is applied as rules and `_headers` as per-asset response headers
+ * and content types; neither is served. A malformed `_redirects` or `_headers` throws
+ * before the canister is touched.
  */
 export async function syncAssets(
   actor: CertifiedAssetsSyncActor,
@@ -129,25 +138,19 @@ export async function syncAssets(
   const log = options.log ?? (() => undefined);
   const encoders = options.encoders ?? [];
   const concurrency = Math.max(1, options.concurrency ?? 4);
-
-  // 1. Plan: normalise keys, pull out the special files.
-  const byKey = new Map<string, SyncFile>();
-  let redirectsSource: string | undefined;
-  for (const file of files) {
-    const key = normaliseKey(file.path);
-    if (key === '/' + REDIRECTS_FILENAME) {
-      redirectsSource = new TextDecoder().decode(file.content);
-      continue;
-    }
-    if (key === '/' + HEADERS_FILENAME) {
-      log(`${HEADERS_FILENAME} is not supported by this uploader and was skipped`);
-      continue;
-    }
-    byKey.set(key, { ...file, path: key });
-  }
-
   const keepExisting = options.keepExisting ?? false;
-  const userRules = redirectsSource && !keepExisting ? parseRedirects(redirectsSource) : [];
+
+  // 1. Plan: normalise keys, apply `_headers`, pull out the special files.
+  const site = prepareSiteFiles(files);
+  const byKey = new Map(site.files.map((f) => [f.path, f]));
+  const headerRules = keepExisting ? [] : site.headerRules;
+  if (keepExisting && (site.redirectsSource !== undefined || site.headerRules.length)) {
+    log(`${REDIRECTS_FILENAME} / ${HEADERS_FILENAME} are ignored by a partial update`);
+  }
+  if (headerRules.length) log(`${HEADERS_FILENAME}: ${headerRules.length} rule(s)`);
+
+  const userRules =
+    site.redirectsSource && !keepExisting ? parseRedirects(site.redirectsSource) : [];
   const notFound = keepExisting
     ? { injectDefaultAsset: false, appendCatchall: false }
     : planNotFound([...byKey.keys()], userRules);
@@ -163,11 +166,19 @@ export async function syncAssets(
   if (notFound.appendCatchall) {
     rules.push({ from: { Subtree: '/' }, to: ROOT_404_KEY, status: 404, headers: [] });
   }
+  // 3xx rules answer on their own (no target asset to borrow headers from), so they carry
+  // the `_headers` resolved for their `from` path; 200/4xx rules use their target's.
+  for (const rule of rules) {
+    if (isRedirectStatus(rule.status)) rule.headers = resolveHeaders(ruleKey(rule), headerRules);
+  }
+  // The rules go out as one operation, which cannot be split across calls: refuse a set too
+  // large for one ingress message before the canister is touched.
+  if (!keepExisting) assertRedirectRulesFit(rules, headerRules);
 
   // 2. Encode and hash.
   const planned: PlannedAsset[] = [];
   for (const file of byKey.values()) {
-    planned.push(await prepareAsset(file, encoders));
+    planned.push(await prepareAsset(file, encoders, resolveHeaders(file.path, headerRules)));
   }
 
   // 3. Current canister state.
@@ -184,21 +195,25 @@ export async function syncAssets(
   }
   for (const asset of planned) {
     const current = existing.get(asset.key);
+    // A partial update knows no `_headers`: assets it replaces keep the headers they have.
+    if (keepExisting && current) asset.headers = current.headers;
     let reusable = current;
     if (!current) {
       operations.push({
-        CreateAsset: { key: asset.key, content_type: asset.contentType, headers: [] },
+        CreateAsset: { key: asset.key, content_type: asset.contentType, headers: asset.headers },
       });
       reusable = undefined;
     } else if (current.content_type !== asset.contentType) {
       // No "set content type" operation exists: recreate the asset.
       operations.push({ DeleteAsset: { key: asset.key } });
       operations.push({
-        CreateAsset: { key: asset.key, content_type: asset.contentType, headers: [] },
+        CreateAsset: { key: asset.key, content_type: asset.contentType, headers: asset.headers },
       });
       reusable = undefined;
-    } else if (current.headers.length > 0) {
-      operations.push({ SetAssetHeaders: { key: asset.key, headers: [] } });
+    } else if (!headersEqual(current.headers, asset.headers)) {
+      // Headers are compared on every sync, also when all encodings are reused, so a
+      // deploy that only changes `_headers` still reaches the canister.
+      operations.push({ SetAssetHeaders: { key: asset.key, headers: asset.headers } });
     }
     const ours = new Set(asset.encodings.map((e) => e.encoding));
     if (reusable) {
@@ -256,7 +271,7 @@ export async function syncAssets(
   if (!keepExisting) operations.push({ SetRedirectRules: { rules } });
 
   let stateHash: Bytes | undefined;
-  const groups = chunkArray(operations, MAX_OPERATIONS_PER_GROUP);
+  const groups = splitOperationGroups(operations);
   if (groups.length === 0) groups.push([]);
   for (let i = 0; i < groups.length; i++) {
     const result = await actor.execute_operations({
@@ -389,14 +404,442 @@ export function parseRedirects(content: string): RedirectRule[] {
   return rules;
 }
 
+/** A `#` starts a comment at the line start or after whitespace, never inside a token. */
 function stripComment(line: string): string {
   let prevIsWs = true;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch === '#' && prevIsWs) return line.slice(0, i);
-    prevIsWs = ch === ' ' || ch === '\t';
+    prevIsWs = ASCII_WHITESPACE.has(ch);
   }
   return line;
+}
+
+const ASCII_WHITESPACE = new Set([' ', '\t', '\n', '\r', '\f']);
+
+// ───────── _headers (port of asset-prep::headers / glob) ─────────
+
+/** A `_headers` path pattern: absolute, with `*` matching any run of characters including `/`. */
+export interface KeyPattern {
+  source: string;
+  /** Literal parts; consecutive parts are joined by an implicit `*`. */
+  parts: string[];
+}
+
+export interface HeaderRule {
+  pattern: KeyPattern;
+  /** Response headers in declaration order; never contains `Content-Type`. */
+  headers: HeaderField[];
+  /** Media type override for matching files (the `Content-Type:` line of the block). */
+  contentType?: string;
+}
+
+/** A malformed `_headers` line; `line` is 1-based. */
+export class HeadersParseError extends Error {
+  readonly line: number;
+  readonly source: string;
+  readonly reason: string;
+
+  constructor(line: number, source: string, reason: string) {
+    super(`${HEADERS_FILENAME}: line ${line}: ${reason} (source: \`${source}\`)`);
+    this.name = 'HeadersParseError';
+    this.line = line;
+    this.source = source;
+    this.reason = reason;
+  }
+}
+
+export function parseKeyPattern(token: string): KeyPattern {
+  if (!token.startsWith('/')) {
+    throw new Error(`'${token}' must be an absolute path (start with '/')`);
+  }
+  if (token.includes(':')) {
+    throw new Error(`':' placeholders in pattern ('${token}') are not supported`);
+  }
+  if (token.includes('**')) {
+    throw new Error(
+      `'**' in pattern ('${token}') is not supported — a single '*' already matches any character sequence including '/'`,
+    );
+  }
+  return { source: token, parts: token.split('*') };
+}
+
+export function keyPatternMatches(pattern: KeyPattern, key: string): boolean {
+  const { parts } = pattern;
+  if (parts.length === 1) return key === parts[0];
+  if (!key.startsWith(parts[0])) return false;
+  let tail = key.slice(parts[0].length);
+  for (const middle of parts.slice(1, -1)) {
+    const idx = tail.indexOf(middle);
+    if (idx < 0) return false;
+    tail = tail.slice(idx + middle.length);
+  }
+  const last = parts[parts.length - 1];
+  return tail.length >= last.length && tail.endsWith(last);
+}
+
+/**
+ * Strict block parser for Netlify-style `_headers` files: a non-indented pattern line,
+ * then indented `Name: value` lines. A blank line closes a block; comment lines do not.
+ * The first malformed line throws a {@link HeadersParseError}.
+ */
+export function parseHeaders(content: string): HeaderRule[] {
+  const rules: HeaderRule[] = [];
+  let current:
+    | { lineNo: number; source: string; pattern: KeyPattern; rule: HeaderRule }
+    | undefined;
+  const close = () => {
+    if (!current) return;
+    if (current.rule.headers.length === 0 && current.rule.contentType === undefined) {
+      throw new HeadersParseError(
+        current.lineNo,
+        current.source,
+        'path block has no header lines under it',
+      );
+    }
+    rules.push(current.rule);
+    current = undefined;
+  };
+
+  const lines = content.split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  lines.forEach((line, i) => {
+    const lineNo = i + 1;
+    const raw = line.endsWith('\r') ? line.slice(0, -1) : line;
+    if (raw.trim() === '') {
+      close();
+      return;
+    }
+    const stripped = stripComment(raw);
+    if (stripped.trim() === '') return;
+
+    const source = raw.trimEnd();
+    const indented = stripped[0] === ' ' || stripped[0] === '\t';
+    if (!indented) {
+      close();
+      let pattern: KeyPattern;
+      try {
+        pattern = parseKeyPattern(stripped.trim());
+      } catch (error) {
+        throw new HeadersParseError(lineNo, source, (error as Error).message);
+      }
+      current = { lineNo, source, pattern, rule: { pattern, headers: [] } };
+      return;
+    }
+    if (!current) {
+      throw new HeadersParseError(lineNo, source, 'indented header line outside a path block');
+    }
+    let parsed: HeaderField | { contentType: string };
+    try {
+      parsed = parseHeaderLine(stripped);
+    } catch (error) {
+      throw new HeadersParseError(lineNo, source, (error as Error).message);
+    }
+    if ('contentType' in parsed) {
+      if (current.rule.contentType !== undefined) {
+        throw new HeadersParseError(lineNo, source, 'duplicate `Content-Type` in the same block');
+      }
+      current.rule.contentType = parsed.contentType;
+    } else {
+      current.rule.headers.push(parsed);
+    }
+  });
+  close();
+  return rules;
+}
+
+/**
+ * Response headers for `key`: every matching rule contributes, in declaration order. Values
+ * of the same name (case-insensitive) are joined with `, `, except `Set-Cookie`, which stays
+ * one header per value. Stable-sorted by lowercased name.
+ */
+export function resolveHeaders(key: string, rules: HeaderRule[]): HeaderField[] {
+  const merged: HeaderField[] = [];
+  const indexByName = new Map<string, number>();
+  for (const rule of rules) {
+    if (!keyPatternMatches(rule.pattern, key)) continue;
+    for (const [name, value] of rule.headers) {
+      const lower = name.toLowerCase();
+      if (lower === 'set-cookie') {
+        merged.push([name, value]);
+        continue;
+      }
+      const index = indexByName.get(lower);
+      if (index === undefined) {
+        indexByName.set(lower, merged.length);
+        merged.push([name, value]);
+      } else {
+        merged[index] = [merged[index][0], `${merged[index][1]}, ${value}`];
+      }
+    }
+  }
+  return merged
+    .map((header, index) => ({ header, index, lower: header[0].toLowerCase() }))
+    .sort((a, b) => (a.lower < b.lower ? -1 : a.lower > b.lower ? 1 : a.index - b.index))
+    .map((entry) => entry.header);
+}
+
+/** The `Content-Type` override for `key`: the first matching rule that declares one. */
+export function contentTypeFor(key: string, rules: HeaderRule[]): string | undefined {
+  return rules.find((r) => r.contentType !== undefined && keyPatternMatches(r.pattern, key))
+    ?.contentType;
+}
+
+/**
+ * Splits a site into served files and its `_redirects` / `_headers` sources. Keys are
+ * normalised and `_headers` content type overrides are applied, so the result is what the
+ * canister stores. Throws on a malformed `_headers`.
+ */
+export function prepareSiteFiles(files: SyncFile[]): {
+  files: SyncFile[];
+  headerRules: HeaderRule[];
+  redirectsSource?: string;
+} {
+  let redirectsSource: string | undefined;
+  let headersSource: string | undefined;
+  const served: SyncFile[] = [];
+  for (const file of files) {
+    const key = normaliseKey(file.path);
+    if (key === '/' + REDIRECTS_FILENAME) {
+      redirectsSource = new TextDecoder().decode(file.content);
+    } else if (key === '/' + HEADERS_FILENAME) {
+      headersSource = new TextDecoder().decode(file.content);
+    } else {
+      served.push({ ...file, path: key });
+    }
+  }
+  const headerRules = headersSource === undefined ? [] : parseHeaders(headersSource);
+  return {
+    files: served.map((file) => ({
+      ...file,
+      contentType: contentTypeFor(file.path, headerRules) ?? file.contentType,
+    })),
+    headerRules,
+    redirectsSource,
+  };
+}
+
+/** Headers the canister computes itself or that mean nothing on a certified asset. */
+const RESERVED_HEADERS: Record<string, string> = {
+  'content-length': 'the canister sets it from the asset body',
+  'content-encoding': 'the canister negotiates gzip/Brotli/identity per request and sets it itself',
+  'transfer-encoding': 'body framing is handled by the HTTP gateway, not the canister',
+  'accept-ranges': 'range handling for large assets is managed by the canister',
+  'content-range':
+    'the canister sets it on the certified 206 range responses it serves for large assets',
+  'ic-certificate': "it carries the canister's response certificate and is canister-managed",
+  'ic-certificateexpression': 'it is part of response certification and is canister-managed',
+};
+
+const TOKEN_CHARS = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function parseHeaderLine(stripped: string): HeaderField | { contentType: string } {
+  const trimmed = stripped.trim();
+  const colon = trimmed.indexOf(':');
+  if (colon < 0) throw new Error(`header line '${trimmed}' is missing a ':' separator`);
+  const name = trimmed.slice(0, colon).trim();
+  const value = trimmed.slice(colon + 1).trim();
+  if (!name) throw new Error('header name is empty');
+  const lower = name.toLowerCase();
+  if (lower === 'content-type') {
+    if (!value) throw new Error("'Content-Type' value is empty");
+    return { contentType: parseMediaType(value) };
+  }
+  if (lower === 'etag') {
+    throw new Error(
+      '`ETag` is managed by the canister (it is derived from the content hash); remove it from `_headers`',
+    );
+  }
+  const reserved = RESERVED_HEADERS[lower];
+  if (reserved)
+    throw new Error(`\`${name}\` is reserved and cannot be set in \`_headers\`: ${reserved}`);
+  if (lower === 'location') {
+    throw new Error(
+      `\`${name}\` does not redirect from \`_headers\`; add a rule to \`_redirects\` instead`,
+    );
+  }
+  if (value.includes(':splat') || value.includes(':placeholder')) {
+    throw new Error(
+      `':splat' / ':placeholder' substitution in header value ('${value}') is a known-deferred feature`,
+    );
+  }
+  if (!TOKEN_CHARS.test(name)) throw new Error(`invalid header name '${name}'`);
+  for (const ch of value) {
+    const code = ch.codePointAt(0)!;
+    if ((code < 0x20 && ch !== '\t') || code === 0x7f) {
+      throw new Error(`invalid header value '${value}': control characters are not allowed`);
+    }
+  }
+  return [name, value];
+}
+
+/**
+ * Validates a media type the way the `mime` crate parses it (`type/subtype` tokens, then
+ * `;` parameters `name=value` with a token or quoted value) and returns the same canonical
+ * text as `Mime::to_string`: the input lowercased except the values of parameters other
+ * than `charset`.
+ */
+export function parseMediaType(input: string): string {
+  const fail: (why: string) => never = (why) => {
+    throw new Error(`invalid \`Content-Type\` value '${input}': ${why}`);
+  };
+  const isToken = (ch: string) => /^[!#$%&'*+\-.^_`|~0-9A-Za-z]$/.test(ch);
+  let i = 0;
+  const readToken = (what: string): string => {
+    const start = i;
+    while (i < input.length && isToken(input[i])) i++;
+    if (i === start) {
+      fail(
+        i < input.length
+          ? `invalid character '${input[i]}' at position ${i} in the ${what}`
+          : `missing ${what}`,
+      );
+    }
+    return input.slice(start, i);
+  };
+  readToken('type');
+  if (input[i] !== '/') fail(i < input.length ? `expected '/' at position ${i}` : `missing '/'`);
+  i++;
+  readToken('subtype');
+  const keepCase: Array<[number, number]> = [];
+  while (i < input.length) {
+    if (input[i] !== ';') fail(`invalid character '${input[i]}' at position ${i}`);
+    i++;
+    while (input[i] === ' ') i++;
+    const name = readToken('parameter name').toLowerCase();
+    if (input[i] !== '=') fail(`expected '=' after parameter '${name}'`);
+    i++;
+    const start = i;
+    if (input[i] === '"') {
+      i++;
+      while (i < input.length && input[i] !== '"') i += input[i] === '\\' ? 2 : 1;
+      if (i >= input.length) fail('unterminated quoted parameter value');
+      i++;
+    } else {
+      readToken(`value of parameter '${name}'`);
+    }
+    if (name !== 'charset') keepCase.push([start, i]);
+  }
+  let out = '';
+  let from = 0;
+  for (const [start, end] of keepCase) {
+    out += input.slice(from, start).toLowerCase() + input.slice(start, end);
+    from = end;
+  }
+  return out + input.slice(from).toLowerCase();
+}
+
+function isRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400;
+}
+
+function ruleKey(rule: RedirectRule): string {
+  return 'Exact' in rule.from ? rule.from.Exact : rule.from.Subtree;
+}
+
+/**
+ * Throws when the `SetRedirectRules` operation cannot fit in one ingress message. Typical
+ * cause: a long `_headers` block (a CSP under `/*`) copied onto every 3xx rule, including
+ * the four clean-URL redirects synthesized per HTML page. The error names that block.
+ */
+function assertRedirectRulesFit(rules: RedirectRule[], headerRules: HeaderRule[]): void {
+  const size = redirectRulesCandidSize(rules);
+  const limit = MAX_INGRESS_BYTES - INGRESS_ENVELOPE_BYTES;
+  if (size <= limit) return;
+  const redirects = rules.filter((r) => isRedirectStatus(r.status));
+  const inlined = redirects.reduce((total, r) => total + headerFieldsSize(r.headers), 0);
+  let widest: { source: string; matched: number; bytes: number } | undefined;
+  for (const headerRule of headerRules) {
+    const matched = redirects.filter((r) =>
+      keyPatternMatches(headerRule.pattern, ruleKey(r)),
+    ).length;
+    const bytes = matched * headerFieldsSize(headerRule.headers);
+    if (bytes > (widest?.bytes ?? 0))
+      widest = { source: headerRule.pattern.source, matched, bytes };
+  }
+  throw new Error(
+    `redirect rules too large for one call: ${size} bytes for ${rules.length} rule(s), the IC accepts about ${limit}. ` +
+      `${redirects.length} of them are 3xx redirects carrying ${inlined} bytes of ${HEADERS_FILENAME}` +
+      (widest
+        ? `, mostly from the block \`${widest.source}\`, which matches ${widest.matched} redirect(s) (${widest.bytes} bytes). Shorten those headers, or narrow the pattern so it matches fewer redirect paths (a 3xx response rarely needs a CSP).`
+        : '.'),
+  );
+}
+
+/** Size of `vec RedirectRule` in the Candid argument (values only; the type table is small). */
+function redirectRulesCandidSize(rules: RedirectRule[]): number {
+  const text = (value: string) => {
+    const length = utf8Length(value);
+    return leb128Size(length) + length;
+  };
+  let size = 1024 + leb128Size(rules.length);
+  for (const rule of rules) {
+    size += 1 + text(ruleKey(rule)) + text(rule.to) + 2 + leb128Size(rule.headers.length);
+    for (const [name, value] of rule.headers) size += text(name) + text(value);
+  }
+  return size;
+}
+
+function leb128Size(value: number): number {
+  let size = 1;
+  while (value >= 0x80) {
+    value = Math.floor(value / 0x80);
+    size++;
+  }
+  return size;
+}
+
+function headerFieldsSize(headers: HeaderField[]): number {
+  return headers.reduce((total, [n, v]) => total + utf8Length(n) + utf8Length(v), 0);
+}
+
+function headersEqual(a: HeaderField[], b: HeaderField[]): boolean {
+  return a.length === b.length && a.every(([n, v], i) => n === b[i][0] && v === b[i][1]);
+}
+
+/**
+ * Groups operations into `execute_operations` calls: at most 500 operations and 1.5 MB
+ * of inlined header bytes each (a long CSP is attached to every asset and 3xx rule).
+ * An operation over the byte budget gets a call of its own. `SetRedirectRules` replaces the
+ * whole rule set and cannot be split; `assertRedirectRulesFit` refuses one that would not
+ * fit in a single ingress message before the sync starts.
+ */
+function splitOperationGroups(operations: Operation[]): Operation[][] {
+  const groups: Operation[][] = [];
+  let current: Operation[] = [];
+  let headerBytes = 0;
+  for (const op of operations) {
+    const bytes = headerBytesOf(op);
+    const overflow =
+      current.length >= MAX_OPERATIONS_PER_GROUP ||
+      headerBytes + bytes > MAX_HEADER_BYTES_PER_GROUP;
+    if (overflow && current.length) {
+      groups.push(current);
+      current = [];
+      headerBytes = 0;
+    }
+    current.push(op);
+    headerBytes += bytes;
+  }
+  if (current.length) groups.push(current);
+  return groups;
+}
+
+/** Variable-size bytes of an operation: inlined headers, plus the paths of redirect rules. */
+function headerBytesOf(op: Operation): number {
+  if ('CreateAsset' in op) return headerFieldsSize(op.CreateAsset.headers);
+  if ('SetAssetHeaders' in op) return headerFieldsSize(op.SetAssetHeaders.headers);
+  if ('SetRedirectRules' in op) {
+    return op.SetRedirectRules.rules.reduce(
+      (total, r) => total + utf8Length(ruleKey(r)) + utf8Length(r.to) + headerFieldsSize(r.headers),
+      0,
+    );
+  }
+  return 0;
+}
+
+function utf8Length(text: string): number {
+  return new TextEncoder().encode(text).length;
 }
 
 // ───────── Preparation ─────────
@@ -417,6 +860,7 @@ interface PreparedEncoding {
 interface PlannedAsset {
   key: string;
   contentType: string;
+  headers: HeaderField[];
   encodings: PreparedEncoding[];
 }
 
@@ -427,7 +871,11 @@ interface PendingChunk {
   data: Uint8Array;
 }
 
-async function prepareAsset(file: SyncFile, encoders: Encoder[]): Promise<PlannedAsset> {
+async function prepareAsset(
+  file: SyncFile,
+  encoders: Encoder[],
+  headers: HeaderField[],
+): Promise<PlannedAsset> {
   const encodings: PreparedEncoding[] = [await prepareEncoding('Identity', file.content)];
   if (isCompressible(file.contentType)) {
     for (const encoder of encoders) {
@@ -436,7 +884,7 @@ async function prepareAsset(file: SyncFile, encoders: Encoder[]): Promise<Planne
       encodings.push(await prepareEncoding(encoder.encoding, data));
     }
   }
-  return { key: file.path, contentType: file.contentType, encodings };
+  return { key: file.path, contentType: file.contentType, headers, encodings };
 }
 
 async function prepareEncoding(
@@ -562,12 +1010,6 @@ function bytesEqual(a: Bytes, b: Bytes): boolean {
 
 function toHex(bytes: Bytes): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-function chunkArray<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
 }
 
 /** Same page upstream serves when a site ships no 404.html (asset-prep::not_found). */

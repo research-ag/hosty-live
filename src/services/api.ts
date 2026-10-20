@@ -812,7 +812,9 @@ export const deploymentsApi = {
 // API tokens (AI agent access)
 export interface DeployWasmInput {
   canisterId: string;
-  wasm: File;
+  /** The module to upload; or `moduleHash` to install one from the hosty module store. */
+  wasm?: File;
+  moduleHash?: string;
   candid?: File;
   mode?: "install" | "upgrade" | "reinstall";
   initArg?: string;
@@ -830,10 +832,31 @@ async function readError(response: Response): Promise<string> {
   return message || body.error || `HTTP ${response.status}`;
 }
 
+export interface StoredModuleMeta {
+  hash: string;
+  size: number;
+  gzipped: boolean;
+  candid?: string;
+  verified: boolean;
+  downloadUrl: string;
+}
+
 export const wasmDeploymentsApi = {
   async deploy(input: DeployWasmInput): Promise<ApiDeployment> {
     const accessToken = getStoredAccessToken();
     if (!accessToken) throw new Error("No active session");
+    if (input.moduleHash) {
+      const { wasm: _wasm, candid: _candid, ...body } = input;
+      const response = await fetch(`${API_BASE}/deployments/deploy-module`, {
+        method: "POST",
+        headers: await getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      checkUnauthorized(response);
+      if (!response.ok) throw new Error(await readError(response));
+      return response.json();
+    }
+    if (!input.wasm) throw new Error("Choose a Wasm module");
     const form = new FormData();
     form.append("canisterId", input.canisterId);
     form.append("wasm", input.wasm);
@@ -905,6 +928,20 @@ export const wasmDeploymentsApi = {
       body: JSON.stringify(input),
     });
     checkUnauthorized(response);
+    if (!response.ok) throw new Error(await readError(response));
+    return response.json();
+  },
+
+  /** The stored module a canister runs (public lookup), or just its live module hash. */
+  async moduleByCanister(canisterId: string): Promise<{
+    found: boolean;
+    liveModuleHash: string | null;
+    module?: StoredModuleMeta;
+    hint?: string;
+  }> {
+    const response = await fetch(`${API_BASE}/modules/canister/${encodeURIComponent(canisterId)}`, {
+      headers: await getAuthHeaders(),
+    });
     if (!response.ok) throw new Error(await readError(response));
     return response.json();
   },
