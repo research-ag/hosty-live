@@ -578,35 +578,36 @@ export function useCanisters() {
       //   return { success: false, error: 'You are not a controller of this canister. Please add yourself as a controller first.' };
       // }
 
+      // The backend reads the canister's status through the status proxy, which can only do
+      // that as a controller, so add it before registering
+      const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
+      const controllers = canisterStatus.settings.controllers;
+      if (!controllers.some((p) => p.toText() === statusProxyCanisterId)) {
+        await management.update_settings.withOptions({
+          effectiveCanisterId: Principal.fromText(canisterId),
+        })({
+          canister_id: Principal.fromText(canisterId),
+          settings: {
+            freezing_threshold: [],
+            controllers: [[...controllers, Principal.fromText(statusProxyCanisterId)]],
+            reserved_cycles_limit: [],
+            log_visibility: [],
+            wasm_memory_limit: [],
+            memory_allocation: [],
+            compute_allocation: [],
+            wasm_memory_threshold: [],
+            environment_variables: [],
+          },
+          sender_canister_version: [],
+        });
+      }
+
       // Register in backend
       const backend = await getBackendActor();
       const canisterInfo = await backend.registerCanister(Principal.fromText(canisterId));
 
       if (opts.reset) {
         await resetCanister(canisterId, canisterInfo.userIds, { skipCheck: true });
-      } else {
-        // ensure that the status proxy canister is a controller and the build system has ability to commit assets
-        const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
-        const controllers = canisterStatus.settings.controllers;
-        if (!controllers.some((p) => p.toText() === statusProxyCanisterId)) {
-          await management.update_settings.withOptions({
-            effectiveCanisterId: Principal.fromText(canisterId),
-          })({
-            canister_id: Principal.fromText(canisterId),
-            settings: {
-              freezing_threshold: [],
-              controllers: [[...controllers, Principal.fromText(statusProxyCanisterId)]],
-              reserved_cycles_limit: [],
-              log_visibility: [],
-              wasm_memory_limit: [],
-              memory_allocation: [],
-              compute_allocation: [],
-              wasm_memory_threshold: [],
-              environment_variables: [],
-            },
-            sender_canister_version: [],
-          });
-        }
       }
 
       // Refresh lists and specific caches
