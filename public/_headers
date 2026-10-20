@@ -13,6 +13,8 @@
 
 # Asset canister wasm fetched by the app and installed into users' canisters.
 # Must arrive as raw gzip bytes; gzip isn't auto-compressed, so no Content-Encoding is added.
+# The name is not fingerprinted: the app requests it as ?v=<assetStorageHash> and checks the
+# hash, and browsers revalidate so a new release is picked up.
 /assetstorage.wasm.gz
   Content-Type: application/gzip
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, max-age=0, must-revalidate

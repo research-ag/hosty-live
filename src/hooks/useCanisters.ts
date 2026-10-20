@@ -15,6 +15,7 @@ import {
   replaceSite,
   revokeDeployAccess,
 } from "../api/certified-assets";
+import { fetchAssetStorageModule } from "../api/certified-assets/module.ts";
 import { IDL } from "@icp-sdk/core/candid";
 import defaultPage from "../constants/default-page.ts";
 import { canister_status_result } from "../api/management/management.did";
@@ -85,11 +86,7 @@ export function useCanisters() {
       setCreationMessage('Preparing...')
       let wasmBinary: Uint8Array | null = null
       if (kind === 'frontend') {
-        const response = await fetch("/assetstorage.wasm.gz");
-        if (!response.ok) {
-          throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-        }
-        wasmBinary = new Uint8Array(await response.arrayBuffer())
+        wasmBinary = await fetchAssetStorageModule()
       }
       const management = await getManagementActor()
       const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
@@ -487,11 +484,7 @@ export function useCanisters() {
         throw new Error('Canister not found');
       }
 
-      const response = await fetch("/assetstorage.wasm.gz");
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-      }
-      const wasmBinary = new Uint8Array(await response.arrayBuffer())
+      const wasmBinary = await fetchAssetStorageModule()
       const managementCanister = await getManagementActor();
       const { statusProxyCanisterId } = await import('../api/status-proxy/index.js');
 

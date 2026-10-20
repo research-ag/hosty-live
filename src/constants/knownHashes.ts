@@ -26,7 +26,9 @@ const walletMap = sdkModuleHashes.reduce<Record<string, string[]>>(
 
 // Current hosty frontend canister: hosty build of dfinity/certified-assets v0.4.1 with the
 // cycles patch (canisters/certified-assets), second release ("Cycles requested" wording when a
-// cycles call was not performed). This is public/assetstorage.wasm.gz.
+// cycles call was not performed). This is the sha256 of public/assetstorage.wasm.gz and must
+// match it: the app fetches the file as ?v=<this hash> and refuses to install other bytes
+// (src/api/certified-assets/module.ts).
 export const assetStorageHash = "c0be4fae735b163c80eb21226cbe0fef9ec912ff97687f2bec6634c5b5ab5068";
 // uncompressed sha256 of the same module. Happens when we reset canister from local development environment
 export const assetStorageUncompressedHash = "55836953485d24e05eb0377a6a55bc2d0615bf980f89b6fd3601235e78691390";

@@ -78,13 +78,16 @@ together (the backend canister refuses to use a canister whose module hash
 does not match and reinstalls it):
 
 - `public/assetstorage.wasm.gz`: the web app installs it when a user creates or
-  resets a canister.
+  resets a canister. It fetches it as `/assetstorage.wasm.gz?v=<assetStorageHash>`
+  and refuses to install it unless its sha256 equals `assetStorageHash`, so the
+  file and that constant must change together (`shasum -a 256` of the file).
 - `canisters/src/backend/assets.mo`: `HOSTY_ASSETS_MODULE` (hex dump of the
   gzip, produced with `tools/dump-hex.sh`) and `HOSTY_ASSETS_MODULE_HASH`. The
   backend canister installs it on pool canisters. A deployed backend can also be
   updated without redeploying via `setAssetsModule(hash, wasm)`.
-- `src/constants/knownHashes.ts`: maps the hash to a human-readable name and
-  drives `supportsCyclesWithdrawal`.
+- `src/constants/knownHashes.ts`: `assetStorageHash` must be the sha256 of
+  `public/assetstorage.wasm.gz` (see above); the file also maps hashes to
+  human-readable names and drives `supportsCyclesWithdrawal`.
 - Candid bindings for the clients (`src/api/asset-storage` in the web app,
   `src/ic` in `hosty-live-api`).
 
