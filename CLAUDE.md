@@ -4,7 +4,7 @@ React 18 + Vite + TypeScript web app of hosty.live, plus the Motoko canisters (`
 
 ## Commands
 
-- Typecheck: `npx tsc -b --pretty false` (the `build` script runs it before `vite build`). Lint: `npm run lint` (a few pre-existing errors in `src/services/api.ts`).
+- Typecheck: `npx tsc -b --pretty false` (the `build` script runs it before `vite build`). Lint: `npm run lint` (16 pre-existing errors across about ten files: unused vars, `{}` types in the generated `.did.d.ts` bindings, react-refresh exports; compare the count with main rather than expecting zero).
 - Dev against a local API: `VITE_HOSTY_API_BASE=http://localhost:3999/api npx vite --port 5199`. Sign-in uses Internet Identity (`https://id.ai`); for automated UI checks seed the origin's IndexedDB `auth-client-db` / `ic-keyval` with `identity` (Ed25519 key JSON string) and `delegation` (delegation chain JSON from a test root key), plus `hosty_principal` / `hosty_access_token` in localStorage. Use a port of its own so a real local session is not overwritten.
 - Motoko: `moc $(mops sources) --check canisters/src/backend/main.mo`; `tools/moc-check.sh <reference checkout>` also emits the Candid and checks stable compatibility; `tools/gen-backend-bindings.sh <did>` regenerates `src/api/backend/` (keep `../hosty-live-api/src/ic/backend.did.*` in sync, see the API's CLAUDE.md).
 
