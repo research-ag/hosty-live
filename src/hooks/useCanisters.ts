@@ -547,10 +547,34 @@ export function useCanisters() {
     }
   };
 
+  // Installs hosty's asset module on an empty canister (nothing to lose, so no reset of
+  // controllers or settings), making it deployable as a frontend.
+  const installAssetModule = async (
+    canisterId: string,
+    owners: Principal[],
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const wasmBinary = await fetchAssetStorageModule();
+      const management = await getManagementActor();
+      await performInitialCanisterSetup(canisterId, management, wasmBinary, owners, false);
+      return { success: true };
+    } catch (err) {
+      console.error(err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to install the asset module',
+      };
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['canisters'] });
+      queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
+      await queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });
+    }
+  };
+
   const importCanister = async (
     canisterId: string,
     opts: { reset: boolean }
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; error?: string; installedAssetModule?: boolean }> => {
     try {
       if (canisters.find((c) => c.id === canisterId)) {
         return { success: false, error: 'Already registered' };
@@ -606,8 +630,15 @@ export function useCanisters() {
       const backend = await getBackendActor();
       const canisterInfo = await backend.registerCanister(Principal.fromText(canisterId));
 
+      let installedAssetModule = false;
       if (opts.reset) {
         await resetCanister(canisterId, canisterInfo.userIds, { skipCheck: true });
+      } else if (canisterStatus.module_hash.length === 0) {
+        // An empty canister cannot serve or take a deploy; installing the asset module loses
+        // nothing, while leaving it empty blocked both web and agent deploys.
+        const wasmBinary = await fetchAssetStorageModule();
+        await performInitialCanisterSetup(canisterId, management, wasmBinary, canisterInfo.userIds, false);
+        installedAssetModule = true;
       }
 
       // Refresh lists and specific caches
@@ -615,7 +646,7 @@ export function useCanisters() {
       queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
       queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });
 
-      return { success: true };
+      return { success: true, installedAssetModule };
     } catch (err) {
       return {
         success: false,
@@ -633,6 +664,7 @@ export function useCanisters() {
     deleteCanister,
     addController,
     removeController,
+    installAssetModule,
     getCanister,
     refreshCanisters,
     creationMessage,

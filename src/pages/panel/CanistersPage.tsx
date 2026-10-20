@@ -195,7 +195,11 @@ export function CanistersPage() {
       if (res.success) {
         toast.success(
           "Canister imported",
-          opts.reset ? "Registered and reset completed." : "Registered successfully."
+          opts.reset
+            ? "Registered and reset completed."
+            : res.installedAssetModule
+              ? "Registered. The canister was empty, so hosty's asset module was installed."
+              : "Registered successfully."
         );
         setIsImportModalOpen(false);
         await refreshCanisters();

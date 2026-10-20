@@ -90,6 +90,12 @@ export function ImportCanisterModal({
           />
           <label htmlFor="reset" className="text-sm">Reset canister after importing (recommended)</label>
         </div>
+        {!reset && (
+          <p className="text-xs text-muted-foreground -mt-2">
+            Controllers, settings and any installed module are kept. An empty canister still gets
+            hosty’s asset module, so you and your agents can deploy to it.
+          </p>
+        )}
 
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={isWorking}>

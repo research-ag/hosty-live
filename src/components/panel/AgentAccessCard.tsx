@@ -9,7 +9,8 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useApiTokens } from '../../hooks/useApiTokens'
 import { useCanisters } from '../../hooks/useCanisters'
 import { useToast } from '../../hooks/useToast'
-import { grantDeployAccess } from '../../api/certified-assets'
+import { Link } from 'react-router-dom'
+import { DeployAccessOutcome, grantDeployAccessChecked } from '../../api/certified-assets/deploy-access'
 import { API_BASE_URL, ApiTokenInfo } from '../../services/api'
 
 const MCP_URL = `${API_BASE_URL}/mcp`
@@ -50,6 +51,7 @@ export function AgentAccessCard() {
   const [createdToken, setCreatedToken] = useState<string | null>(null)
   const [tokenToRevoke, setTokenToRevoke] = useState<ApiTokenInfo | null>(null)
   const [isGranting, setIsGranting] = useState(false)
+  const [grantReport, setGrantReport] = useState<Array<{ id: string; name: string; outcome: DeployAccessOutcome }>>([])
 
   const handleCreate = async () => {
     const trimmed = name.trim() || 'AI agent'
@@ -89,24 +91,24 @@ export function AgentAccessCard() {
       return
     }
     setIsGranting(true)
-    let granted = 0
-    const failed: string[] = []
+    setGrantReport([])
+    const report: typeof grantReport = []
     for (const canister of targets) {
-      try {
-        await grantDeployAccess(canister.id, Principal.fromText(builder))
-        granted++
-      } catch {
-        failed.push(canister.alias || canister.id)
-      }
+      const outcome = await grantDeployAccessChecked(canister.id, Principal.fromText(builder), canister.kind)
+      report.push({ id: canister.id, name: canister.alias || canister.id, outcome })
     }
     setIsGranting(false)
-    if (failed.length === 0) {
+    setGrantReport(report)
+    const granted = report.filter((r) => r.outcome.status === 'granted').length
+    const failed = report.filter((r) => r.outcome.status === 'failed').length
+    const skipped = report.length - granted - failed
+    const summary = `${granted} granted${skipped ? `, ${skipped} skipped` : ''}${failed ? `, ${failed} failed` : ''}. Details below.`
+    if (failed === 0 && skipped === 0) {
       toast.success('Agent deploy access granted', `${granted} canister${granted === 1 ? '' : 's'} updated.`)
+    } else if (failed === 0) {
+      toast.success('Agent deploy access granted', summary)
     } else {
-      toast.warning(
-        `Granted on ${granted} canister${granted === 1 ? '' : 's'}`,
-        `Could not update: ${failed.join(', ')}. You must be a controller of the canister.`,
-      )
+      toast.warning('Some canisters were not updated', summary)
     }
   }
 
@@ -190,12 +192,35 @@ export function AgentAccessCard() {
           </h3>
           <p className="text-sm text-muted-foreground">
             Allows the hosty.live builder to upload files into your canisters without you clicking
-            “Deploy” in the browser. Rented canisters already have it. Run this again after creating new
-            canisters.
+            “Deploy” in the browser. Rented canisters already have it. Run this again after creating or
+            importing canisters. Empty canisters need hosty’s asset module first (“Install asset module” on
+            the canister page). An agent with an approved deploy session can do both itself.
           </p>
           <Button variant="outline" onClick={handleGrantAccess} disabled={isGranting}>
             {isGranting ? 'Granting…' : `Grant deploy access on ${canisters.length} canister${canisters.length === 1 ? '' : 's'}`}
           </Button>
+          {grantReport.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {grantReport.map(({ id, name, outcome }) => (
+                <li key={id} className="flex flex-wrap gap-x-2">
+                  <Link to={`/panel/canister/${id}`} className="font-medium hover:underline">
+                    {name}
+                  </Link>
+                  <span
+                    className={
+                      outcome.status === 'granted'
+                        ? 'text-green-600'
+                        : outcome.status === 'failed'
+                          ? 'text-destructive'
+                          : 'text-muted-foreground'
+                    }
+                  >
+                    {outcome.status === 'granted' ? 'Granted' : outcome.reason}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="space-y-2">
