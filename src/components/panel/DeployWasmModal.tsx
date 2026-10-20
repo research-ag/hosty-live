@@ -233,7 +233,15 @@ export function DeployWasmModal({
                 key={value}
                 type="button"
                 disabled={busy}
-                onClick={() => setSource(value)}
+                onClick={() => {
+                  // The file pickers unmount in store mode and come back empty, so drop
+                  // their selections rather than keep a file the dialog no longer shows.
+                  if (source === "file" && value === "store") {
+                    setWasm(null);
+                    setCandid(null);
+                  }
+                  setSource(value);
+                }}
                 className={`px-3 py-1.5 text-sm transition-colors ${
                   source === value ? "bg-primary text-primary-foreground" : "hover:bg-muted"
                 } disabled:opacity-40`}

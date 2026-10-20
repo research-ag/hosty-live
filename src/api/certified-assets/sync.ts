@@ -114,6 +114,10 @@ export const MAX_CHUNK_SIZE = 1_900_000;
 const MAX_OPERATIONS_PER_GROUP = 500;
 /** Inlined header bytes per `execute_operations` call (sync-core: under the 2 MiB ingress cap). */
 const MAX_HEADER_BYTES_PER_GROUP = 1_500_000;
+/** IC ingress message limit on application subnets. */
+const MAX_INGRESS_BYTES = 2 * 1024 * 1024;
+/** Room for the request envelope around the Candid argument (CBOR, sender key, signature, delegation chain). */
+const INGRESS_ENVELOPE_BYTES = 64 * 1024;
 const PAGE_GUARD = 10_000;
 
 export const REDIRECTS_FILENAME = '_redirects';
@@ -165,11 +169,11 @@ export async function syncAssets(
   // 3xx rules answer on their own (no target asset to borrow headers from), so they carry
   // the `_headers` resolved for their `from` path; 200/4xx rules use their target's.
   for (const rule of rules) {
-    if (rule.status >= 300 && rule.status < 400) {
-      const key = 'Exact' in rule.from ? rule.from.Exact : rule.from.Subtree;
-      rule.headers = resolveHeaders(key, headerRules);
-    }
+    if (isRedirectStatus(rule.status)) rule.headers = resolveHeaders(ruleKey(rule), headerRules);
   }
+  // The rules go out as one operation, which cannot be split across calls: refuse a set too
+  // large for one ingress message before the canister is touched.
+  if (!keepExisting) assertRedirectRulesFit(rules, headerRules);
 
   // 2. Encode and hash.
   const planned: PlannedAsset[] = [];
@@ -725,6 +729,70 @@ export function parseMediaType(input: string): string {
   return out + input.slice(from).toLowerCase();
 }
 
+function isRedirectStatus(status: number): boolean {
+  return status >= 300 && status < 400;
+}
+
+function ruleKey(rule: RedirectRule): string {
+  return 'Exact' in rule.from ? rule.from.Exact : rule.from.Subtree;
+}
+
+/**
+ * Throws when the `SetRedirectRules` operation cannot fit in one ingress message. Typical
+ * cause: a long `_headers` block (a CSP under `/*`) copied onto every 3xx rule, including
+ * the four clean-URL redirects synthesized per HTML page. The error names that block.
+ */
+function assertRedirectRulesFit(rules: RedirectRule[], headerRules: HeaderRule[]): void {
+  const size = redirectRulesCandidSize(rules);
+  const limit = MAX_INGRESS_BYTES - INGRESS_ENVELOPE_BYTES;
+  if (size <= limit) return;
+  const redirects = rules.filter((r) => isRedirectStatus(r.status));
+  const inlined = redirects.reduce((total, r) => total + headerFieldsSize(r.headers), 0);
+  let widest: { source: string; matched: number; bytes: number } | undefined;
+  for (const headerRule of headerRules) {
+    const matched = redirects.filter((r) =>
+      keyPatternMatches(headerRule.pattern, ruleKey(r)),
+    ).length;
+    const bytes = matched * headerFieldsSize(headerRule.headers);
+    if (bytes > (widest?.bytes ?? 0))
+      widest = { source: headerRule.pattern.source, matched, bytes };
+  }
+  throw new Error(
+    `redirect rules too large for one call: ${size} bytes for ${rules.length} rule(s), the IC accepts about ${limit}. ` +
+      `${redirects.length} of them are 3xx redirects carrying ${inlined} bytes of ${HEADERS_FILENAME}` +
+      (widest
+        ? `, mostly from the block \`${widest.source}\`, which matches ${widest.matched} redirect(s) (${widest.bytes} bytes). Shorten those headers, or narrow the pattern so it matches fewer redirect paths (a 3xx response rarely needs a CSP).`
+        : '.'),
+  );
+}
+
+/** Size of `vec RedirectRule` in the Candid argument (values only; the type table is small). */
+function redirectRulesCandidSize(rules: RedirectRule[]): number {
+  const text = (value: string) => {
+    const length = utf8Length(value);
+    return leb128Size(length) + length;
+  };
+  let size = 1024 + leb128Size(rules.length);
+  for (const rule of rules) {
+    size += 1 + text(ruleKey(rule)) + text(rule.to) + 2 + leb128Size(rule.headers.length);
+    for (const [name, value] of rule.headers) size += text(name) + text(value);
+  }
+  return size;
+}
+
+function leb128Size(value: number): number {
+  let size = 1;
+  while (value >= 0x80) {
+    value = Math.floor(value / 0x80);
+    size++;
+  }
+  return size;
+}
+
+function headerFieldsSize(headers: HeaderField[]): number {
+  return headers.reduce((total, [n, v]) => total + utf8Length(n) + utf8Length(v), 0);
+}
+
 function headersEqual(a: HeaderField[], b: HeaderField[]): boolean {
   return a.length === b.length && a.every(([n, v], i) => n === b[i][0] && v === b[i][1]);
 }
@@ -732,7 +800,9 @@ function headersEqual(a: HeaderField[], b: HeaderField[]): boolean {
 /**
  * Groups operations into `execute_operations` calls: at most 500 operations and 1.5 MB
  * of inlined header bytes each (a long CSP is attached to every asset and 3xx rule).
- * An operation over the byte budget gets a call of its own.
+ * An operation over the byte budget gets a call of its own. `SetRedirectRules` replaces the
+ * whole rule set and cannot be split; `assertRedirectRulesFit` refuses one that would not
+ * fit in a single ingress message before the sync starts.
  */
 function splitOperationGroups(operations: Operation[]): Operation[][] {
   const groups: Operation[][] = [];
@@ -755,13 +825,15 @@ function splitOperationGroups(operations: Operation[]): Operation[][] {
   return groups;
 }
 
+/** Variable-size bytes of an operation: inlined headers, plus the paths of redirect rules. */
 function headerBytesOf(op: Operation): number {
-  const sum = (headers: HeaderField[]) =>
-    headers.reduce((total, [n, v]) => total + utf8Length(n) + utf8Length(v), 0);
-  if ('CreateAsset' in op) return sum(op.CreateAsset.headers);
-  if ('SetAssetHeaders' in op) return sum(op.SetAssetHeaders.headers);
+  if ('CreateAsset' in op) return headerFieldsSize(op.CreateAsset.headers);
+  if ('SetAssetHeaders' in op) return headerFieldsSize(op.SetAssetHeaders.headers);
   if ('SetRedirectRules' in op) {
-    return op.SetRedirectRules.rules.reduce((total, r) => total + sum(r.headers), 0);
+    return op.SetRedirectRules.rules.reduce(
+      (total, r) => total + utf8Length(ruleKey(r)) + utf8Length(r.to) + headerFieldsSize(r.headers),
+      0,
+    );
   }
   return 0;
 }
