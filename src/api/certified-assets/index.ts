@@ -128,3 +128,40 @@ export async function replaceSite(canisterId: string, files: SyncFile[]): Promis
   const actor = getCertifiedAssetsActor(canisterId) as unknown as CertifiedAssetsSyncActor;
   await syncAssets(actor, files, { concurrency: 4 });
 }
+
+/**
+ * Republish the canister environment's `PUBLIC_*` variables in the `ic_env` cookie
+ * (certified-assets only; the caller must be a controller or an authorized uploader).
+ */
+export async function refreshEnv(canisterId: string): Promise<void> {
+  await getCertifiedAssetsActor(canisterId).refresh_env();
+}
+
+/**
+ * The `PUBLIC_*` variables a certified-assets canister currently serves in the `ic_env`
+ * cookie of its HTML at `/` (read with an `http_request` query, since browsers hide
+ * `Set-Cookie` from fetch). Null when `/` sets no cookie.
+ */
+export async function readPublishedEnv(canisterId: string): Promise<Record<string, string> | null> {
+  const response = await getCertifiedAssetsActor(canisterId).http_request({
+    url: "/",
+    method: "GET",
+    body: [],
+    headers: [["Accept", "text/html"]],
+    certificate_version: [2],
+  });
+  const cookie = response.headers
+    .filter(([name]) => name.toLowerCase() === "set-cookie")
+    .map(([, value]) => value)
+    .find((value) => value.startsWith("ic_env="));
+  if (!cookie) return null;
+  const payload = decodeURIComponent(cookie.slice("ic_env=".length).split(";")[0]);
+  const published: Record<string, string> = {};
+  for (const entry of payload.split("&")) {
+    const eq = entry.indexOf("=");
+    if (eq <= 0) continue;
+    const name = entry.slice(0, eq);
+    if (name !== "ic_root_key") published[name] = entry.slice(eq + 1);
+  }
+  return published;
+}

@@ -110,7 +110,12 @@ export const idlFactory = ({ IDL }) => {
     'public' : IDL.Null,
     'allowed_viewers' : IDL.Vec(IDL.Principal),
   });
+  const environment_variable = IDL.Record({
+    'value' : IDL.Text,
+    'name' : IDL.Text,
+  });
   const definite_canister_settings = IDL.Record({
+    'environment_variables' : IDL.Vec(environment_variable),
     'freezing_threshold' : IDL.Nat,
     'wasm_memory_threshold' : IDL.Nat,
     'controllers' : IDL.Vec(IDL.Principal),
@@ -151,6 +156,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const clear_chunk_store_args = IDL.Record({ 'canister_id' : canister_id });
   const canister_settings = IDL.Record({
+    'environment_variables' : IDL.Opt(IDL.Vec(environment_variable)),
     'freezing_threshold' : IDL.Opt(IDL.Nat),
     'wasm_memory_threshold' : IDL.Opt(IDL.Nat),
     'controllers' : IDL.Opt(IDL.Vec(IDL.Principal)),

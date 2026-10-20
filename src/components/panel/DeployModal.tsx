@@ -744,15 +744,15 @@ export function DeployModal({
             />
           </div>
 
-          {/* Environment Variables */}
+          {/* Build environment variables (process env of the build command only) */}
           {!pureAssets && (
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <label className="block text-sm font-medium">
-                  Environment Variables (Optional)
+                  Build environment variables (optional)
                 </label>
                 <TooltipWrapper
-                  content="Add environment variables that will be available during the build process. Use the .env file format with KEY=value pairs.">
+                  content="Set for the build command only (e.g. VITE_* values your bundler inlines). They exist only while the project is built on the server and are not stored on the canister. Values the live page must read at runtime, such as PUBLIC_CANISTER_ID:backend, belong in Canister environment variables on the canister page.">
                   <Info className="h-4 w-4 text-muted-foreground cursor-help"/>
                 </TooltipWrapper>
               </div>
@@ -772,7 +772,8 @@ export function DeployModal({
               )}
               <p className="text-xs text-muted-foreground mt-2">
                 Format: KEY=value (one per line). Lines starting with # are
-                ignored.
+                ignored. These exist only during the build; for runtime values
+                use Canister environment variables on the canister page.
               </p>
             </div>
           )}

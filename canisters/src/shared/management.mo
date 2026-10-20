@@ -8,7 +8,12 @@ module {
     }) -> async ({ canister_id : Principal });
     update_settings : shared ({
       canister_id : Principal;
-      settings : { controllers : ?[Principal]; freezing_threshold : ?Nat };
+      settings : {
+        controllers : ?[Principal];
+        freezing_threshold : ?Nat;
+        // Replaces the whole list; ?[] clears it, null leaves it unchanged.
+        environment_variables : ?[EnvironmentVariable];
+      };
     }) -> async ();
     install_code : (InstallCodeArgs) -> async ();
     upload_chunk : ({ canister_id : Principal; chunk : Blob }) -> async ChunkHash;
@@ -57,7 +62,13 @@ module {
     wasm_memory_limit : Nat;
   };
 
+  // `definite_canister_settings` also reports `environment_variables`; DefiniteCanisterSettings
+  // leaves it out on purpose: the blackholed status proxy caches and returns this type, so its
+  // replies (decoded by the backend) do not carry the field.
+  public type EnvironmentVariable = { name : Text; value : Text };
+
   public type CanisterSettings = {
+    environment_variables : ?[EnvironmentVariable];
     freezing_threshold : ?Nat;
     controllers : ?[Principal];
     reserved_cycles_limit : ?Nat;

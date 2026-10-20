@@ -91,7 +91,7 @@ shared persistent actor class StatusProxy() = self {
     try {
       await? ic.update_settings({
         canister_id = canisterId;
-        settings = { controllers = ?[selfP]; freezing_threshold = null };
+        settings = { controllers = ?[selfP]; freezing_threshold = null; environment_variables = null };
       });
     } catch (err) {
       throw Error.reject("Error while updating canister settings: " # Error.message(err));
@@ -135,6 +135,7 @@ shared persistent actor class StatusProxy() = self {
             settings = {
               controllers = ?Array.flatten([controllers, [Principal.fromActor(self)]]);
               freezing_threshold = null;
+              environment_variables = null;
             };
           });
         } catch (err) {

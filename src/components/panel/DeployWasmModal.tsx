@@ -6,10 +6,13 @@ import { Button } from "../ui/Button";
 import { FileUploader } from "../ui/FileUploader";
 import { TooltipWrapper } from "../ui/TooltipWrapper";
 import { Canister } from "../../types";
-import { DeployWasmInput, wasmDeploymentsApi } from "../../services/api";
+import { DeployWasmInput, StoredModuleMeta, wasmDeploymentsApi } from "../../services/api";
 import { isAssetCanister } from "../../constants/knownHashes";
 
 type Mode = "install" | "upgrade" | "reinstall";
+type Source = "file" | "store";
+
+const HASH_RE = /^(0x)?[0-9a-f]{64}$/i;
 
 interface DeployWasmModalProps {
   isOpen: boolean;
@@ -34,6 +37,10 @@ export function DeployWasmModal({
   const runsAssets = hasModule && isAssetCanister(currentModuleHash!);
   const defaultMode: Mode = !hasModule ? "install" : runsAssets ? "reinstall" : "upgrade";
 
+  const [source, setSource] = useState<Source>("file");
+  const [storeQuery, setStoreQuery] = useState("");
+  const [storeModule, setStoreModule] = useState<StoredModuleMeta | null>(null);
+  const [storeStatus, setStoreStatus] = useState<{ loading: boolean; message?: string }>({ loading: false });
   const [wasm, setWasm] = useState<File | null>(null);
   const [candid, setCandid] = useState<File | null>(null);
   const [candidText, setCandidText] = useState<string | undefined>(undefined);
@@ -55,6 +62,10 @@ export function DeployWasmModal({
   useEffect(() => {
     if (isOpen) {
       setOpenCount((n) => n + 1);
+      setSource("file");
+      setStoreQuery("");
+      setStoreModule(null);
+      setStoreStatus({ loading: false });
       setWasm(null);
       setCandid(null);
       setCandidText(undefined);
@@ -79,6 +90,45 @@ export function DeployWasmModal({
     candid.text().then(setCandidText).catch(() => setCandidText(undefined));
   }, [candid]);
 
+  // Module store lookup: a module hash, or the id of a canister whose live module is stored.
+  useEffect(() => {
+    const query = storeQuery.trim();
+    setStoreModule(null);
+    if (!query) {
+      setStoreStatus({ loading: false });
+      return;
+    }
+    let cancelled = false;
+    setStoreStatus({ loading: true });
+    const timer = setTimeout(async () => {
+      try {
+        let found: StoredModuleMeta | null = null;
+        let message: string | undefined;
+        if (HASH_RE.test(query)) {
+          found = await wasmDeploymentsApi.moduleMeta(query.replace(/^0x/, "").toLowerCase());
+          if (!found) message = "No module with this hash in the hosty.live store.";
+        } else {
+          const lookup = await wasmDeploymentsApi.moduleByCanister(query);
+          found = lookup.module ?? null;
+          if (!found) message = lookup.hint ?? "The canister's module is not in the store.";
+        }
+        if (!cancelled) {
+          setStoreModule(found);
+          setStoreStatus({ loading: false, message });
+        }
+      } catch (err) {
+        if (!cancelled) setStoreStatus({ loading: false, message: err instanceof Error ? err.message : String(err) });
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [storeQuery]);
+
+  // Typed argument checks use the stored module's Candid for store installs.
+  const argCandid = source === "store" ? storeModule?.candid : candidText;
+
   // Live argument check through the API encoder (typed when a .did was attached).
   useEffect(() => {
     const arg = initArg.trim();
@@ -91,7 +141,7 @@ export function DeployWasmModal({
     setArgChecking(true);
     const timer = setTimeout(async () => {
       try {
-        const hex = await wasmDeploymentsApi.validateArg(arg, candidText);
+        const hex = await wasmDeploymentsApi.validateArg(arg, argCandid);
         if (!cancelled) setArgStatus({ ok: true, message: `${hex.length / 2} bytes` });
       } catch (err) {
         if (!cancelled) setArgStatus({ ok: false, message: err instanceof Error ? err.message : String(err) });
@@ -103,10 +153,11 @@ export function DeployWasmModal({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [initArg, candidText]);
+  }, [initArg, argCandid]);
 
   const reinstallConfirmed = mode !== "reinstall" || confirmText.trim() === canister.id;
-  const canSubmit = !!wasm && reinstallConfirmed && !busy && !argChecking && (!argStatus || argStatus.ok);
+  const hasSource = source === "file" ? !!wasm : !!storeModule;
+  const canSubmit = hasSource && reinstallConfirmed && !busy && !argChecking && (!argStatus || argStatus.ok);
 
   const modeHelp = useMemo(() => {
     switch (mode) {
@@ -123,12 +174,13 @@ export function DeployWasmModal({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wasm || !canSubmit) return;
+    if (!canSubmit) return;
     setBusy(true);
     try {
       await onInstall({
-        wasm,
-        candid: candid ?? undefined,
+        ...(source === "store"
+          ? { moduleHash: storeModule!.hash }
+          : { wasm: wasm!, candid: candid ?? undefined }),
         mode,
         initArg: initArg.trim() || undefined,
         wasmMemoryPersistence: persistence || undefined,
@@ -172,10 +224,56 @@ export function DeployWasmModal({
 
         <div className="space-y-2">
           <label className="text-sm font-medium">Wasm module</label>
-          <FileUploader key={`wasm-${openCount}`} onFileSelect={setWasm} accept=".wasm,.gz" maxSize={MAX_WASM} disabled={busy} />
-          <p className="text-xs text-muted-foreground">
-            Any IC Wasm module (Motoko, Rust, Azle, …), optionally gzipped. Up to 100 MB.
-          </p>
+          <div className="inline-flex rounded-md border overflow-hidden">
+            {([
+              ["file", "Upload a file"],
+              ["store", "Install from module store"],
+            ] as [Source, string][]).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                disabled={busy}
+                onClick={() => setSource(value)}
+                className={`px-3 py-1.5 text-sm transition-colors ${
+                  source === value ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                } disabled:opacity-40`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {source === "file" ? (
+            <>
+              <FileUploader key={`wasm-${openCount}`} onFileSelect={setWasm} accept=".wasm,.gz" maxSize={MAX_WASM} disabled={busy} />
+              <p className="text-xs text-muted-foreground">
+                Any IC Wasm module (Motoko, Rust, Azle, …), optionally gzipped. Up to 100 MB.
+              </p>
+            </>
+          ) : (
+            <>
+              <Input
+                value={storeQuery}
+                onChange={(e) => setStoreQuery(e.target.value)}
+                placeholder="module hash, or the id of a canister that runs it"
+                className="font-mono text-xs"
+                disabled={busy}
+              />
+              {storeStatus.loading ? (
+                <p className="text-xs text-muted-foreground">Looking up…</p>
+              ) : storeModule ? (
+                <p className="text-xs text-green-600">
+                  <span className="font-mono">{storeModule.hash.slice(0, 16)}…</span>, {(storeModule.size / 1024).toFixed(0)} KiB
+                  {storeModule.gzipped ? " (gzipped)" : ""}, {storeModule.verified ? "verified" : "not verified"}
+                  {storeModule.candid ? ", Candid known" : ", no Candid"}
+                </p>
+              ) : storeStatus.message ? (
+                <p className="text-xs text-destructive">{storeStatus.message}</p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Installs the stored bytes directly, e.g. to clone a live game backend into this canister for staging.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -276,10 +374,12 @@ export function DeployWasmModal({
 
         {advanced && (
           <div className="space-y-4 rounded-md border p-3">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Candid interface (.did)</label>
-              <FileUploader key={`candid-${openCount}`} onFileSelect={setCandid} accept=".did" maxSize={2 * 1024 * 1024} disabled={busy} />
-            </div>
+            {source === "file" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Candid interface (.did)</label>
+                <FileUploader key={`candid-${openCount}`} onFileSelect={setCandid} accept=".did" maxSize={2 * 1024 * 1024} disabled={busy} />
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-sm font-medium">Wasm memory persistence (upgrade)</label>
               <select

@@ -191,6 +191,7 @@ export function useCanisters() {
             memory_allocation: [],
             compute_allocation: [],
             wasm_memory_threshold: [],
+            environment_variables: [],
           },
           sender_canister_version: [],
         });
@@ -353,6 +354,7 @@ export function useCanisters() {
           memory_allocation: [],
           compute_allocation: [],
           wasm_memory_threshold: [],
+          environment_variables: [],
         },
         sender_canister_version: [],
       });
@@ -448,6 +450,7 @@ export function useCanisters() {
           memory_allocation: [],
           compute_allocation: [],
           wasm_memory_threshold: [],
+          environment_variables: [],
         },
         sender_canister_version: [],
       });
@@ -506,6 +509,7 @@ export function useCanisters() {
           memory_allocation: [],
           compute_allocation: [],
           wasm_memory_threshold: [],
+          environment_variables: [],
         },
         sender_canister_version: [],
       });
@@ -605,6 +609,7 @@ export function useCanisters() {
               memory_allocation: [],
               compute_allocation: [],
               wasm_memory_threshold: [],
+              environment_variables: [],
             },
             sender_canister_version: [],
           });

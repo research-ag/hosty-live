@@ -1,0 +1,18 @@
+# hosty.live web app and canisters — guide for AI assistants
+
+React 18 + Vite + TypeScript web app of hosty.live, plus the Motoko canisters (`canisters/src/{backend,auth,status-proxy}`) and hosty's build of the certified-assets frontend canister (`canisters/certified-assets`, see its README). The API lives in `../hosty-live-api`; read its CLAUDE.md for the system model (builder principal, deploy sessions, module store, production).
+
+## Commands
+
+- Typecheck: `npx tsc -b --pretty false` (the `build` script runs it before `vite build`). Lint: `npm run lint` (a few pre-existing errors in `src/services/api.ts`).
+- Dev against a local API: `VITE_HOSTY_API_BASE=http://localhost:3999/api npx vite --port 5199`. Sign-in uses Internet Identity (`https://id.ai`); for automated UI checks seed the origin's IndexedDB `auth-client-db` / `ic-keyval` with `identity` (Ed25519 key JSON string) and `delegation` (delegation chain JSON from a test root key), plus `hosty_principal` / `hosty_access_token` in localStorage. Use a port of its own so a real local session is not overwritten.
+- Motoko: `moc $(mops sources) --check canisters/src/backend/main.mo`; `tools/moc-check.sh <reference checkout>` also emits the Candid and checks stable compatibility; `tools/gen-backend-bindings.sh <did>` regenerates `src/api/backend/` (keep `../hosty-live-api/src/ic/backend.did.*` in sync, see the API's CLAUDE.md).
+
+## Things that are not obvious from the code
+
+- `src/api/certified-assets/sync.ts` is a verbatim copy of `../hosty-live-api/src/ic/certified-assets-sync.ts` (the sync protocol, `_redirects` and `_headers`). Edit the API copy, run its tests (`yarn test` there), then copy the file here.
+- `src/api/management/management.did.*` is the IC management interface binding; `canister_settings` / `definite_canister_settings` carry `environment_variables` (added 2026-10-20), so every `canister_settings` literal needs `environment_variables: []` (opt none = unchanged). Management calls need `.withOptions({ effectiveCanisterId })`, otherwise the boundary node answers `canister_not_found` for `aaaaa-aa`.
+- Two kinds of environment variables: the deploy dialog's **Build environment variables** are the process env of the server-side build only; **Canister environment variables** (`src/components/panel/CanisterEnvCard.tsx` on the canister page) are canister settings. The card reads `canister_status` and writes `update_settings` with the user's II identity (controllers only), read-modify-write, then calls `refresh_env` on certified-assets canisters so `PUBLIC_*` values appear in the `ic_env` cookie at once. Only `PUBLIC_*` names are published and their values are public; the legacy assets module never publishes them (the card says so and points to "Reset canister").
+- `canisters/src/shared/management.mo` is shared with the blackholed status proxy. `DefiniteCanisterSettings` deliberately lacks `environment_variables`: the backend decodes the proxy's cached `canister_status` replies with it. `update_settings` takes `environment_variables : ?[EnvironmentVariable]` (`?[]` clears, `null` keeps).
+- The backend canister clears a canister's environment variables when it leaves a renter (`setupSystemOwnership_`) and when it is rented (`setupUserOwnership_`); they survive the pool reinstall otherwise. Checked on a local replica (PocketIC time travel past the 24 h rental), including a negative control with the previous code.
+- The Wasm install dialog (`DeployWasmModal.tsx`) can install from the module store: a module hash or the id of a canister whose module is stored (`GET /modules/canister/:id`), sent as `POST /deployments/deploy-module`.
