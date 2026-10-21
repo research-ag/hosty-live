@@ -811,7 +811,22 @@ persistent actor class Backend() = self {
     Queue.pushBack(canistersPool, cidx);
   };
 
+  // Canister snapshots and the Wasm chunk store survive a reinstall, and a renter is a
+  // controller: a snapshot left by the previous renter would hand them that renter's module
+  // and state (load_canister_snapshot), the chunk store their uploaded module chunks.
+  private func clearRentalLeftovers_(cid : Principal) : async* () {
+    let management = Management.getActor();
+    for (snapshot in (await management.list_canister_snapshots({ canister_id = cid })).vals()) {
+      Prim.debugPrint("deleting snapshot " # debug_show snapshot.id # " of " # debug_show cid);
+      await management.delete_canister_snapshot({ canister_id = cid; snapshot_id = snapshot.id });
+    };
+    await management.clear_chunk_store({ canister_id = cid });
+  };
+
   private func setupUserOwnership_(cid : Principal, user : Principal) : async* () {
+    // A new renter starts clean: no snapshots or chunks, in case the canister skipped the
+    // cleanup in preparePoolCanister_ (it failed, or the rental ended before it existed).
+    await* clearRentalLeftovers_(cid);
     // A new renter starts with no environment variables: clears what a canister may still
     // carry from a rental that ended before setupSystemOwnership_ cleared them.
     await Management.getActor().update_settings({
@@ -931,6 +946,8 @@ persistent actor class Backend() = self {
     });
     // Always reinstall: a canister returning to the pool must be clean (no user
     // assets, no authorized principals, no stale module). Data in it is not important.
+    // Snapshots and chunks survive the reinstall, so they go first.
+    await* clearRentalLeftovers_(cid);
     await* installAssetsModule_(cid, canisterStatus);
 
     // Reload: the install may have deposited cycles (reservation top-ups) and the

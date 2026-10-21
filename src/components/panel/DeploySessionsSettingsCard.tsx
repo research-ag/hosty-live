@@ -34,9 +34,10 @@ export function DeploySessionsSettingsCard() {
           Deploy sessions
         </CardTitle>
         <CardDescription>
-          A deploy session lets hosty.live install backend canister modules as you for a limited time.
-          Agents request one; you approve it here or on any panel page. hosty.live never becomes a
-          controller of your canisters, and the session key is deleted when the session ends.
+          A deploy session lets hosty.live act as you for a limited time: install backend canister
+          modules, set up and import canisters, and create canisters or top them up from your cycles
+          balance. Agents request one; you approve it here or on any panel page. hosty.live never
+          becomes a controller of your canisters, and the session key is deleted when the session ends.
         </CardDescription>
       </CardHeader>
       <CardContent>

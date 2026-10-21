@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Bot, KeyRound, ShieldAlert, X } from "lucide-react";
+import { Bot, Coins, KeyRound, ShieldAlert, X } from "lucide-react";
 import { Button } from "../ui/Button";
 import { useDeploySessions } from "../../hooks/useDeploySessions";
+import { useAuth } from "../../hooks/useAuth";
+import { useTCycles } from "../../hooks/useTCycles";
 import { useToast } from "../../hooks/useToast";
 import type { DeploySessionInfo } from "../../services/sessions";
 
@@ -20,6 +22,8 @@ function PendingSession({
   onDecline: () => void;
   busy: boolean;
 }) {
+  const { principal } = useAuth();
+  const { balanceTC } = useTCycles(principal);
   return (
     <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 space-y-3">
       <div className="flex items-start gap-3">
@@ -34,20 +38,27 @@ function PendingSession({
           <p className="text-sm text-muted-foreground">
             {session.holder === "AGENT" ? (
               <>
-                If you approve, <strong>the agent itself</strong> will be able to install code on any
-                canister you control until {formatTime(session.requestedUntil)}, with a key it holds;
-                hosty.live never receives that key and cannot install on its own. Nothing changes on
-                your canisters until the agent sends an install.
+                If you approve, <strong>the agent itself</strong> will be able to act as you until{" "}
+                {formatTime(session.requestedUntil)} with a key it holds: install code on any canister you
+                control, and spend your cycles balance. hosty.live never receives that key and cannot act
+                on its own. Nothing changes until the agent sends a call.
               </>
             ) : (
               <>
-                If you approve, hosty.live will be able to <strong>install code on any canister you
-                control</strong> until {formatTime(session.requestedUntil)}, using a key that only exists
-                for this session. Nothing changes on your canisters until a deployment is sent. You can end
-                the session at any time in Settings.
+                If you approve, hosty.live will be able to act as you until{" "}
+                {formatTime(session.requestedUntil)}, using a key that only exists for this session: the
+                agent can <strong>install code on any canister you control</strong>, and{" "}
+                <strong>create canisters and top them up from your cycles balance</strong>. Nothing changes
+                until the agent asks for it. You can end the session at any time in Settings.
               </>
             )}
           </p>
+          {balanceTC !== undefined && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Coins className="h-3 w-3" />
+              Your cycles balance: {balanceTC} TC. A new canister costs 0.84 to 1.5 TC.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">Requested {formatTime(session.createdAt)}</p>
         </div>
       </div>
