@@ -10,7 +10,11 @@ import { useApiTokens } from '../../hooks/useApiTokens'
 import { useCanisters } from '../../hooks/useCanisters'
 import { useToast } from '../../hooks/useToast'
 import { Link } from 'react-router-dom'
-import { DeployAccessOutcome, grantDeployAccessChecked } from '../../api/certified-assets/deploy-access'
+import {
+  DeployAccessOutcome,
+  explainIcError,
+  grantDeployAccessChecked,
+} from '../../api/certified-assets/deploy-access'
 import { API_BASE_URL, ApiTokenInfo } from '../../services/api'
 
 const MCP_URL = `${API_BASE_URL}/mcp`
@@ -80,9 +84,12 @@ export function AgentAccessCard() {
   // Agents deploy through the hosty.live builder, which needs deploy access on each canister.
   // The web UI grants it before every deploy; agents cannot, so grant it upfront here.
   const handleGrantAccess = async () => {
-    const builder = import.meta.env.VITE_BACKEND_PRINCIPAL as string | undefined
-    if (!builder) {
-      toast.error('Builder principal is not configured')
+    const builderText = import.meta.env.VITE_BACKEND_PRINCIPAL as string | undefined
+    let builder: Principal
+    try {
+      builder = Principal.fromText(builderText ?? '')
+    } catch {
+      toast.error('Builder principal is not configured', builderText ? `Invalid principal: ${builderText}` : undefined)
       return
     }
     const targets = canisters.filter((c) => c.status === 'active')
@@ -93,18 +100,28 @@ export function AgentAccessCard() {
     setIsGranting(true)
     setGrantReport([])
     const report: typeof grantReport = []
-    for (const canister of targets) {
-      const outcome = await grantDeployAccessChecked(canister.id, Principal.fromText(builder), canister.kind)
-      report.push({ id: canister.id, name: canister.alias || canister.id, outcome })
+    try {
+      for (const canister of targets) {
+        let outcome: DeployAccessOutcome
+        try {
+          outcome = await grantDeployAccessChecked(canister.id, builder, canister.kind)
+        } catch (err) {
+          outcome = { status: 'failed', reason: explainIcError(err) }
+        }
+        report.push({ id: canister.id, name: canister.alias || canister.id, outcome })
+      }
+    } finally {
+      setIsGranting(false)
+      setGrantReport(report)
     }
-    setIsGranting(false)
-    setGrantReport(report)
     const granted = report.filter((r) => r.outcome.status === 'granted').length
     const failed = report.filter((r) => r.outcome.status === 'failed').length
     const skipped = report.length - granted - failed
     const summary = `${granted} granted${skipped ? `, ${skipped} skipped` : ''}${failed ? `, ${failed} failed` : ''}. Details below.`
     if (failed === 0 && skipped === 0) {
       toast.success('Agent deploy access granted', `${granted} canister${granted === 1 ? '' : 's'} updated.`)
+    } else if (failed === 0 && granted === 0) {
+      toast.warning('No canisters updated', `${skipped} skipped. Details below.`)
     } else if (failed === 0) {
       toast.success('Agent deploy access granted', summary)
     } else {

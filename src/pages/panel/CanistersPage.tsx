@@ -192,7 +192,11 @@ export function CanistersPage() {
     setActionError("");
     try {
       const res = await importCanister(cid, opts);
-      if (res.success) {
+      if (res.success && res.setupError) {
+        toast.warning("Canister imported, setup incomplete", res.setupError);
+        setIsImportModalOpen(false);
+        await refreshCanisters();
+      } else if (res.success) {
         toast.success(
           "Canister imported",
           opts.reset
