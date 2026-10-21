@@ -547,10 +547,34 @@ export function useCanisters() {
     }
   };
 
+  // Installs hosty's asset module on an empty canister (nothing to lose, so no reset of
+  // controllers or settings), making it deployable as a frontend.
+  const installAssetModule = async (
+    canisterId: string,
+    owners: Principal[],
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const wasmBinary = await fetchAssetStorageModule();
+      const management = await getManagementActor();
+      await performInitialCanisterSetup(canisterId, management, wasmBinary, owners, false);
+      return { success: true };
+    } catch (err) {
+      console.error(err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to install the asset module',
+      };
+    } finally {
+      queryClient.invalidateQueries({ queryKey: ['canisters'] });
+      queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
+      await queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });
+    }
+  };
+
   const importCanister = async (
     canisterId: string,
     opts: { reset: boolean }
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; error?: string; installedAssetModule?: boolean; setupError?: string }> => {
     try {
       if (canisters.find((c) => c.id === canisterId)) {
         return { success: false, error: 'Already registered' };
@@ -606,8 +630,29 @@ export function useCanisters() {
       const backend = await getBackendActor();
       const canisterInfo = await backend.registerCanister(Principal.fromText(canisterId));
 
+      // The canister is registered from here on: a failed setup step must not report the
+      // import as failed (a retry would stop at "Already registered"). Its page offers the
+      // retry: "Reset canister", or "Install asset module" while it is still empty.
+      let installedAssetModule = false;
+      let setupError: string | undefined;
       if (opts.reset) {
-        await resetCanister(canisterId, canisterInfo.userIds, { skipCheck: true });
+        const res = await resetCanister(canisterId, canisterInfo.userIds, { skipCheck: true });
+        if (!res.success) {
+          setupError = `Reset failed: ${res.error ?? 'unknown error'}. Retry with "Reset canister" on its page.`;
+        }
+      } else if (canisterStatus.module_hash.length === 0) {
+        // An empty canister cannot serve or take a deploy; installing the asset module loses
+        // nothing, while leaving it empty blocked both web and agent deploys.
+        try {
+          const wasmBinary = await fetchAssetStorageModule();
+          await performInitialCanisterSetup(canisterId, management, wasmBinary, canisterInfo.userIds, false);
+          installedAssetModule = true;
+        } catch (err) {
+          console.error(err);
+          setupError = `Installing the asset module failed: ${
+            err instanceof Error ? err.message : String(err)
+          }. Retry with "Install asset module" on its page.`;
+        }
       }
 
       // Refresh lists and specific caches
@@ -615,7 +660,7 @@ export function useCanisters() {
       queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
       queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });
 
-      return { success: true };
+      return { success: true, installedAssetModule, setupError };
     } catch (err) {
       return {
         success: false,
@@ -633,6 +678,7 @@ export function useCanisters() {
     deleteCanister,
     addController,
     removeController,
+    installAssetModule,
     getCanister,
     refreshCanisters,
     creationMessage,

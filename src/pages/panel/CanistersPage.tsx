@@ -192,10 +192,18 @@ export function CanistersPage() {
     setActionError("");
     try {
       const res = await importCanister(cid, opts);
-      if (res.success) {
+      if (res.success && res.setupError) {
+        toast.warning("Canister imported, setup incomplete", res.setupError);
+        setIsImportModalOpen(false);
+        await refreshCanisters();
+      } else if (res.success) {
         toast.success(
           "Canister imported",
-          opts.reset ? "Registered and reset completed." : "Registered successfully."
+          opts.reset
+            ? "Registered and reset completed."
+            : res.installedAssetModule
+              ? "Registered. The canister was empty, so hosty's asset module was installed."
+              : "Registered successfully."
         );
         setIsImportModalOpen(false);
         await refreshCanisters();

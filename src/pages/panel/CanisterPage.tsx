@@ -66,7 +66,7 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
 export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getCanister, addController, removeController, resetCanister, donateCanister } = useCanisters();
+  const { getCanister, addController, removeController, resetCanister, donateCanister, installAssetModule } = useCanisters();
   const { deployToCanister, deployFromGit, deployFromUrl, deployWasm } = useDeployments();
   const { ensureActiveSession } = useDeploySessions({ enabled: false });
   const { toast } = useToast();
@@ -122,6 +122,7 @@ export function CanisterPage() {
   const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [isRemovingController, setIsRemovingController] = useState(false);
+  const [isInstallingAssets, setIsInstallingAssets] = useState(false);
   // Reset canister dialog state
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -390,6 +391,25 @@ export function CanisterPage() {
     }
   };
 
+  const handleInstallAssetModule = async () => {
+    if (!canister) return;
+    setIsInstallingAssets(true);
+    try {
+      const res = await installAssetModule(
+        canister.id,
+        canister.userIds.map((p) => Principal.fromText(p)),
+      );
+      if (res.success) {
+        toast.success("Asset module installed", "The canister is ready for deploys.");
+        await fetchCanister();
+      } else {
+        toast.error("Failed to install the asset module", res.error || "Unknown error");
+      }
+    } finally {
+      setIsInstallingAssets(false);
+    }
+  };
+
   const confirmResetCanister = async () => {
     if (!canister) return;
     try {
@@ -641,9 +661,28 @@ export function CanisterPage() {
   const isBackend = canister.kind === "backend";
   const isController = !!principal && !!canisterStatus.controllers?.includes(principal);
   const canDeploy = !!canisterStatus.moduleHash && isAssetCanister(canisterStatus.moduleHash);
+  // status loaded (controllers known) and no module: offer the asset module instead of Deploy
+  const isEmptyCanister = !!canisterStatus.controllers && !canisterStatus.moduleHash;
   const deployTooltip = !canDeploy
-    ? "Deployment disabled: Canister is not an asset canister"
+    ? canisterStatus.moduleHash
+      ? "Deployment disabled: the canister runs a module that is not an asset canister. \"Reset canister\" installs hosty's asset module (wipes it)."
+      : canisterStatus.canisterStatusError
+        ? "Deployment disabled: the canister status cannot be read"
+        : "Deployment disabled: the canister status is not loaded yet"
     : undefined;
+  const installAssetsButton = (
+    <TooltipWrapper content="Only a controller can install code" disabled={isController}>
+      <Button
+        variant="default"
+        onClick={handleInstallAssetModule}
+        disabled={!isController || isInstallingAssets}
+        className="w-full sm:w-auto"
+      >
+        <Upload className="mr-2 h-4 w-4"/>
+        {isInstallingAssets ? "Installing…" : "Install asset module"}
+      </Button>
+    </TooltipWrapper>
+  );
 
   return (
     <div className="p-6">
@@ -727,6 +766,8 @@ export function CanisterPage() {
                 Install module
               </Button>
             </TooltipWrapper>
+          ) : isEmptyCanister ? (
+            installAssetsButton
           ) : (
             <TooltipWrapper content={deployTooltip}>
               <Button
@@ -1139,8 +1180,11 @@ export function CanisterPage() {
                   No Frontend Deployed
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
-                  No frontend deployed yet
+                  {isEmptyCanister
+                    ? "The canister is empty. Install hosty's asset module to deploy a frontend to it (nothing is lost)."
+                    : "No frontend deployed yet"}
                 </p>
+                {isEmptyCanister ? installAssetsButton : (
                 <TooltipWrapper
                   content={deployTooltip}
                   disabled={!deployTooltip}
@@ -1153,6 +1197,7 @@ export function CanisterPage() {
                     Deploy Now
                   </Button>
                 </TooltipWrapper>
+                )}
               </div>
             )}
           </CardContent>
