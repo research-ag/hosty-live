@@ -37,7 +37,9 @@ export function DeploySessionsSettingsCard() {
           A deploy session lets hosty.live act as you for a limited time: install backend canister
           modules, set up and import canisters, and create canisters or top them up from your cycles
           balance. Agents request one; you approve it here or on any panel page. hosty.live never
-          becomes a controller of your canisters, and the session key is deleted when the session ends.
+          becomes a controller of your canisters. When a session ends, hosty.live deletes its own
+          session key. If the agent holds the key, ending the session here does not revoke it: the
+          agent can use its signed delegation until it expires.
         </CardDescription>
       </CardHeader>
       <CardContent>

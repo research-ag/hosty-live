@@ -1307,7 +1307,11 @@ export function CanisterPage() {
       {icCanisterId && (
         <TopUpCanisterModal
           isOpen={isTopUpModalOpen}
-          onClose={() => setIsTopUpModalOpen(false)}
+          onClose={() => {
+            setIsTopUpModalOpen(false);
+            // the link amount is for the link-opened dialog only
+            setTopUpInitialAmount(undefined);
+          }}
           canisterId={icCanisterId}
           userBalanceRaw={balanceRaw}
           formatTC={formatTC}

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Canister, CanisterKind, mapCanister, Response } from '../types'
+import { Canister, CanisterKind, mapCanister, mapProfile, Response } from '../types'
 import { getMyCanisters } from '../services/canisters'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
@@ -269,8 +269,15 @@ export function useCanisters() {
       // If not in cache, fetch from backend canister
       const backend = await getBackendActor();
       const b = await backend.getCanister(Principal.fromText(icCanisterId));
+      // getCanister carries no rental expiry; the caller's profile does
+      let rentedUntil: string | null = null
+      if (b.ownedBySystem) {
+        const profile = await backend.getProfile()
+        const rented = profile.length ? mapProfile(profile[0]).rentedCanister : null
+        if (rented?.id === icCanisterId) rentedUntil = rented.rentedUntil
+      }
 
-      const transformedCanister = mapCanister(b)
+      const transformedCanister = mapCanister(b, rentedUntil)
       console.log('✅ [useCanisters.getCanister] Transformed canister:', transformedCanister)
 
       // Update cache with the new data
