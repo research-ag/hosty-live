@@ -72,10 +72,13 @@ export async function grantDeployAccessChecked(
         "Runs a module that is not an asset canister. “Reset canister” on its page installs hosty’s asset module (wipes it).",
     };
   }
-  // the generated typings are loose about nat; normalise to bigint
+  // the generated typings are loose about nat; normalise to bigint. Reserved cycles count
+  // towards the freezing limit, so only the rest must come from the balance.
   const freezingLimit =
     (BigInt(status.idle_cycles_burned_per_day) * BigInt(status.settings.freezing_threshold)) / 86_400n;
-  if (BigInt(status.cycles) < freezingLimit + CYCLES_MARGIN) {
+  const reserved = BigInt(status.reserved_cycles);
+  const required = (freezingLimit > reserved ? freezingLimit - reserved : 0n) + CYCLES_MARGIN;
+  if (BigInt(status.cycles) < required) {
     return {
       status: "failed",
       reason: "Out of cycles: the IC rejects calls to it. Top it up on its page, then try again.",
