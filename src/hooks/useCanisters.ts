@@ -160,6 +160,9 @@ export function useCanisters() {
         return mapCanister(await backend.setCanisterKind(result['ok'].canisterId, { backend: null }));
       } catch (err) {
         console.error('setCanisterKind failed', err);
+        // the rental exists: refresh like a successful rent (onSuccess does not run)
+        queryClient.invalidateQueries({ queryKey: ['canisters'] })
+        queryClient.invalidateQueries({ queryKey: ['cycles'] })
         throw new Error(
           `Canister ${result['ok'].canisterId.toText()} was rented, but marking it as a backend failed: ${
             err instanceof Error ? err.message : String(err)
