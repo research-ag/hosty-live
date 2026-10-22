@@ -32,6 +32,15 @@ function mcpJsonConfig(token: string) {
   )
 }
 
+// For agents that start from a git repository (Claude Code on the web): the
+// committed file names the token, the cloud environment holds it.
+const CLOUD_MCP_JSON = JSON.stringify(
+  { mcpServers: { hosty: { type: 'http', url: MCP_URL, headers: { Authorization: 'Bearer ${HOSTY_TOKEN}' } } } },
+  null,
+  2,
+)
+const API_HOST = new URL(MCP_URL).host
+
 function Snippet({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
@@ -249,6 +258,16 @@ export function AgentAccessCard() {
             skill to your project or generation prompt:
           </p>
           <Snippet label="MCP endpoint" value={MCP_URL} />
+          <Snippet
+            label="Claude Code on the web and other cloud agents: commit as .mcp.json in the repository"
+            value={CLOUD_MCP_JSON}
+          />
+          <p className="text-sm text-muted-foreground">
+            Then, in the cloud environment&apos;s settings, set the environment variable{' '}
+            <code>HOSTY_TOKEN</code> to your token and allow <code>{API_HOST}</code> in its network access. Everyone
+            who can use that environment can read its variables, so use a personal environment you don&apos;t share.
+            A cloud agent cannot show you a page it serves itself: ask it to put previews into a rented canister.
+          </p>
           <Snippet label="Skill file (paste its URL or contents into your prompt)" value={SKILL_URL} />
           <Snippet
             label="Prompt snippet for Claude / Caffeine"

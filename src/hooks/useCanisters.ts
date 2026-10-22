@@ -92,7 +92,7 @@ export function useCanisters() {
       const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal()
       // Step 1: creating on ledger
       setCreationMessage('Creating your canister...')
-      const { canisterId } = await createCanisterOnLedger()
+      const { canisterId } = await createCanisterOnLedger(kind)
       // Step 2: preparing via backend
       if (wasmBinary) {
         setCreationMessage('Preparing your canister...')
