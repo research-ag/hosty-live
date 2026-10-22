@@ -5,6 +5,16 @@ import { getAuthClient } from "./useInternetIdentity.ts";
 import { bigIntReplacer } from "../utils/json_bigints.ts";
 import { statusProxyCanisterId } from "../api/status-proxy";
 import { parseTCToRaw } from "../utils/cycles.ts";
+import type { CanisterKind } from "../types";
+
+/**
+ * Cycles taken from the balance by a create, creation fee (about 0.5T) included; keep equal
+ * to the API's CREATE_CYCLES. Backends get more because a Wasm install needs 0.5T in the canister.
+ */
+export const CREATE_CANISTER_CYCLES: Record<CanisterKind, bigint> = {
+  frontend: 840_000_000_000n,
+  backend: 1_500_000_000_000n,
+}
 
 export type TCyclesBalance = {
   balance: string
@@ -17,7 +27,7 @@ async function fetchBalance(principalText: string): Promise<TCyclesBalance> {
   return { balance: balance.toString() }
 }
 
-export async function createCanisterOnLedger() {
+export async function createCanisterOnLedger(kind: CanisterKind) {
   const myPrincipal = (await getAuthClient()).getIdentity().getPrincipal();
   if (!statusProxyCanisterId) {
     throw new Error('Status proxy canister ID is not configured. Set VITE_STATUS_PROXY_CANISTER_ID in your env.');
@@ -27,7 +37,7 @@ export async function createCanisterOnLedger() {
   const res = await actor.create_canister({
     from_subaccount: [],
     created_at_time: [],
-    amount: 840_000_000_000n,
+    amount: CREATE_CANISTER_CYCLES[kind],
     creation_args: [
       {
         subnet_selection: [{ Subnet: { subnet: Principal.fromText("c4isl-65rwf-emhk5-5ta5m-ngl73-rgrl3-tcc56-2hkja-4erqd-iivmy-7ae") } }],

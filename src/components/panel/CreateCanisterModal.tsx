@@ -3,6 +3,7 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import { Cpu, Gift, Globe, Server } from 'lucide-react'
 import type { CanisterKind } from '../../types'
+import { CREATE_CANISTER_CYCLES } from '../../hooks/useTCycles'
 
 interface CreateCanisterModalProps {
   isOpen: boolean
@@ -89,7 +90,7 @@ export function CreateCanisterModal({
             <div className="bg-muted/50 border rounded-lg p-4 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Cost:</span>
-                <span className="font-semibold">{rent ? 'Free for 24 hours' : '0.84 TC'}</span>
+                <span className="font-semibold">{rent ? 'Free for 24 hours' : `${Number(CREATE_CANISTER_CYCLES[kind]) / 1e12} TC`}</span>
               </div>
             </div>
             {isLoading && (
