@@ -264,8 +264,9 @@ export function AgentAccessCard() {
           />
           <p className="text-sm text-muted-foreground">
             Then, in the cloud environment&apos;s settings, set the environment variable{' '}
-            <code>HOSTY_TOKEN</code> to your token and allow <code>{API_HOST}</code> in its network access. A
-            cloud agent cannot show you a page it serves itself: ask it to put previews into a rented canister.
+            <code>HOSTY_TOKEN</code> to your token and allow <code>{API_HOST}</code> in its network access. Everyone
+            who can use that environment can read its variables, so use a personal environment you don&apos;t share.
+            A cloud agent cannot show you a page it serves itself: ask it to put previews into a rented canister.
           </p>
           <Snippet label="Skill file (paste its URL or contents into your prompt)" value={SKILL_URL} />
           <Snippet
