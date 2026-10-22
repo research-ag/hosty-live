@@ -97,6 +97,8 @@ export function CanistersPage() {
   );
 
   const [isClaimingFree, setIsClaimingFree] = useState(false);
+  const [isRentModalOpen, setIsRentModalOpen] = useState(false);
+  const [rentError, setRentError] = useState("");
   const [canRent, setCanRent] = useState<boolean>(false);
 
   const itemsPerPage = 9;
@@ -272,12 +274,14 @@ export function CanistersPage() {
     }
   };
 
-  const handleRentFreeCanister = async () => {
+  const handleRentFreeCanister = async (kind: CanisterKind) => {
     setIsClaimingFree(true);
+    setRentError("");
     try {
-      const result = await rentCanister();
+      const result = await rentCanister(kind);
       if (result.success) {
         toast.success("Success!", `Canister rented: ${result.data?.id}`);
+        setIsRentModalOpen(false);
         await refreshCanisters();
         try {
           await loadCanRent();
@@ -286,9 +290,13 @@ export function CanistersPage() {
         }
       } else {
         toast.error("Error", result.error || "Gift canisters pool is out of cycles");
+        setRentError(result.error || "Gift canisters pool is out of cycles");
+        // a kind failure leaves the rental in place
+        await refreshCanisters();
       }
     } catch (_) {
       toast.error("Error", "Gift canisters pool is out of cycles");
+      setRentError("Gift canisters pool is out of cycles");
     } finally {
       setIsClaimingFree(false);
     }
@@ -388,7 +396,10 @@ export function CanistersPage() {
               showArrow={false}
             >
               <Button
-                onClick={handleRentFreeCanister}
+                onClick={() => {
+                  setRentError("");
+                  setIsRentModalOpen(true);
+                }}
                 disabled={isClaimingFree}
                 variant="default"
                 className="flex-1 sm:flex-initial bg-green-600 hover:bg-green-700"
@@ -665,6 +676,16 @@ export function CanistersPage() {
         isLoading={isCreating}
         statusMessage={creationMessage}
         error={actionError}
+      />
+
+      <CreateCanisterModal
+        rent
+        isOpen={isRentModalOpen}
+        onClose={() => setIsRentModalOpen(false)}
+        onCreateCanister={handleRentFreeCanister}
+        isLoading={isClaimingFree}
+        statusMessage="Renting your canister..."
+        error={rentError}
       />
 
       <ImportCanisterModal

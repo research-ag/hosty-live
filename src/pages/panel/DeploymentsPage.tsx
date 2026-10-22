@@ -386,7 +386,7 @@ export function DeploymentsPage() {
                       <Eye className="h-3 w-3"/>
                       View
                     </Button>
-                    {(deployment.sourceType === 'GIT' || deployment.sourceType === 'URL') && (
+                    {deployment.kind !== 'BACKEND' && (deployment.sourceType === 'GIT' || deployment.sourceType === 'URL') && (
                       <Button
                         variant="ghost"
                         size="sm"

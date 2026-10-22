@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Copy, Cpu, ExternalLink, Play, RefreshCw, RotateCcw, ScrollText, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Camera, Clock, Copy, Cpu, ExternalLink, Globe, Play, RefreshCw, RotateCcw, ScrollText, ShieldCheck, Trash2, Upload } from "lucide-react";
 import { Principal } from "@icp-sdk/core/principal";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -34,9 +34,23 @@ interface BackendModuleCardProps {
   canInstall: boolean;
   onInstall: () => void;
   unattended?: UnattendedGrant;
+  /** Rentals: when the canister goes back to the pool (ISO time). */
+  rentedUntil?: string | null;
+  /** Offered while the asset module still runs (nothing installed yet). */
+  onUseAsFrontend?: () => void;
+  switchingKind?: boolean;
 }
 
-export function BackendModuleCard({ canisterId, moduleHash, canInstall, onInstall, unattended }: BackendModuleCardProps) {
+export function BackendModuleCard({
+  canisterId,
+  moduleHash,
+  canInstall,
+  onInstall,
+  unattended,
+  rentedUntil,
+  onUseAsFrontend,
+  switchingKind,
+}: BackendModuleCardProps) {
   const { toast } = useToast();
   const runsAssets = !!moduleHash && isAssetCanister(moduleHash);
   const hasModule = !!moduleHash && !runsAssets;
@@ -72,6 +86,16 @@ export function BackendModuleCard({ canisterId, moduleHash, canInstall, onInstal
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
+        {rentedUntil && (
+          <div className="flex items-start gap-2 rounded-md border bg-muted/30 p-3 text-sm">
+            <Clock className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+            <span>
+              Rented until {new Date(rentedUntil).toLocaleString()}. Then the canister goes back to the
+              pool and its module, state and snapshots are deleted. Use a canister you created for
+              anything you want to keep.
+            </span>
+          </div>
+        )}
         {!hasModule ? (
           <div className="text-center py-10">
             <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -84,10 +108,18 @@ export function BackendModuleCard({ canisterId, moduleHash, canInstall, onInstal
               Upload a compiled Wasm module here, or let an agent do it through the hosty.live MCP server
               after you approve its deploy session.
             </p>
-            <Button onClick={onInstall} disabled={!canInstall}>
-              <Upload className="mr-2 h-4 w-4" />
-              Install module
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button onClick={onInstall} disabled={!canInstall}>
+                <Upload className="mr-2 h-4 w-4" />
+                Install module
+              </Button>
+              {runsAssets && onUseAsFrontend && (
+                <Button variant="outline" onClick={onUseAsFrontend} disabled={switchingKind}>
+                  <Globe className="mr-2 h-4 w-4" />
+                  {switchingKind ? "Switching…" : "Use as frontend"}
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <>

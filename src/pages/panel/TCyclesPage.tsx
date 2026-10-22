@@ -26,6 +26,10 @@ export function TCyclesPage() {
         <div>
           <h1 className="text-2xl font-semibold mb-2">Cycles</h1>
           <p className="text-muted-foreground">Manage your cycles balance</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Pays for new canisters and top-ups, also those an AI agent makes for you during a deploy
+            session you approved.
+          </p>
         </div>
         <Button
           variant="outline"

@@ -797,21 +797,37 @@ persistent actor class Backend() = self {
     };
   };
 
-  // Rent setup failed half-way (e.g. the canister ran out of cycles): repair the
-  // canister in the background and only then return it to the pool, so the next
-  // rent does not hit the same broken canister.
-  private func recoverPoolCanister_(cidx : Nat) : async () {
+  // Prepare a canister that is out of the pool (rental ended, donated, rent setup failed
+  // half-way) and only then return it. A rent during the preparation would otherwise get
+  // a canister that is still being reinstalled and cleared, its new snapshots included.
+  // A failed preparation still returns it: the next rent repairs the module
+  // (ensureAssetsModule_) and clears leftovers (setupUserOwnership_).
+  private func returnToPool_(cidx : Nat) : async () {
     let cid = List.at(canisters, cidx).canisterId;
-    Prim.debugPrint("RECOVERING POOL CANISTER " # debug_show cid # "...");
     try {
       await preparePoolCanister_(cidx);
     } catch (err) {
-      Prim.debugPrint("recovery of " # debug_show cid # " failed: " # Error.message(err));
+      Prim.debugPrint("preparing pool canister " # debug_show cid # " failed: " # Error.message(err));
     };
     Queue.pushBack(canistersPool, cidx);
   };
 
+  // Canister snapshots and the Wasm chunk store survive a reinstall, and a renter is a
+  // controller: a snapshot left by the previous renter would hand them that renter's module
+  // and state (load_canister_snapshot), the chunk store their uploaded module chunks.
+  private func clearRentalLeftovers_(cid : Principal) : async* () {
+    let management = Management.getActor();
+    for (snapshot in (await management.list_canister_snapshots({ canister_id = cid })).vals()) {
+      Prim.debugPrint("deleting snapshot " # debug_show snapshot.id # " of " # debug_show cid);
+      await management.delete_canister_snapshot({ canister_id = cid; snapshot_id = snapshot.id });
+    };
+    await management.clear_chunk_store({ canister_id = cid });
+  };
+
   private func setupUserOwnership_(cid : Principal, user : Principal) : async* () {
+    // A new renter starts clean: no snapshots or chunks, in case the canister skipped the
+    // cleanup in preparePoolCanister_ (it failed, or the rental ended before it existed).
+    await* clearRentalLeftovers_(cid);
     // A new renter starts with no environment variables: clears what a canister may still
     // carry from a rental that ended before setupSystemOwnership_ cleared them.
     await Management.getActor().update_settings({
@@ -864,7 +880,8 @@ persistent actor class Backend() = self {
       await* ensureAssetsModule_(cid);
       await* setupUserOwnership_(cid, caller);
     } catch (err) {
-      let _ = recoverPoolCanister_(cidx);
+      Prim.debugPrint("RECOVERING POOL CANISTER " # debug_show cid # "...");
+      let _ = returnToPool_(cidx);
       return #err(Error.message(err));
     };
 
@@ -919,7 +936,6 @@ persistent actor class Backend() = self {
     };
     canisterData.userIds := [];
     canisterData.kind := #frontend;
-    Queue.pushBack(canistersPool, cidx);
   };
 
   private func preparePoolCanister_(cidx : Nat) : async () {
@@ -931,6 +947,8 @@ persistent actor class Backend() = self {
     });
     // Always reinstall: a canister returning to the pool must be clean (no user
     // assets, no authorized principals, no stale module). Data in it is not important.
+    // Snapshots and chunks survive the reinstall, so they go first.
+    await* clearRentalLeftovers_(cid);
     await* installAssetsModule_(cid, canisterStatus);
 
     // Reload: the install may have deposited cycles (reservation top-ups) and the
@@ -965,7 +983,7 @@ persistent actor class Backend() = self {
     Prim.debugPrint("DONATING CANISTER " # (debug_show cid) # "...");
     await* setupSystemOwnership_(cidx);
     canisterData.ownedBySystem := true;
-    let _ = preparePoolCanister_(cidx);
+    let _ = returnToPool_(cidx);
     #ok();
   };
 
@@ -990,11 +1008,7 @@ persistent actor class Backend() = self {
             continue l;
           };
           profile.rentedCanister := null;
-          try {
-            await preparePoolCanister_(cidx);
-          } catch (err) {
-            Prim.debugPrint("Could not prepare canister for pool: " # Error.message(err));
-          };
+          await returnToPool_(cidx);
         };
       };
     },
@@ -1033,10 +1047,10 @@ persistent actor class Backend() = self {
 
   private func preparePoolCanistersSequentially_(pool : [Nat]) : async () {
     for (cidx in pool.values()) {
-      try {
-        await preparePoolCanister_(cidx);
-      } catch (err) {
-        Prim.debugPrint("preparing pool canister " # debug_show (List.at(canisters, cidx).canisterId) # " failed: " # Error.message(err));
+      // out of the pool while it is prepared; skipped if rented in the meantime
+      if (Queue.contains(canistersPool, Nat.equal, cidx)) {
+        canistersPool := Queue.filter(canistersPool, func(idx) = idx != cidx);
+        await returnToPool_(cidx);
       };
     };
   };

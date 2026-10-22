@@ -13,6 +13,8 @@ interface TopUpCanisterModalProps {
   formatTC: (raw: string | number | bigint) => string;
   onWithdraw: (canisterId: string, amountTC: string) => Promise<bigint>;
   onRefreshBalance?: () => Promise<unknown>;
+  /** Prefilled amount in TC, e.g. from a top-up link an agent gave the user. */
+  initialAmount?: string;
 }
 
 export function TopUpCanisterModal({
@@ -23,6 +25,7 @@ export function TopUpCanisterModal({
                                      formatTC,
                                      onWithdraw,
                                      onRefreshBalance,
+                                     initialAmount,
                                    }: TopUpCanisterModalProps) {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string>("");
@@ -38,8 +41,10 @@ export function TopUpCanisterModal({
       setError("");
       setSuccess("");
       setIsSubmitting(false);
+    } else if (initialAmount) {
+      setAmount(initialAmount);
     }
-  }, [isOpen]);
+  }, [isOpen, initialAmount]);
 
   useEffect(() => {
     if (isOpen && !userBalanceRaw) {
@@ -120,6 +125,20 @@ export function TopUpCanisterModal({
             )}
           </div>
         </div>
+
+        {userBalanceRaw !== undefined && amount && !isNaN(Number(amount)) && (() => {
+          try {
+            return parseTCToRaw(amount) > BigInt(userBalanceRaw);
+          } catch {
+            return false;
+          }
+        })() && (
+          <div className="rounded-md border bg-muted/30 p-3 text-sm">
+            Your balance does not cover this. Pay by card below (Cycle Express sends the cycles
+            straight to this canister), or add cycles to your balance on the{" "}
+            <a href="/panel/cycles" className="underline">Cycles page</a>.
+          </div>
+        )}
 
         {showLongUptimeWarning && (
           <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm text-destructive">

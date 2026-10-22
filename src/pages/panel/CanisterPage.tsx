@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   CheckCircle,
   ChevronRight,
   Copy,
+  Cpu,
   ExternalLink,
   Gift,
   Globe,
@@ -48,7 +49,7 @@ import { useTCycles } from "../../hooks/useTCycles";
 import { backendCanisterId, getBackendActor } from "../../api/backend";
 import { BurnInfo } from "../components/BurnInfo.tsx";
 import { isAssetCanister, supportsCyclesWithdrawal } from "../../constants/knownHashes.ts";
-import { Canister } from "../../types";
+import { Canister, CanisterKind } from "../../types";
 import { depositTCyclesToSelf, withdrawCycles } from "../../hooks/useWithdrawCycles";
 
 function CyclesValue({ canisterId }: { canisterId: string }) {
@@ -66,7 +67,8 @@ function CyclesValue({ canisterId }: { canisterId: string }) {
 export function CanisterPage() {
   const { id: icCanisterId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getCanister, addController, removeController, resetCanister, donateCanister, installAssetModule } = useCanisters();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { getCanister, addController, removeController, resetCanister, donateCanister, installAssetModule, setCanisterKind } = useCanisters();
   const { deployToCanister, deployFromGit, deployFromUrl, deployWasm } = useDeployments();
   const { ensureActiveSession } = useDeploySessions({ enabled: false });
   const { toast } = useToast();
@@ -113,6 +115,7 @@ export function CanisterPage() {
     boolean | null
   >(null);
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+  const [isSwitchingKind, setIsSwitchingKind] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isEditAliasOpen, setIsEditAliasOpen] = useState(false);
   const [isEditDescriptionOpen, setIsEditDescriptionOpen] = useState(false);
@@ -177,6 +180,19 @@ export function CanisterPage() {
   useEffect(() => {
     fetchImmutability().then();
   }, [icCanisterId]);
+
+  // Top-up links (?topup=1&amount=0.5) that agents hand the user open the dialog directly.
+  const [topUpInitialAmount, setTopUpInitialAmount] = useState<string | undefined>();
+  useEffect(() => {
+    if (!searchParams.has("topup")) return;
+    const amount = searchParams.get("amount");
+    setTopUpInitialAmount(amount && /^\d+(\.\d+)?$/.test(amount) ? amount : undefined);
+    setIsTopUpModalOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("topup");
+    next.delete("amount");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Backend install: the web form approves a short deploy session in place (the user is
   // clicking Install themselves), then the API installs the module as the user.
@@ -388,6 +404,29 @@ export function CanisterPage() {
       }
     } finally {
       setIsRemovingController(false);
+    }
+  };
+
+  // Only while the asset module runs: nothing is installed or wiped, the page switches
+  // between the frontend deploy and the backend Wasm install.
+  const handleSetKind = async (kind: CanisterKind) => {
+    if (!canister) return;
+    setIsSwitchingKind(true);
+    try {
+      const res = await setCanisterKind(canister.id, kind);
+      if (res.success) {
+        setCanister({ ...canister, kind });
+        toast.success(
+          kind === "backend" ? "Now a backend canister" : "Now a frontend canister",
+          kind === "backend"
+            ? "Install your Wasm module. The first install replaces the frontend module and its files."
+            : "Deploy your frontend files.",
+        );
+      } else {
+        toast.error("Could not switch the canister kind", res.error);
+      }
+    } finally {
+      setIsSwitchingKind(false);
     }
   };
 
@@ -1049,6 +1088,9 @@ export function CanisterPage() {
             moduleHash={canisterStatus.moduleHash}
             canInstall={isController}
             onInstall={() => setIsWasmModalOpen(true)}
+            rentedUntil={canister.rentedUntil}
+            onUseAsFrontend={isController ? () => handleSetKind("frontend") : undefined}
+            switchingKind={isSwitchingKind}
             unattended={{
               enabled: !!canisterStatus.controllers?.includes(backendCanisterId),
               // A rental keeps the pool canister as controller, so its grant cannot be
@@ -1200,6 +1242,24 @@ export function CanisterPage() {
                 )}
               </div>
             )}
+            {canDeploy && isController && (
+              <div className="mt-6 pt-4 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Run your own Wasm module here instead? Nothing changes until you install one;
+                  the install replaces the frontend module and its files.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSetKind("backend")}
+                  disabled={isSwitchingKind}
+                  className="shrink-0"
+                >
+                  <Cpu className="mr-2 h-4 w-4"/>
+                  {isSwitchingKind ? "Switching…" : "Use as backend"}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
         )}
@@ -1247,7 +1307,11 @@ export function CanisterPage() {
       {icCanisterId && (
         <TopUpCanisterModal
           isOpen={isTopUpModalOpen}
-          onClose={() => setIsTopUpModalOpen(false)}
+          onClose={() => {
+            setIsTopUpModalOpen(false);
+            // the link amount is for the link-opened dialog only
+            setTopUpInitialAmount(undefined);
+          }}
           canisterId={icCanisterId}
           userBalanceRaw={balanceRaw}
           formatTC={formatTC}
@@ -1263,6 +1327,7 @@ export function CanisterPage() {
             return res;
           }}
           onRefreshBalance={refresh}
+          initialAmount={topUpInitialAmount}
         />
       )}
 

@@ -124,7 +124,8 @@ export function DeploymentPage() {
   }
 
   // Check if redeploy is available (only for GIT and URL sources)
-  const canRedeploy = deployment && (deployment.sourceType === 'GIT' || deployment.sourceType === 'URL')
+  // backend installs (URL or store) are installed again, not rebuilt
+  const canRedeploy = deployment && deployment.kind !== 'BACKEND' && (deployment.sourceType === 'GIT' || deployment.sourceType === 'URL')
 
   // Loading state
   if (deploymentLoading) {
@@ -181,7 +182,7 @@ export function DeploymentPage() {
     }
   }
   // Save deployment as public example
-  const canSaveAsExample = deployment.status === 'SUCCESS' && (deployment.sourceType === 'GIT' || deployment.sourceType === 'URL')
+  const canSaveAsExample = deployment.status === 'SUCCESS' && deployment.kind !== 'BACKEND' && (deployment.sourceType === 'GIT' || deployment.sourceType === 'URL')
 
   const serializeEnvVars = (vars?: Record<string, string> | null): string => {
     if (!vars) return ''

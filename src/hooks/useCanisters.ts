@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Canister, CanisterKind, mapCanister, Response } from '../types'
+import { Canister, CanisterKind, mapCanister, mapProfile, Response } from '../types'
 import { getMyCanisters } from '../services/canisters'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
@@ -145,13 +145,29 @@ export function useCanisters() {
   })
 
   const rentCanisterMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (kind: CanisterKind) => {
       const backend = await getBackendActor()
       const result = await backend.rentCanister()
-      if ("ok" in result) {
-        return mapCanister(result['ok']);
-      } else {
+      if (!("ok" in result)) {
         throw new Error(result['err']);
+      }
+      if (kind !== 'backend') {
+        return mapCanister(result['ok']);
+      }
+      // The rental still runs the asset module; kind backend shows the backend page, and
+      // the first install (by hand or by an agent through the unattended grant) replaces it.
+      try {
+        return mapCanister(await backend.setCanisterKind(result['ok'].canisterId, { backend: null }));
+      } catch (err) {
+        console.error('setCanisterKind failed', err);
+        // the rental exists: refresh like a successful rent (onSuccess does not run)
+        queryClient.invalidateQueries({ queryKey: ['canisters'] })
+        queryClient.invalidateQueries({ queryKey: ['cycles'] })
+        throw new Error(
+          `Canister ${result['ok'].canisterId.toText()} was rented, but marking it as a backend failed: ${
+            err instanceof Error ? err.message : String(err)
+          }. Use "Use as backend" on its page.`,
+        );
       }
     },
     onSuccess: (_) => {
@@ -256,8 +272,15 @@ export function useCanisters() {
       // If not in cache, fetch from backend canister
       const backend = await getBackendActor();
       const b = await backend.getCanister(Principal.fromText(icCanisterId));
+      // getCanister carries no rental expiry; the caller's profile does
+      let rentedUntil: string | null = null
+      if (b.ownedBySystem) {
+        const profile = await backend.getProfile()
+        const rented = profile.length ? mapProfile(profile[0]).rentedCanister : null
+        if (rented?.id === icCanisterId) rentedUntil = rented.rentedUntil
+      }
 
-      const transformedCanister = mapCanister(b)
+      const transformedCanister = mapCanister(b, rentedUntil)
       console.log('✅ [useCanisters.getCanister] Transformed canister:', transformedCanister)
 
       // Update cache with the new data
@@ -288,15 +311,37 @@ export function useCanisters() {
   }
 
   // Wrapper functions to maintain the same interface
-  const rentCanister = async (): Promise<{ success: boolean; error?: string; data?: Canister }> => {
+  const rentCanister = async (
+    kind: CanisterKind = 'frontend',
+  ): Promise<{ success: boolean; error?: string; data?: Canister }> => {
     try {
-      const result = await rentCanisterMutation.mutateAsync()
+      const result = await rentCanisterMutation.mutateAsync(kind)
       return { success: true, data: result }
     } catch (err) {
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Failed to rent a canister'
       }
+    }
+  }
+
+  /**
+   * Switches the registry kind of a canister that still runs the asset module (nothing is
+   * installed or wiped): backend shows the Wasm install, frontend the deploy page. The
+   * backend canister refuses frontend for any other module.
+   */
+  const setCanisterKind = async (canisterId: string, kind: CanisterKind): Promise<Response<Canister>> => {
+    try {
+      const backend = await getBackendActor()
+      const info = await backend.setCanisterKind(
+        Principal.fromText(canisterId),
+        kind === 'backend' ? { backend: null } : { frontend: null },
+      )
+      await queryClient.invalidateQueries({ queryKey: ['canisters'] })
+      await queryClient.invalidateQueries({ queryKey: ['canister', canisterId] })
+      return { success: true, data: mapCanister(info) }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
   }
 
@@ -675,6 +720,7 @@ export function useCanisters() {
     error,
     createCanister,
     rentCanister,
+    setCanisterKind,
     deleteCanister,
     addController,
     removeController,
