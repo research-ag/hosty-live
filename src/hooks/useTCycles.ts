@@ -6,6 +6,7 @@ import { bigIntReplacer } from "../utils/json_bigints.ts";
 import { statusProxyCanisterId } from "../api/status-proxy";
 import { parseTCToRaw } from "../utils/cycles.ts";
 import type { CanisterKind } from "../types";
+import { FREEZING_THRESHOLD_SECONDS } from "../constants/canisterSettings.ts";
 
 /**
  * Cycles taken from the balance by a create, creation fee (about 0.5T) included; keep equal
@@ -49,7 +50,7 @@ export async function createCanisterOnLedger(kind: CanisterKind) {
             ]],
             compute_allocation: [],
             memory_allocation: [],
-            freezing_threshold: [BigInt(365 * 24 * 60 * 60)],
+            freezing_threshold: [FREEZING_THRESHOLD_SECONDS],
             reserved_cycles_limit: [],
           },
         ],

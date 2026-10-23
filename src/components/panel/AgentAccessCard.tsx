@@ -33,12 +33,8 @@ function mcpJsonConfig(token: string) {
 }
 
 // For agents that start from a git repository (Claude Code on the web): the
-// committed file names the token, the cloud environment holds it.
-const CLOUD_MCP_JSON = JSON.stringify(
-  { mcpServers: { hosty: { type: 'http', url: MCP_URL, headers: { Authorization: 'Bearer ${HOSTY_TOKEN}' } } } },
-  null,
-  2,
-)
+// committed file holds no token; the cloud environment's network secret does.
+const CLOUD_MCP_JSON = JSON.stringify({ mcpServers: { hosty: { type: 'http', url: MCP_URL } } }, null, 2)
 const API_HOST = new URL(MCP_URL).host
 
 function Snippet({ label, value }: { label: string; value: string }) {
@@ -263,10 +259,15 @@ export function AgentAccessCard() {
             value={CLOUD_MCP_JSON}
           />
           <p className="text-sm text-muted-foreground">
-            Then, in the cloud environment&apos;s settings, set the environment variable{' '}
-            <code>HOSTY_TOKEN</code> to your token and allow <code>{API_HOST}</code> in its network access. Everyone
-            who can use that environment can read its variables, so use a personal environment you don&apos;t share.
-            A cloud agent cannot show you a page it serves itself: ask it to put previews into a rented canister.
+            Then, in the cloud environment&apos;s settings, add a <strong>network secret</strong>: type Bearer,
+            allowed website <code>{API_HOST}</code>, header <code>Authorization</code> with prefix{' '}
+            <code>Bearer</code>, your token as the value. The environment adds it to requests outside the
+            session, so the agent never sees your token. Also allow <code>{API_HOST}</code> in its network access.
+            Where network secrets are not available, add{' '}
+            <code>{'"headers": { "Authorization": "Bearer ${HOSTY_TOKEN}" }'}</code> to the server in{' '}
+            <code>.mcp.json</code> and set <code>HOSTY_TOKEN</code> in the environment&apos;s variables instead;
+            anyone who can use that environment can read it. A cloud agent cannot show you a page it
+            serves itself: ask it to put previews into a rented canister.
           </p>
           <Snippet label="Skill file (paste its URL or contents into your prompt)" value={SKILL_URL} />
           <Snippet
