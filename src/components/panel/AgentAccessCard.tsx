@@ -263,8 +263,10 @@ export function AgentAccessCard() {
             allowed website <code>{API_HOST}</code>, header <code>Authorization</code> with prefix{' '}
             <code>Bearer</code>, your token as the value. The environment adds it to requests outside the
             session, so the agent never sees your token. Also allow <code>{API_HOST}</code> in its network access.
-            Where network secrets are not available, put the token in an environment variable instead (see the
-            skill); anyone who can use that environment can read it. A cloud agent cannot show you a page it
+            Where network secrets are not available, add{' '}
+            <code>{'"headers": { "Authorization": "Bearer ${HOSTY_TOKEN}" }'}</code> to the server in{' '}
+            <code>.mcp.json</code> and set <code>HOSTY_TOKEN</code> in the environment&apos;s variables instead;
+            anyone who can use that environment can read it. A cloud agent cannot show you a page it
             serves itself: ask it to put previews into a rented canister.
           </p>
           <Snippet label="Skill file (paste its URL or contents into your prompt)" value={SKILL_URL} />
