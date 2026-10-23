@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deploymentsApi, wasmDeploymentsApi, DeployWasmInput } from '../services/api'
 import type { ApiDeployment, Deployment, DeploymentStatus, SourceType } from '../types'
 import { grantDeployAccess } from "../api/certified-assets";
+import { lowerFreezingThreshold } from "../api/certified-assets/deploy-access.ts";
 import { Principal } from "@icp-sdk/core/principal";
 
 // Simple conversion from API response to typed deployment
@@ -144,6 +145,8 @@ export function useDeployments() {
   })
 
   const grantBackendCommitPermission = async (canisterId: string) => {
+    // best effort: the grant below reports a missing controller more clearly
+    await lowerFreezingThreshold(canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
     await grantDeployAccess(canisterId, Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL))
   }
 
