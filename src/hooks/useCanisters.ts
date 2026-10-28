@@ -21,6 +21,7 @@ import defaultPage from "../constants/default-page.ts";
 import { canister_status_result } from "../api/management/management.did";
 import { arrayBufferToHex } from "../utils/bufffer-utils.ts";
 import { FREEZING_THRESHOLD_SECONDS } from "../constants/canisterSettings.ts";
+import { invalidateStatusCache } from "../api/status-proxy";
 
 export function useCanisters() {
   const queryClient = useQueryClient()
@@ -555,6 +556,8 @@ export function useCanisters() {
         error: err instanceof Error ? err.message : 'Failed to reset canister',
       };
     } finally {
+      // threshold, controllers and module changed: drop the status proxy's copy
+      await invalidateStatusCache(canisterId);
       queryClient.invalidateQueries({ queryKey: ['canisters'] });
       queryClient.invalidateQueries({ queryKey: ['canister', canisterId] });
       await queryClient.invalidateQueries({ queryKey: ['canister', 'status', canisterId] });

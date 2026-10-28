@@ -126,6 +126,8 @@ export function useDeployments() {
   })
 
   const deployWasm = async (input: DeployWasmInput): Promise<{ success: boolean; error?: string; data?: { id: string } }> => {
+    // the API lowers it too, but only with a deploy session; the unattended grant cannot change settings
+    await lowerFreezingThreshold(input.canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
     try {
       const result = await deployWasmMutation.mutateAsync(input)
       return { success: true, data: { id: result.id } }
