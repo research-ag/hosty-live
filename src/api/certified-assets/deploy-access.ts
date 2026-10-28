@@ -4,6 +4,7 @@ import { isAssetCanister } from "../../constants/knownHashes.ts";
 import { arrayBufferToHex } from "../../utils/bufffer-utils.ts";
 import { FREEZING_THRESHOLD_SECONDS } from "../../constants/canisterSettings.ts";
 import { grantDeployAccess } from "./index.ts";
+import { invalidateStatusCache } from "../status-proxy";
 
 /** Headroom above the freezing limit a canister needs to take an upload (as the API checks). */
 const CYCLES_MARGIN = 50_000_000_000n;
@@ -34,9 +35,10 @@ export function explainIcError(err: unknown): string {
 
 /**
  * Lowers the canister's freezing threshold to FREEZING_THRESHOLD_SECONDS when it is higher
- * (canisters created before that kept a year's idle burn frozen, and the asset canister
- * could not grow its memory for an upload); `current` skips the status read. Caller must be
- * a controller. Returns whether it changed anything.
+ * (canisters created before that kept a year's idle burn frozen, and could not grow their
+ * memory: an asset canister on its first upload, a backend with IC0532 "cannot grow memory"
+ * while holding cycles); never raises it. Any canister kind; `current` skips the status read.
+ * Caller must be a controller. Returns whether it changed anything.
  */
 export async function lowerFreezingThreshold(canisterId: string, current?: bigint): Promise<boolean> {
   const target = Principal.fromText(canisterId);
@@ -63,6 +65,7 @@ export async function lowerFreezingThreshold(canisterId: string, current?: bigin
     },
     sender_canister_version: [],
   });
+  await invalidateStatusCache(canisterId);
   return true;
 }
 

@@ -1,4 +1,5 @@
 import {Actor} from "@icp-sdk/core/agent";
+import {Principal} from "@icp-sdk/core/principal";
 import {idlFactory} from "./status_proxy.did.js";
 import {getAgent} from "../../hooks/useInternetIdentity.js";
 
@@ -10,4 +11,18 @@ export async function getStatusProxyActor() {
         agent: getAgent(),
         canisterId: statusProxyCanisterId,
     });
+}
+
+/**
+ * Drops the proxy's cached canister_status of a canister after its settings changed, so the
+ * next read reloads it. The proxy accepts this from controllers only (the signed-in user).
+ * Best effort.
+ */
+export async function invalidateStatusCache(canisterId) {
+    try {
+        const actor = await getStatusProxyActor();
+        await actor.invalidateCache(Principal.fromText(canisterId));
+    } catch (err) {
+        console.warn("Cannot invalidate the status proxy cache:", err);
+    }
 }

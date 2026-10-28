@@ -126,6 +126,11 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'lowerFreezingThreshold' : IDL.Func(
+        [IDL.Principal, IDL.Principal],
+        [IDL.Record({ 'previous' : IDL.Nat, 'current' : IDL.Nat })],
+        [],
+      ),
     'onCanisterDeployed' : IDL.Func([IDL.Principal], [], []),
     'preparePoolCanisters' : IDL.Func([], [IDL.Nat], []),
     'registerCanister' : IDL.Func([IDL.Principal], [CanisterInfo], []),

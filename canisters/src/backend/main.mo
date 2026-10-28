@@ -97,6 +97,8 @@ persistent actor class Backend() = self {
     // on reset). The assets canister grows memory on its first sync, and with such a
     // threshold the frozen reserve exceeds the pool balance, so installs fail with
     // "cannot grow memory due to insufficient cycles". 30 days keeps the reserve small.
+    // Also the most lowerFreezingThreshold leaves on a user's backend (keep equal to the
+    // API's USER_CANISTER_FREEZING_THRESHOLD and the web app's FREEZING_THRESHOLD_SECONDS).
     POOL_CANISTER_FREEZING_THRESHOLD = 30 * 24 * 60 * 60;
   };
 
@@ -638,6 +640,40 @@ persistent actor class Backend() = self {
     assertBuilder_(caller);
     ignore unattendedTarget_(user, cid);
     await Management.getActor().delete_canister_snapshot({ canister_id = cid; snapshot_id = snapshotId });
+  };
+
+  // Freezing threshold on canisters with the unattended grant (same checks as installCode):
+  // lowers one above 30 days to 30 days and never raises one, so the grant cannot be used
+  // to freeze a canister. Under a year's threshold the frozen reserve (idle burn x
+  // threshold) grows with memory, and a backend rejects calls with IC0532 "cannot grow
+  // memory" while it still holds cycles. Returns the threshold before and after (seconds).
+  public shared ({ caller }) func lowerFreezingThreshold(user : Principal, cid : Principal) : async {
+    previous : Nat;
+    current : Nat;
+  } {
+    assertBuilder_(caller);
+    ignore unattendedTarget_(user, cid);
+    let ic = Management.getActor();
+    let previous = (await ic.canister_status({ canister_id = cid })).settings.freezing_threshold;
+    if (previous <= CONSTANTS.POOL_CANISTER_FREEZING_THRESHOLD) {
+      return { previous; current = previous };
+    };
+    await ic.update_settings({
+      canister_id = cid;
+      settings = {
+        controllers = null;
+        freezing_threshold = ?CONSTANTS.POOL_CANISTER_FREEZING_THRESHOLD;
+        environment_variables = null;
+      };
+    });
+    // the status proxy drops its cached status when a controller (this canister) asks
+    let statusProxy : (
+      actor {
+        invalidateCache : shared (canisterId : Principal) -> async Bool;
+      }
+    ) = actor (CONSTANTS.STATUS_PROXY_CID |> Principal.toText(_));
+    try { ignore await statusProxy.invalidateCache(cid) } catch (_) {};
+    { previous; current = CONSTANTS.POOL_CANISTER_FREEZING_THRESHOLD };
   };
 
   public shared ({ caller }) func deleteCanister(cid : Principal) : async () {
