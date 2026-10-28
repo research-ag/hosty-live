@@ -37,6 +37,10 @@ export interface Backend {
     [Principal, Principal, Uint8Array | number[]],
     undefined
   >,
+  'lowerFreezingThreshold' : ActorMethod<
+    [Principal, Principal],
+    { 'previous' : bigint, 'current' : bigint }
+  >,
   'onCanisterDeployed' : ActorMethod<[Principal], undefined>,
   'preparePoolCanisters' : ActorMethod<[], bigint>,
   'registerCanister' : ActorMethod<[Principal], CanisterInfo>,
