@@ -8,6 +8,10 @@ import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { BurnInfo } from "../components/BurnInfo";
 import { useCanisterStateStatus } from "../../api/read-state.ts";
 import { isAssetCanister } from "../../constants/knownHashes.ts";
+import { cyclePayCanisterUrl } from "../../utils/cyclepay.ts";
+
+/** Prefilled on the CyclePay link: a few TC, the visitor changes it there. */
+const SHARED_LINK_USD = 5;
 
 function CyclesValue({ cyclesBalanceRaw }: { cyclesBalanceRaw?: string }) {
   if (!cyclesBalanceRaw) return <>unknown</>;
@@ -314,12 +318,27 @@ export function SharedCanisterPage() {
           )}
 
           <div className="text-sm text-muted-foreground">
-            Top up this canister with cycles using Cycle Express. You can pay
-            with credit card.
+            Top up this canister with cycles by credit card, no sign-in:
+            CyclePay (1 XDR per TC plus the card fee) or Cycle Express.
           </div>
 
           <Button
             variant="default"
+            className="w-full justify-center"
+            onClick={() => {
+              window.open(
+                cyclePayCanisterUrl(icCanisterId, SHARED_LINK_USD),
+                "_blank",
+                "noopener,noreferrer"
+              );
+              setIsTopUpModalOpen(false);
+            }}
+          >
+            <ExternalLink className="h-4 w-4 mr-2"/>
+            Go to CyclePay
+          </Button>
+          <Button
+            variant="outline"
             className="w-full justify-center"
             onClick={() => {
               window.open(

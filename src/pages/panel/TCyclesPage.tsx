@@ -9,6 +9,10 @@ import {
 import { CopyButton } from "../../components/ui/CopyButton";
 import { useTCycles } from "../../hooks/useTCycles";
 import { useAuth } from "../../hooks/useAuth";
+import { cyclePayBalanceUrl } from "../../utils/cyclepay.ts";
+
+/** Prefilled on the CyclePay link (about 3 TC: a backend create); changeable there. */
+const BALANCE_LINK_USD = 5;
 
 export function TCyclesPage() {
   const { principal } = useAuth();
@@ -76,7 +80,19 @@ export function TCyclesPage() {
                   </div>
                   <div style={{ flexGrow: "1" }}></div>
                   {principal && (
-                    <div className="mt-4">
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <Button
+                        onClick={() =>
+                          window.open(
+                            cyclePayBalanceUrl(principal, BALANCE_LINK_USD),
+                            "_blank",
+                            "noopener,noreferrer"
+                          )
+                        }
+                        size="sm"
+                      >
+                        Deposit using CyclePay
+                      </Button>
                       <Button
                         onClick={() =>
                           window.open(
@@ -86,6 +102,7 @@ export function TCyclesPage() {
                           )
                         }
                         size="sm"
+                        variant="outline"
                       >
                         Deposit using Cycle Express
                       </Button>
@@ -111,8 +128,9 @@ export function TCyclesPage() {
               paid in cycles. Your first canister is provided for free by
               hosty.live and will accommodate uploading a small website and
               hosting it for over a year. For additional services you need a
-              cycle balance. You can buy cycles with a credit card through Cycle
-              Express.
+              cycle balance. You can buy cycles with a credit card through
+              CyclePay (1 XDR per TC plus the card fee, no sign-in) or Cycle
+              Express; both credit this balance within minutes.
             </p>
             <p>
               Expert note: The cycle balance you see here is self-hosted by your

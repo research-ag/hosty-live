@@ -4,6 +4,7 @@ import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { parseTCToRaw } from "../../utils/cycles.ts";
+import { cyclePayCanisterUrl, usdForTC } from "../../utils/cyclepay.ts";
 
 interface TopUpCanisterModalProps {
   isOpen: boolean;
@@ -64,6 +65,9 @@ export function TopUpCanisterModal({
       return undefined;
     }
   }, [userBalanceRaw, formatTC]);
+
+  // the card link prefills what the entered amount costs; the user can change it there
+  const cardUsd = usdForTC(Number(amount));
 
   const validate = (): string | null => {
     if (!amount.trim()) return "Please enter an amount.";
@@ -134,8 +138,8 @@ export function TopUpCanisterModal({
           }
         })() && (
           <div className="rounded-md border bg-muted/30 p-3 text-sm">
-            Your balance does not cover this. Pay by card below (Cycle Express sends the cycles
-            straight to this canister), or add cycles to your balance on the{" "}
+            Your balance does not cover this. Pay by card below (CyclePay and Cycle Express send
+            the cycles straight to this canister), or add cycles to your balance on the{" "}
             <a href="/panel/cycles" className="underline">Cycles page</a>.
           </div>
         )}
@@ -171,7 +175,21 @@ export function TopUpCanisterModal({
           <div className="flex-1 h-px bg-border/50"/>
         </div>
 
-        <div>
+        <div className="space-y-2">
+          <Button
+            variant="outline"
+            className="w-full justify-center"
+            onClick={() =>
+              window.open(
+                cyclePayCanisterUrl(canisterId, cardUsd),
+                "_blank",
+                "noopener,noreferrer"
+              )
+            }
+          >
+            <ExternalLink className="h-4 w-4 mr-2"/>
+            Pay about ${cardUsd} by card through CyclePay
+          </Button>
           <Button
             variant="outline"
             className="w-full justify-center"
@@ -186,6 +204,11 @@ export function TopUpCanisterModal({
             <ExternalLink className="h-4 w-4 mr-2"/>
             Top up directly through Cycle Express
           </Button>
+          <p className="text-xs text-muted-foreground">
+            Both pay by card straight into this canister, no sign-in. CyclePay charges 1 XDR per TC
+            at its current rate plus the card fee; the prefilled amount is an estimate for the TC
+            above and can be changed there.
+          </p>
         </div>
       </div>
     </Modal>
