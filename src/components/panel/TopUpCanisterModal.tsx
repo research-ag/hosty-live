@@ -188,7 +188,7 @@ export function TopUpCanisterModal({
             }
           >
             <ExternalLink className="h-4 w-4 mr-2"/>
-            Pay ${cardUsd} by card through CyclePay
+            Pay about ${cardUsd} by card through CyclePay
           </Button>
           <Button
             variant="outline"
@@ -206,7 +206,8 @@ export function TopUpCanisterModal({
           </Button>
           <p className="text-xs text-muted-foreground">
             Both pay by card straight into this canister, no sign-in. CyclePay charges 1 XDR per TC
-            plus the card fee; the amount is prefilled for the TC above and can be changed there.
+            at its current rate plus the card fee; the prefilled amount is an estimate for the TC
+            above and can be changed there.
           </p>
         </div>
       </div>

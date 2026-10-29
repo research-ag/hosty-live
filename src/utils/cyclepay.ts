@@ -7,7 +7,12 @@ const CYCLEPAY_WEB = "https://www.cyclepay.org";
 export const CARD_LINK_MIN_USD = 5;
 export const CARD_LINK_MAX_USD = 100;
 
-/** 1 XDR (= 1T cycles) in USD, Stripe's card fee: the link amount is only a prefill. */
+/**
+ * 1 XDR (= 1T cycles) in USD and Stripe's card fee, as published 2026-10-28. CyclePay
+ * prices each payment at its live rate (get_xdr_rate_status), so the dollars computed here
+ * are an estimate for the prefill, not a promise of the entered TC; the user can change
+ * the amount on the payment page.
+ */
 const XDR_USD = 1.36;
 const CARD_FEE_RATE = 0.029;
 const CARD_FEE_FIXED_USD = 0.3;
@@ -25,7 +30,7 @@ export function clampLinkUsd(usd: number): number {
   return Math.min(CARD_LINK_MAX_USD, Math.max(CARD_LINK_MIN_USD, whole));
 }
 
-/** Whole dollars that buy at least `tc` teracycles after the card fee (in the link range). */
+/** About the whole dollars `tc` teracycles cost after the card fee (clamped to the link range). */
 export function usdForTC(tc: number): number {
   if (!Number.isFinite(tc) || tc <= 0) return CARD_LINK_MIN_USD;
   const gross = (tc * XDR_USD + CARD_FEE_FIXED_USD) / (1 - CARD_FEE_RATE);
