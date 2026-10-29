@@ -62,14 +62,12 @@ export interface Backend {
     Snapshot
   >,
   'undoDonation' : ActorMethod<[Principal, Principal], undefined>,
-  'updateCanister' : ActorMethod<
+  'updateCanister' : ActorMethod<[Principal, CanisterUpdates], CanisterInfo>,
+  'updateCanisterFor' : ActorMethod<
     [
       Principal,
-      {
-        'alias' : [] | [[] | [string]],
-        'description' : [] | [[] | [string]],
-        'frontendUrl' : [] | [string],
-      },
+      Principal,
+      { 'alias' : [] | [[] | [string]], 'description' : [] | [[] | [string]] },
     ],
     CanisterInfo
   >,
@@ -106,6 +104,11 @@ export type CanisterInstallMode = { 'reinstall' : null } |
   { 'install' : null };
 export type CanisterKind = { 'frontend' : null } |
   { 'backend' : null };
+export interface CanisterUpdates {
+  'alias' : [] | [[] | [string]],
+  'description' : [] | [[] | [string]],
+  'frontendUrl' : [] | [string],
+}
 export interface ChunkHash { 'hash' : Uint8Array | number[] }
 export interface DeploymentExample {
   'url' : string,
