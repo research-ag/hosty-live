@@ -73,6 +73,11 @@ export const idlFactory = ({ IDL }) => {
     'taken_at_timestamp' : IDL.Nat64,
   });
   const Result = IDL.Variant({ 'ok' : CanisterInfo, 'err' : IDL.Text });
+  const CanisterUpdates = IDL.Record({
+    'alias' : IDL.Opt(IDL.Opt(IDL.Text)),
+    'description' : IDL.Opt(IDL.Opt(IDL.Text)),
+    'frontendUrl' : IDL.Opt(IDL.Text),
+  });
   const ChunkHash = IDL.Record({ 'hash' : IDL.Vec(IDL.Nat8) });
   const Backend = IDL.Service({
     'addDeploymentExample' : IDL.Func([DeploymentExampleInput], [], []),
@@ -160,12 +165,17 @@ export const idlFactory = ({ IDL }) => {
       ),
     'undoDonation' : IDL.Func([IDL.Principal, IDL.Principal], [], []),
     'updateCanister' : IDL.Func(
+        [IDL.Principal, CanisterUpdates],
+        [CanisterInfo],
+        [],
+      ),
+    'updateCanisterFor' : IDL.Func(
         [
+          IDL.Principal,
           IDL.Principal,
           IDL.Record({
             'alias' : IDL.Opt(IDL.Opt(IDL.Text)),
             'description' : IDL.Opt(IDL.Opt(IDL.Text)),
-            'frontendUrl' : IDL.Opt(IDL.Text),
           }),
         ],
         [CanisterInfo],

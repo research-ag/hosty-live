@@ -491,11 +491,12 @@ persistent actor class Backend() = self {
     canisterData.deployedAt := ?Prim.time();
   };
 
-  public shared ({ caller }) func updateCanister(cid : Principal, updates : { alias : ??Text; description : ??Text; frontendUrl : ?Text }) : async CanisterInfo {
-    let ?(_, canisterData) = getCanister_(cid) else throw Error.reject("Not found");
-    switch (Array.indexOf(canisterData.userIds, Principal.equal, caller)) {
-      case (null) throw Error.reject("Permission denied");
-      case (_) {};
+  type CanisterUpdates = { alias : ??Text; description : ??Text; frontendUrl : ?Text };
+
+  func updateCanister_(cid : Principal, user : Principal, updates : CanisterUpdates) : CanisterInfo {
+    let ?(_, canisterData) = getCanister_(cid) else Prim.trap("Not found");
+    if (Option.isNull(Array.indexOf(canisterData.userIds, Principal.equal, user))) {
+      Prim.trap("Permission denied");
     };
     switch (updates.alias) {
       case (?alias) canisterData.alias := alias;
@@ -510,6 +511,20 @@ persistent actor class Backend() = self {
       case (null) {};
     };
     freezeCanisterData_(canisterData);
+  };
+
+  public shared ({ caller }) func updateCanister(cid : Principal, updates : CanisterUpdates) : async CanisterInfo {
+    updateCanister_(cid, caller, updates);
+  };
+
+  // Used by the builder (hosty API) on behalf of an authenticated user: agents name and
+  // describe canisters (registry metadata only). The frontend URL stays with the web app's
+  // custom domain flow, so it is not part of this call.
+  public shared ({ caller }) func updateCanisterFor(user : Principal, cid : Principal, updates : { alias : ??Text; description : ??Text }) : async CanisterInfo {
+    if (Option.isNull(Array.indexOf(CONSTANTS.BUILDER_PRINCIPALS, Principal.equal, caller))) {
+      throw Error.reject("Permission denied");
+    };
+    updateCanister_(cid, user, { updates with frontendUrl = null });
   };
 
   // Switching to #frontend is only allowed while the canister runs the hosty assets
