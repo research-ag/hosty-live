@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Canister, CanisterKind, mapCanister, mapProfile, Response } from '../types'
+import { Canister, CanisterKind, CanisterNetwork, mapCanister, mapProfile, Response } from '../types'
+import { canistersApi } from '../services/api'
 import { getMyCanisters } from '../services/canisters'
 import { createCanisterOnLedger } from "./useTCycles.ts";
 import { getManagementActor } from "../api/management";
@@ -76,7 +77,19 @@ export function useCanisters() {
 
   // Mutation for creating canisters
   const createCanisterMutation = useMutation({
-    mutationFn: async (kind: CanisterKind = 'frontend') => {
+    mutationFn: async ({ kind = 'frontend', network = 'mainnet' }: { kind?: CanisterKind; network?: CanisterNetwork }) => {
+      if (network === 'testnet') {
+        // Free canister on hosty's testnet: the API creates it, is its only controller,
+        // registers it and prepares it (asset module for frontends). No cycles involved.
+        setCreationMessage('Creating your testnet canister...')
+        const created = await canistersApi.createTestnet(kind)
+        if (created.setupError) {
+          console.warn('Testnet canister setup incomplete:', created.setupError)
+        }
+        const backend = await getBackendActor()
+        const info = await backend.getCanister(Principal.fromText(created.canister.canisterId))
+        return mapCanister(info)
+      }
       // Step 0: prepare asset canister binary (frontends only; backends start empty and
       // get their module through a deploy session)
       setCreationMessage('Preparing...')
@@ -182,6 +195,12 @@ export function useCanisters() {
   // Mutation for deleting canisters
   const deleteCanisterMutation = useMutation({
     mutationFn: async (canisterId: string) => {
+      const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
+      if (known?.network === 'testnet') {
+        // hosty.live is the controller: the API stops and deletes it and frees the slot
+        await canistersApi.delete(canisterId)
+        return { canisterId, reclaimedTC: 0 }
+      }
       const management = await getManagementActor();
       const eff = { effectiveCanisterId: Principal.fromText(canisterId) };
       const args = { canister_id: Principal.fromText(canisterId) };
@@ -294,9 +313,12 @@ export function useCanisters() {
   }
 
   // Wrapper functions to maintain the same interface
-  const createCanister = async (kind: CanisterKind = 'frontend'): Promise<{ success: boolean; error?: string; data?: Canister }> => {
+  const createCanister = async (
+    kind: CanisterKind = 'frontend',
+    network: CanisterNetwork = 'mainnet',
+  ): Promise<{ success: boolean; error?: string; data?: Canister }> => {
     try {
-      const result = await createCanisterMutation.mutateAsync(kind)
+      const result = await createCanisterMutation.mutateAsync({ kind, network })
       return { success: true, data: result }
     } catch (err) {
       return {
@@ -328,11 +350,19 @@ export function useCanisters() {
    */
   const setCanisterKind = async (canisterId: string, kind: CanisterKind): Promise<Response<Canister>> => {
     try {
+      const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
       const backend = await getBackendActor()
-      const info = await backend.setCanisterKind(
-        Principal.fromText(canisterId),
-        kind === 'backend' ? { backend: null } : { frontend: null },
-      )
+      let info
+      if (known?.network === 'testnet') {
+        // the registry refuses the user's own call on testnet canisters; the API checks the module
+        await canistersApi.setKind(canisterId, kind)
+        info = await backend.getCanister(Principal.fromText(canisterId))
+      } else {
+        info = await backend.setCanisterKind(
+          Principal.fromText(canisterId),
+          kind === 'backend' ? { backend: null } : { frontend: null },
+        )
+      }
       await queryClient.invalidateQueries({ queryKey: ['canisters'] })
       await queryClient.invalidateQueries({ queryKey: ['canister', canisterId] })
       return { success: true, data: mapCanister(info) }
@@ -597,6 +627,12 @@ export function useCanisters() {
     owners: Principal[],
   ): Promise<{ success: boolean; error?: string }> => {
     try {
+      const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
+      if (known?.network === 'testnet') {
+        // hosty.live is the controller: the API installs the module and authorizes the builder
+        await canistersApi.setupFrontend(canisterId)
+        return { success: true };
+      }
       const wasmBinary = await fetchAssetStorageModule();
       const management = await getManagementActor();
       await performInitialCanisterSetup(canisterId, management, wasmBinary, owners, false);

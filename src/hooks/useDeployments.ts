@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { deploymentsApi, wasmDeploymentsApi, DeployWasmInput } from '../services/api'
-import type { ApiDeployment, Deployment, DeploymentStatus, SourceType } from '../types'
+import type { CanisterNetwork } from '../types'
+import { canistersApi, deploymentsApi, wasmDeploymentsApi, DeployWasmInput } from '../services/api'
+import type { ApiDeployment, Canister, Deployment, DeploymentStatus, SourceType } from '../types'
 import { grantDeployAccess } from "../api/certified-assets";
 import { lowerFreezingThreshold } from "../api/certified-assets/deploy-access.ts";
 import { Principal } from "@icp-sdk/core/principal";
@@ -125,20 +126,39 @@ export function useDeployments() {
     },
   })
 
-  const deployWasm = async (input: DeployWasmInput): Promise<{ success: boolean; error?: string; data?: { id: string } }> => {
+  const deployWasm = async (input: DeployWasmInput & { network?: CanisterNetwork }): Promise<{ success: boolean; error?: string; data?: { id: string } }> => {
+    const { network, ...rest } = input
     // the API lowers it too, but only with a deploy session; the unattended grant cannot change settings
-    await lowerFreezingThreshold(input.canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
+    if (network !== 'testnet') {
+      await lowerFreezingThreshold(input.canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
+    }
     try {
-      const result = await deployWasmMutation.mutateAsync(input)
+      const result = await deployWasmMutation.mutateAsync(rest)
       return { success: true, data: { id: result.id } }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Failed to install module' }
     }
   }
 
-  // Mutation for redeploying
+  /** The canister's network: as given, else from the loaded canister list, else from the API. */
+  const networkOf = async (canisterId: string, network?: CanisterNetwork): Promise<CanisterNetwork> => {
+    if (network) return network
+    const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
+    if (known) return known.network
+    try {
+      return (await canistersApi.get(canisterId)).network
+    } catch (err) {
+      throw new Error(`Cannot determine the canister's network: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  // Mutation for redeploying: the network lookup and the builder grant are part of it, so
+  // isRedeploying covers the whole sequence and a second click cannot start another one.
   const redeployMutation = useMutation({
-    mutationFn: deploymentsApi.redeployDeployment,
+    mutationFn: async (input: { deploymentId: string; canisterId: string; network?: CanisterNetwork }) => {
+      await grantBackendCommitPermission(input.canisterId, await networkOf(input.canisterId, input.network))
+      return deploymentsApi.redeployDeployment(input.deploymentId)
+    },
     onSuccess: (response) => {
       if (response.success) {
         queryClient.invalidateQueries({ queryKey: ['deployments'] })
@@ -146,7 +166,10 @@ export function useDeployments() {
     },
   })
 
-  const grantBackendCommitPermission = async (canisterId: string) => {
+  const grantBackendCommitPermission = async (canisterId: string, network?: CanisterNetwork) => {
+    // Testnet canisters are controlled by hosty.live's key, which authorized the builder at
+    // creation; the user cannot (and need not) sign anything on them.
+    if (network === 'testnet') return
     // best effort: the grant below reports a missing controller more clearly
     await lowerFreezingThreshold(canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
     await grantDeployAccess(canisterId, Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL))
@@ -155,6 +178,7 @@ export function useDeployments() {
   // Deploy to canister function
   const deployToCanister = async (data: {
     canisterId: string;
+    network?: CanisterNetwork;
     file: File;
     buildCommand: string;
     outputDir: string;
@@ -163,7 +187,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
-      await grantBackendCommitPermission(data.canisterId);
+      await grantBackendCommitPermission(data.canisterId, data.network);
       const result = await uploadDeploymentMutation.mutateAsync({
         canisterId: data.canisterId,
         zipFile: data.file,
@@ -189,6 +213,7 @@ export function useDeployments() {
   // Deploy from Git repository function
   const deployFromGit = async (data: {
     canisterId: string;
+    network?: CanisterNetwork;
     gitRepoUrl: string;
     branch: string;
     buildCommand: string;
@@ -198,7 +223,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
-      await grantBackendCommitPermission(data.canisterId);
+      await grantBackendCommitPermission(data.canisterId, data.network);
       const result = await uploadDeploymentGitMutation.mutateAsync({
         canisterId: data.canisterId,
         gitRepoUrl: data.gitRepoUrl,
@@ -225,6 +250,7 @@ export function useDeployments() {
   // Deploy from URL function
   const deployFromUrl = async (data: {
     canisterId: string;
+    network?: CanisterNetwork;
     archiveUrl: string;
     buildCommand: string;
     outputDir: string;
@@ -233,7 +259,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
-      await grantBackendCommitPermission(data.canisterId);
+      await grantBackendCommitPermission(data.canisterId, data.network);
       const result = await uploadDeploymentUrlMutation.mutateAsync({
         canisterId: data.canisterId,
         zipUrl: data.archiveUrl,
@@ -257,14 +283,13 @@ export function useDeployments() {
   }
 
   // Redeploy an existing deployment
-  const redeploy = async (deploymentId: string, canisterId: string): Promise<{
+  const redeploy = async (deploymentId: string, canisterId: string, network?: CanisterNetwork): Promise<{
     success: boolean;
     error?: string;
     data?: any
   }> => {
     try {
-      await grantBackendCommitPermission(canisterId);
-      const result = await redeployMutation.mutateAsync(deploymentId)
+      const result = await redeployMutation.mutateAsync({ deploymentId, canisterId, network })
       return {
         success: result.success,
         error: result.error,

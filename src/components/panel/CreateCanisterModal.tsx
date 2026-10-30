@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
-import { Cpu, Gift, Globe, Server } from 'lucide-react'
-import type { CanisterKind } from '../../types'
+import { Cpu, FlaskConical, Gift, Globe, Server } from 'lucide-react'
+import type { CanisterKind, CanisterNetwork } from '../../types'
 import { CREATE_CANISTER_CYCLES } from '../../hooks/useTCycles'
+import { canistersApi } from '../../services/api'
 
 interface CreateCanisterModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreateCanister: (kind: CanisterKind) => void
+  onCreateCanister: (kind: CanisterKind, network: CanisterNetwork) => void
   isLoading?: boolean
   statusMessage?: string
   error?: string
@@ -27,11 +29,46 @@ export function CreateCanisterModal({
 }: CreateCanisterModalProps) {
 
   const [kind, setKind] = useState<CanisterKind>('frontend')
+  const [network, setNetwork] = useState<CanisterNetwork>('mainnet')
+
+  // The testnet (free canisters on hosty's cloud engine subnet) and the user's quota on it.
+  const testnet = useQuery({
+    queryKey: ['testnet', 'info'],
+    queryFn: () => canistersApi.testnetInfo(),
+    enabled: isOpen && !rent,
+    staleTime: 30_000,
+  })
+  const testnetEnabled = !!testnet.data?.enabled
+  const testnetFull = !!testnet.data && testnet.data.used >= testnet.data.max
+  useEffect(() => {
+    // on every open: the free option while it is available, else mainnet (a testnet choice
+    // left from an earlier open would otherwise stick after the quota filled up)
+    if (!isOpen) return
+    setNetwork(testnetEnabled && !testnetFull ? 'testnet' : 'mainnet')
+  }, [isOpen, testnetEnabled, testnetFull])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onCreateCanister(kind)
+    onCreateCanister(kind, rent ? 'mainnet' : network)
   }
+
+  const networks: { value: CanisterNetwork; title: string; text: string; icon: typeof Globe; disabled?: boolean }[] = [
+    {
+      value: 'testnet',
+      title: 'Testnet (free)',
+      text: testnet.data
+        ? `${testnet.data.used} of ${testnet.data.max} in use. Free and instant, managed by hosty.live. Temporary: for development, staging and previews.`
+        : 'Free and instant, managed by hosty.live. Temporary: for development, staging and previews.',
+      icon: FlaskConical,
+      disabled: testnetFull,
+    },
+    {
+      value: 'mainnet',
+      title: 'Mainnet',
+      text: 'Yours to keep, paid from your cycles balance. For going live.',
+      icon: Globe,
+    },
+  ]
 
   const options: { value: CanisterKind; title: string; text: string; icon: typeof Globe }[] = [
     { value: 'frontend', title: 'Frontend', text: 'Static site: upload built files, custom domains.', icon: Globe },
@@ -67,6 +104,28 @@ export function CreateCanisterModal({
                 ? 'Free for 24 hours, to try things out. Then it goes back to the pool and everything on it is deleted.'
                 : 'This will create a new Internet Computer canister for hosting your applications.'}
             </p>
+            {!rent && testnetEnabled && (
+              <div className="grid grid-cols-2 gap-3 mb-3 text-left">
+                {networks.map(({ value, title, text, icon: Icon, disabled }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={network === value}
+                    disabled={isLoading || disabled}
+                    onClick={() => setNetwork(value)}
+                    className={`rounded-lg border p-3 transition-colors disabled:opacity-60 ${
+                      network === value ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-medium text-sm mb-1">
+                      <Icon className="h-4 w-4" />
+                      {title}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{text}</p>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3 mb-4 text-left">
               {options.map(({ value, title, text, icon: Icon }) => (
                 <button
@@ -90,8 +149,17 @@ export function CreateCanisterModal({
             <div className="bg-muted/50 border rounded-lg p-4 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Cost:</span>
-                <span className="font-semibold">{rent ? 'Free for 24 hours' : `${Number(CREATE_CANISTER_CYCLES[kind]) / 1e12} TC`}</span>
+                <span className="font-semibold">
+                  {rent ? 'Free for 24 hours' : network === 'testnet' ? 'Free' : `${Number(CREATE_CANISTER_CYCLES[kind]) / 1e12} TC`}
+                </span>
               </div>
+              {!rent && network === 'testnet' && (
+                <p className="text-xs text-muted-foreground mt-2 text-left">
+                  Testnet canisters are controlled by hosty.live (you manage them here, not with icp or dfx), hold no cycles and
+                  come with no uptime promise: hosty.live may delete one, and the testnet itself may go away. When the
+                  project goes live, create a mainnet canister and deploy there.
+                </p>
+              )}
             </div>
             {isLoading && (
               <div className="mt-4 text-sm text-muted-foreground">

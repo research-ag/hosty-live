@@ -7,7 +7,8 @@ import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 import { Input } from "../ui/Input";
 import { TooltipWrapper } from "../ui/TooltipWrapper";
-import { wasmDeploymentsApi } from "../../services/api";
+import { canistersApi, wasmDeploymentsApi } from "../../services/api";
+import type { CanisterNetwork } from "../../types";
 import { useToast } from "../../hooks/useToast";
 import { isAssetCanister } from "../../constants/knownHashes";
 import { getManagementActor } from "../../api/management";
@@ -30,6 +31,8 @@ interface UnattendedGrant {
 
 interface BackendModuleCardProps {
   canisterId: string;
+  /** Testnet canisters are controlled by hosty.live: logs and snapshots go through the API. */
+  network?: CanisterNetwork;
   moduleHash?: string;
   canInstall: boolean;
   onInstall: () => void;
@@ -43,6 +46,7 @@ interface BackendModuleCardProps {
 
 export function BackendModuleCard({
   canisterId,
+  network = "mainnet",
   moduleHash,
   canInstall,
   onInstall,
@@ -187,9 +191,9 @@ export function BackendModuleCard({
 
         {unattended && <UnattendedSection grant={unattended} />}
 
-        {hasModule && canInstall && <SnapshotsSection canisterId={canisterId} />}
+        {hasModule && canInstall && <SnapshotsSection canisterId={canisterId} viaApi={network === "testnet"} />}
 
-        {hasModule && <LogsSection canisterId={canisterId} />}
+        {hasModule && <LogsSection canisterId={canisterId} viaApi={network === "testnet"} />}
       </CardContent>
     </Card>
   );
@@ -367,11 +371,15 @@ function InterfaceSection({
   );
 }
 
-function LogsSection({ canisterId }: { canisterId: string }) {
+function LogsSection({ canisterId, viaApi }: { canisterId: string; viaApi: boolean }) {
   const [open, setOpen] = useState(false);
   const logs = useQuery({
     queryKey: ["canister", "logs", canisterId],
     queryFn: async () => {
+      if (viaApi) {
+        const { records } = await canistersApi.logs(canisterId);
+        return records.map((r) => ({ idx: r.idx, time: new Date(r.timestamp), message: r.message }));
+      }
       const management = await getManagementActor();
       const target = Principal.fromText(canisterId);
       const result = await management.fetch_canister_logs.withOptions({ effectiveCanisterId: target })({
@@ -428,7 +436,7 @@ function LogsSection({ canisterId }: { canisterId: string }) {
  * Canister snapshots, driven directly as a controller from the browser (no deploy session
  * needed): list, take now, roll back, delete.
  */
-function SnapshotsSection({ canisterId }: { canisterId: string }) {
+function SnapshotsSection({ canisterId, viaApi }: { canisterId: string; viaApi: boolean }) {
   const { toast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
@@ -437,6 +445,17 @@ function SnapshotsSection({ canisterId }: { canisterId: string }) {
   const snapshots = useQuery({
     queryKey: ["canister", "snapshots", canisterId],
     queryFn: async () => {
+      if (viaApi) {
+        const { snapshots: list } = await canistersApi.snapshots(canisterId);
+        return list
+          .map((s) => ({
+            id: s.id,
+            raw: new Uint8Array((s.id.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16))),
+            takenAt: new Date(s.takenAt),
+            size: Number(s.totalSize),
+          }))
+          .sort((a, b) => b.takenAt.getTime() - a.takenAt.getTime());
+      }
       const management = await getManagementActor();
       const list = await management.list_canister_snapshots.withOptions({ effectiveCanisterId: target })({
         canister_id: target,
@@ -473,6 +492,11 @@ function SnapshotsSection({ canisterId }: { canisterId: string }) {
     run(
       "take",
       async () => {
+        if (viaApi) {
+          const existing = snapshots.data ?? [];
+          await canistersApi.takeSnapshot(canisterId, existing.length < MAX_SNAPSHOTS_PER_CANISTER);
+          return;
+        }
         const management = await getManagementActor();
         // A manual snapshot keeps the existing restore points; only at the IC's per-canister
         // limit does it make room by replacing the oldest one.
@@ -490,6 +514,10 @@ function SnapshotsSection({ canisterId }: { canisterId: string }) {
     run(
       `restore-${id}`,
       async () => {
+        if (viaApi) {
+          await canistersApi.restoreSnapshot(canisterId, id);
+          return;
+        }
         const management = await getManagementActor();
         await management.load_canister_snapshot.withOptions({ effectiveCanisterId: target })({
           canister_id: target,
@@ -504,6 +532,10 @@ function SnapshotsSection({ canisterId }: { canisterId: string }) {
     run(
       `delete-${id}`,
       async () => {
+        if (viaApi) {
+          await canistersApi.deleteSnapshot(canisterId, id);
+          return;
+        }
         const management = await getManagementActor();
         await management.delete_canister_snapshot.withOptions({ effectiveCanisterId: target })({
           canister_id: target,
