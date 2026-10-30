@@ -41,8 +41,10 @@ export function CreateCanisterModal({
   const testnetEnabled = !!testnet.data?.enabled
   const testnetFull = !!testnet.data && testnet.data.used >= testnet.data.max
   useEffect(() => {
-    // default to the free option while it is available
-    if (isOpen && testnetEnabled && !testnetFull) setNetwork('testnet')
+    // on every open: the free option while it is available, else mainnet (a testnet choice
+    // left from an earlier open would otherwise stick after the quota filled up)
+    if (!isOpen) return
+    setNetwork(testnetEnabled && !testnetFull ? 'testnet' : 'mainnet')
   }, [isOpen, testnetEnabled, testnetFull])
 
   const handleSubmit = (e: React.FormEvent) => {

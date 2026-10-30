@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CanisterNetwork } from '../types'
-import { deploymentsApi, wasmDeploymentsApi, DeployWasmInput } from '../services/api'
-import type { ApiDeployment, Deployment, DeploymentStatus, SourceType } from '../types'
+import { canistersApi, deploymentsApi, wasmDeploymentsApi, DeployWasmInput } from '../services/api'
+import type { ApiDeployment, Canister, Deployment, DeploymentStatus, SourceType } from '../types'
 import { grantDeployAccess } from "../api/certified-assets";
 import { lowerFreezingThreshold } from "../api/certified-assets/deploy-access.ts";
 import { Principal } from "@icp-sdk/core/principal";
@@ -266,14 +266,22 @@ export function useDeployments() {
     }
   }
 
+  /** The canister's network: as given, else from the loaded canister list, else from the API. */
+  const networkOf = async (canisterId: string, network?: CanisterNetwork): Promise<CanisterNetwork | undefined> => {
+    if (network) return network
+    const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
+    if (known) return known.network
+    return (await canistersApi.get(canisterId).catch(() => undefined))?.network
+  }
+
   // Redeploy an existing deployment
-  const redeploy = async (deploymentId: string, canisterId: string): Promise<{
+  const redeploy = async (deploymentId: string, canisterId: string, network?: CanisterNetwork): Promise<{
     success: boolean;
     error?: string;
     data?: any
   }> => {
     try {
-      await grantBackendCommitPermission(canisterId);
+      await grantBackendCommitPermission(canisterId, await networkOf(canisterId, network));
       const result = await redeployMutation.mutateAsync(deploymentId)
       return {
         success: result.success,

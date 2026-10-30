@@ -1077,6 +1077,8 @@ async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const canistersApi = {
   testnetInfo: () => apiJson<TestnetInfo>("/canisters/testnet"),
 
+  get: (canisterId: string) => apiJson<ApiCanister>(`/canisters/${encodeURIComponent(canisterId)}`),
+
   createTestnet(kind: "frontend" | "backend", alias?: string) {
     return apiJson<{ canister: ApiCanister; kind: string; steps: string[]; setupError?: string }>(
       "/canisters/create",
