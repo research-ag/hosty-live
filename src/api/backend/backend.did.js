@@ -14,11 +14,16 @@ export const idlFactory = ({ IDL }) => {
     'frontend' : IDL.Null,
     'backend' : IDL.Null,
   });
+  const CanisterNetwork = IDL.Variant({
+    'mainnet' : IDL.Null,
+    'testnet' : IDL.Null,
+  });
   const CanisterInfo = IDL.Record({
     'alias' : IDL.Opt(IDL.Text),
     'deployedAt' : IDL.Opt(IDL.Nat64),
     'kind' : CanisterKind,
     'createdAt' : IDL.Nat64,
+    'network' : CanisterNetwork,
     'description' : IDL.Opt(IDL.Text),
     'userIds' : IDL.Vec(IDL.Principal),
     'frontendUrl' : IDL.Text,
@@ -83,6 +88,7 @@ export const idlFactory = ({ IDL }) => {
     'addDeploymentExample' : IDL.Func([DeploymentExampleInput], [], []),
     'canRentCanister' : IDL.Func([], [IDL.Bool], ['query']),
     'clearWasmChunks' : IDL.Func([IDL.Principal, IDL.Principal], [], []),
+    'countTestnetCanisters' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'deleteSnapshot' : IDL.Func(
         [IDL.Principal, IDL.Principal, IDL.Vec(IDL.Nat8)],
@@ -116,6 +122,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Snapshot)],
         [],
       ),
+    'listTestnetCanisters' : IDL.Func([], [IDL.Vec(CanisterInfo)], ['query']),
     'listUserCanisters' : IDL.Func(
         [IDL.Principal],
         [
@@ -136,9 +143,21 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Record({ 'previous' : IDL.Nat, 'current' : IDL.Nat })],
         [],
       ),
+    'markTestnetCanisterDeleted' : IDL.Func([IDL.Principal], [], []),
     'onCanisterDeployed' : IDL.Func([IDL.Principal], [], []),
     'preparePoolCanisters' : IDL.Func([], [IDL.Nat], []),
     'registerCanister' : IDL.Func([IDL.Principal], [CanisterInfo], []),
+    'registerTestnetCanister' : IDL.Func(
+        [
+          IDL.Principal,
+          IDL.Principal,
+          CanisterKind,
+          IDL.Opt(IDL.Text),
+          IDL.Text,
+        ],
+        [CanisterInfo],
+        [],
+      ),
     'rentCanister' : IDL.Func([], [Result], []),
     'rentCanisterFor' : IDL.Func([IDL.Principal], [Result], []),
     'restartScheduler' : IDL.Func([], [], []),

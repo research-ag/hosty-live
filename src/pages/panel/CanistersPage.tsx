@@ -17,7 +17,7 @@ import { TopUpCanisterModal } from "../../components/panel/TopUpCanisterModal";
 import { useCanisterStatus } from "../../hooks/useCanisterStatus";
 import { TooltipWrapper } from "../../components/ui/TooltipWrapper";
 import { getBackendActor } from "../../api/backend";
-import { Canister, CanisterKind } from "../../types";
+import { Canister, CanisterKind, CanisterNetwork } from "../../types";
 import { candidUiUrl } from "../../components/panel/BackendModuleCard";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -165,17 +165,20 @@ export function CanistersPage() {
     currentPage * itemsPerPage
   );
 
-  const handleCreateCanister = async (kind: CanisterKind) => {
+  const handleCreateCanister = async (kind: CanisterKind, network: CanisterNetwork) => {
     setIsCreating(true);
     setActionError("");
 
-    const result = await createCanister(kind);
+    const result = await createCanister(kind, network);
 
     if (result.success) {
       toast.success(
-        "Canister created!",
-        "Your new canister is ready for deployment."
+        network === "testnet" ? "Testnet canister created!" : "Canister created!",
+        network === "testnet"
+          ? "Free and ready for deployment. Remember: it is temporary."
+          : "Your new canister is ready for deployment."
       );
+      await queryClient.invalidateQueries({ queryKey: ["testnet", "info"] });
       setIsCreateModalOpen(false);
       await refreshCanisters();
     } else {
@@ -233,8 +236,11 @@ export function CanistersPage() {
       if (result.success) {
         toast.success(
           "Canister deleted",
-          "Your canister has been successfully removed. Reclaimed " + result.data.reclaimedTC.toFixed(4) + " TC."
+          canisterToDelete.network === "testnet"
+            ? "The testnet canister was deleted and its slot is free again."
+            : "Your canister has been successfully removed. Reclaimed " + result.data.reclaimedTC.toFixed(4) + " TC."
         );
+        await queryClient.invalidateQueries({ queryKey: ["testnet", "info"] });
         setIsDeleteModalOpen(false);
       } else {
         toast.error(
@@ -483,6 +489,11 @@ export function CanistersPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {canister.network === "testnet" && (
+                    <TooltipWrapper content="Free testnet canister, managed by hosty.live. Temporary: no cycles, no uptime promise.">
+                      <Badge variant="secondary">testnet</Badge>
+                    </TooltipWrapper>
+                  )}
                   <Badge variant="outline">{canister.kind}</Badge>
                   {getStatusBadge(canister.status)}
                 </div>
@@ -500,6 +511,9 @@ export function CanistersPage() {
                   <p className="text-muted-foreground text-xs font-medium">
                     Cycles
                   </p>
+                  {canister.network === "testnet" ? (
+                    <p className="font-semibold text-primary">free</p>
+                  ) : (
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-primary">
                       <CyclesCell canisterId={canister.id}/>
@@ -518,6 +532,7 @@ export function CanistersPage() {
                       <Zap className="h-3.5 w-3.5"/>
                     </Button>
                   </div>
+                  )}
                 </div>
                 <div>
                   <p className="text-muted-foreground text-xs font-medium">

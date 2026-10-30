@@ -1009,3 +1009,135 @@ export const tokensApi = {
     }
   },
 };
+
+export interface TestnetInfo {
+  enabled: boolean;
+  /** Live testnet canisters of the user. */
+  used: number;
+  max: number;
+  subnetId?: string;
+  gatewayHost?: string;
+  controller?: string;
+}
+
+export interface ApiCanister {
+  canisterId: string;
+  kind: "frontend" | "backend";
+  network: "mainnet" | "testnet";
+  frontendUrl: string;
+  ownedBySystem: boolean;
+  userIds: string[];
+  createdAt: string;
+  alias?: string;
+  description?: string;
+  deployedAt?: string;
+  rentUntil?: string;
+}
+
+export interface ApiCanisterStatus {
+  canisterId: string;
+  status: "running" | "stopping" | "stopped";
+  cycles: string;
+  idleCyclesBurnedPerDay: string;
+  moduleHash: string | null;
+  memorySize: string;
+  wasmBinarySize?: string;
+  wasmMemorySize?: string;
+  freezingThresholdSeconds: string;
+  wasmMemoryLimit: string;
+  controllers: string[];
+  environmentVariables?: { name: string; value: string }[];
+}
+
+export interface ApiCanisterEnv {
+  canisterId: string;
+  source: string;
+  module: string;
+  variables: { name: string; value: string }[];
+  notes: string[];
+  published?: Record<string, string>;
+  publishedInSync?: boolean;
+}
+
+async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: { ...(await getAuthHeaders()), ...(init.headers ?? {}) },
+  });
+  checkUnauthorized(response);
+  if (!response.ok) throw new Error(await readError(response));
+  return response.json();
+}
+
+/**
+ * Canister operations that go through the hosty.live API rather than the user's own
+ * identity. Testnet canisters are controlled by hosty.live's key only, so everything on
+ * them (create, delete, status, kind, environment variables, snapshots, logs) is done here.
+ */
+export const canistersApi = {
+  testnetInfo: () => apiJson<TestnetInfo>("/canisters/testnet"),
+
+  createTestnet(kind: "frontend" | "backend", alias?: string) {
+    return apiJson<{ canister: ApiCanister; kind: string; steps: string[]; setupError?: string }>(
+      "/canisters/create",
+      { method: "POST", body: JSON.stringify({ network: "testnet", kind, alias }) },
+    );
+  },
+
+  setupFrontend: (canisterId: string, confirmReinstall = false) =>
+    apiJson<{ installedModule: boolean; builderCanDeploy: boolean; steps: string[] }>(
+      `/canisters/${encodeURIComponent(canisterId)}/setup-frontend`,
+      { method: "POST", body: JSON.stringify({ confirmReinstall }) },
+    ),
+
+  delete: (canisterId: string) =>
+    apiJson<{ canisterId: string; steps: string[] }>(`/canisters/${encodeURIComponent(canisterId)}`, {
+      method: "DELETE",
+    }),
+
+  status: (canisterId: string, fresh = false) =>
+    apiJson<ApiCanisterStatus>(`/canisters/${encodeURIComponent(canisterId)}/status${fresh ? "?fresh=1" : ""}`),
+
+  setKind: (canisterId: string, kind: "frontend" | "backend") =>
+    apiJson<ApiCanister>(`/canisters/${encodeURIComponent(canisterId)}/kind`, {
+      method: "POST",
+      body: JSON.stringify({ kind }),
+    }),
+
+  env: (canisterId: string) =>
+    apiJson<ApiCanisterEnv>(`/canisters/${encodeURIComponent(canisterId)}/environment-variables`),
+
+  updateEnv: (canisterId: string, change: { set: Record<string, string>; unset: string[] }) =>
+    apiJson<ApiCanisterEnv & { refreshed: boolean }>(
+      `/canisters/${encodeURIComponent(canisterId)}/environment-variables`,
+      { method: "PUT", body: JSON.stringify(change) },
+    ),
+
+  logs: (canisterId: string) =>
+    apiJson<{ records: { idx: number; timestamp: string; message: string }[] }>(
+      `/canisters/${encodeURIComponent(canisterId)}/logs`,
+    ),
+
+  snapshots: (canisterId: string) =>
+    apiJson<{ snapshots: { id: string; takenAt: string; totalSize: string }[] }>(
+      `/canisters/${encodeURIComponent(canisterId)}/snapshots`,
+    ),
+
+  takeSnapshot: (canisterId: string, keepExisting = true) =>
+    apiJson<{ id: string }>(
+      `/canisters/${encodeURIComponent(canisterId)}/snapshots?keepExisting=${keepExisting}`,
+      { method: "POST", body: "{}" },
+    ),
+
+  restoreSnapshot: (canisterId: string, snapshotId: string) =>
+    apiJson<unknown>(
+      `/canisters/${encodeURIComponent(canisterId)}/snapshots/${encodeURIComponent(snapshotId)}/restore`,
+      { method: "POST", body: "{}" },
+    ),
+
+  deleteSnapshot: (canisterId: string, snapshotId: string) =>
+    apiJson<unknown>(
+      `/canisters/${encodeURIComponent(canisterId)}/snapshots/${encodeURIComponent(snapshotId)}`,
+      { method: "DELETE" },
+    ),
+};

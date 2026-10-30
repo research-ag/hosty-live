@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { CanisterNetwork } from '../types'
 import { deploymentsApi, wasmDeploymentsApi, DeployWasmInput } from '../services/api'
 import type { ApiDeployment, Deployment, DeploymentStatus, SourceType } from '../types'
 import { grantDeployAccess } from "../api/certified-assets";
@@ -125,11 +126,14 @@ export function useDeployments() {
     },
   })
 
-  const deployWasm = async (input: DeployWasmInput): Promise<{ success: boolean; error?: string; data?: { id: string } }> => {
+  const deployWasm = async (input: DeployWasmInput & { network?: CanisterNetwork }): Promise<{ success: boolean; error?: string; data?: { id: string } }> => {
+    const { network, ...rest } = input
     // the API lowers it too, but only with a deploy session; the unattended grant cannot change settings
-    await lowerFreezingThreshold(input.canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
+    if (network !== 'testnet') {
+      await lowerFreezingThreshold(input.canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
+    }
     try {
-      const result = await deployWasmMutation.mutateAsync(input)
+      const result = await deployWasmMutation.mutateAsync(rest)
       return { success: true, data: { id: result.id } }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Failed to install module' }
@@ -146,7 +150,10 @@ export function useDeployments() {
     },
   })
 
-  const grantBackendCommitPermission = async (canisterId: string) => {
+  const grantBackendCommitPermission = async (canisterId: string, network?: CanisterNetwork) => {
+    // Testnet canisters are controlled by hosty.live's key, which authorized the builder at
+    // creation; the user cannot (and need not) sign anything on them.
+    if (network === 'testnet') return
     // best effort: the grant below reports a missing controller more clearly
     await lowerFreezingThreshold(canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
     await grantDeployAccess(canisterId, Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL))
@@ -155,6 +162,7 @@ export function useDeployments() {
   // Deploy to canister function
   const deployToCanister = async (data: {
     canisterId: string;
+    network?: CanisterNetwork;
     file: File;
     buildCommand: string;
     outputDir: string;
@@ -163,7 +171,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
-      await grantBackendCommitPermission(data.canisterId);
+      await grantBackendCommitPermission(data.canisterId, data.network);
       const result = await uploadDeploymentMutation.mutateAsync({
         canisterId: data.canisterId,
         zipFile: data.file,
@@ -189,6 +197,7 @@ export function useDeployments() {
   // Deploy from Git repository function
   const deployFromGit = async (data: {
     canisterId: string;
+    network?: CanisterNetwork;
     gitRepoUrl: string;
     branch: string;
     buildCommand: string;
@@ -198,7 +207,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
-      await grantBackendCommitPermission(data.canisterId);
+      await grantBackendCommitPermission(data.canisterId, data.network);
       const result = await uploadDeploymentGitMutation.mutateAsync({
         canisterId: data.canisterId,
         gitRepoUrl: data.gitRepoUrl,
@@ -225,6 +234,7 @@ export function useDeployments() {
   // Deploy from URL function
   const deployFromUrl = async (data: {
     canisterId: string;
+    network?: CanisterNetwork;
     archiveUrl: string;
     buildCommand: string;
     outputDir: string;
@@ -233,7 +243,7 @@ export function useDeployments() {
     pureAssets?: boolean;
   }): Promise<{ success: boolean; error?: string; data?: any }> => {
     try {
-      await grantBackendCommitPermission(data.canisterId);
+      await grantBackendCommitPermission(data.canisterId, data.network);
       const result = await uploadDeploymentUrlMutation.mutateAsync({
         canisterId: data.canisterId,
         zipUrl: data.archiveUrl,
