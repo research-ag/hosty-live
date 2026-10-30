@@ -154,9 +154,8 @@ export function CreateCanisterModal({
               {!rent && network === 'testnet' && (
                 <p className="text-xs text-muted-foreground mt-2 text-left">
                   Testnet canisters are controlled by hosty.live (you manage them here, not with icp or dfx), hold no cycles and
-                  come with no uptime promise: hosty.live may delete one, and the testnet itself may go away. Served at{' '}
-                  <code className="font-mono">&lt;id&gt;.{testnet.data?.gatewayHost ?? 'icp.net'}</code>. When the project goes
-                  live, create a mainnet canister and deploy there.
+                  come with no uptime promise: hosty.live may delete one, and the testnet itself may go away. When the
+                  project goes live, create a mainnet canister and deploy there.
                 </p>
               )}
             </div>
