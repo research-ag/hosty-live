@@ -140,9 +140,25 @@ export function useDeployments() {
     }
   }
 
-  // Mutation for redeploying
+  /** The canister's network: as given, else from the loaded canister list, else from the API. */
+  const networkOf = async (canisterId: string, network?: CanisterNetwork): Promise<CanisterNetwork> => {
+    if (network) return network
+    const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
+    if (known) return known.network
+    try {
+      return (await canistersApi.get(canisterId)).network
+    } catch (err) {
+      throw new Error(`Cannot determine the canister's network: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  // Mutation for redeploying: the network lookup and the builder grant are part of it, so
+  // isRedeploying covers the whole sequence and a second click cannot start another one.
   const redeployMutation = useMutation({
-    mutationFn: deploymentsApi.redeployDeployment,
+    mutationFn: async (input: { deploymentId: string; canisterId: string; network?: CanisterNetwork }) => {
+      await grantBackendCommitPermission(input.canisterId, await networkOf(input.canisterId, input.network))
+      return deploymentsApi.redeployDeployment(input.deploymentId)
+    },
     onSuccess: (response) => {
       if (response.success) {
         queryClient.invalidateQueries({ queryKey: ['deployments'] })
@@ -266,14 +282,6 @@ export function useDeployments() {
     }
   }
 
-  /** The canister's network: as given, else from the loaded canister list, else from the API. */
-  const networkOf = async (canisterId: string, network?: CanisterNetwork): Promise<CanisterNetwork | undefined> => {
-    if (network) return network
-    const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
-    if (known) return known.network
-    return (await canistersApi.get(canisterId).catch(() => undefined))?.network
-  }
-
   // Redeploy an existing deployment
   const redeploy = async (deploymentId: string, canisterId: string, network?: CanisterNetwork): Promise<{
     success: boolean;
@@ -281,8 +289,7 @@ export function useDeployments() {
     data?: any
   }> => {
     try {
-      await grantBackendCommitPermission(canisterId, await networkOf(canisterId, network));
-      const result = await redeployMutation.mutateAsync(deploymentId)
+      const result = await redeployMutation.mutateAsync({ deploymentId, canisterId, network })
       return {
         success: result.success,
         error: result.error,
