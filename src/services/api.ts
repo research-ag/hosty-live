@@ -1010,9 +1010,9 @@ export const tokensApi = {
   },
 };
 
-export interface TestnetInfo {
+export interface CloudEngineInfo {
   enabled: boolean;
-  /** Live testnet canisters of the user. */
+  /** Live cloud engine canisters of the user. */
   used: number;
   max: number;
   subnetId?: string;
@@ -1023,7 +1023,7 @@ export interface TestnetInfo {
 export interface ApiCanister {
   canisterId: string;
   kind: "frontend" | "backend";
-  network: "mainnet" | "testnet";
+  network: "mainnet" | "cloud";
   frontendUrl: string;
   ownedBySystem: boolean;
   userIds: string[];
@@ -1071,18 +1071,18 @@ async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 /**
  * Canister operations that go through the hosty.live API rather than the user's own
- * identity. Testnet canisters are controlled by hosty.live's key only, so everything on
+ * identity. Cloud engine canisters are controlled by hosty.live's key only, so everything on
  * them (create, delete, status, kind, environment variables, snapshots, logs) is done here.
  */
 export const canistersApi = {
-  testnetInfo: () => apiJson<TestnetInfo>("/canisters/testnet"),
+  cloudEngineInfo: () => apiJson<CloudEngineInfo>("/canisters/cloud-engine"),
 
   get: (canisterId: string) => apiJson<ApiCanister>(`/canisters/${encodeURIComponent(canisterId)}`),
 
-  createTestnet(kind: "frontend" | "backend", alias?: string) {
+  createCloudEngine(kind: "frontend" | "backend", alias?: string) {
     return apiJson<{ canister: ApiCanister; kind: string; steps: string[]; setupError?: string }>(
       "/canisters/create",
-      { method: "POST", body: JSON.stringify({ network: "testnet", kind, alias }) },
+      { method: "POST", body: JSON.stringify({ network: "cloud", kind, alias }) },
     );
   },
 

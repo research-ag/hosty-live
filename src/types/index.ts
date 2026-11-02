@@ -53,10 +53,11 @@ export interface User {
 export type CanisterKind = 'frontend' | 'backend';
 
 /**
- * Where a canister lives: mainnet (yours, with cycles) or hosty's testnet (a cloud engine
- * subnet; free, temporary, controlled by hosty.live's key only, managed through the API).
+ * Where a canister lives: mainnet (yours, with cycles) or hosty's cloud engine (a subnet rented
+ * from a cloud engine provider; free tier, may be deleted at the provider's discretion, controlled
+ * by hosty.live's key only, managed through the API).
  */
-export type CanisterNetwork = 'mainnet' | 'testnet';
+export type CanisterNetwork = 'mainnet' | 'cloud';
 
 export type Canister = {
   id: string;
@@ -93,7 +94,7 @@ export function mapCanister(b: BackendCanisterInfo, rentedUntil: string | null =
     id: icId,
     // `kind` and `network` are absent while the backend canister has not been upgraded yet
     kind: b.kind && 'backend' in b.kind ? 'backend' : 'frontend',
-    network: b.network && 'testnet' in b.network ? 'testnet' : 'mainnet',
+    network: b.network && 'cloud' in b.network ? 'cloud' : 'mainnet',
     alias: b.alias[0] || `Canister ${icId.slice(0, 5)}`,
     description: b.description[0] || null,
     cycles: 0,

@@ -80,18 +80,49 @@ import Http "../shared/tiny_http";
 //     };
 //   }
 // )
-// Migration to the canister network (testnet canisters live on the cloud engine subnet):
+// // Migration to the canister network (free canisters live on hosty's cloud engine subnet):
+// (
+//   with migration = func(
+//     old : {
+//       canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//     }
+//   ) : {
+//     canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//   } {
+//     // Every canister registered before this version is on mainnet.
+//     {
+//       canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
+//         old.canisters,
+//         func(c) = {
+//           canisterId = c.canisterId;
+//           var alias = c.alias;
+//           var description = c.description;
+//           var userIds = c.userIds;
+//           var frontendUrl = c.frontendUrl;
+//           var ownedBySystem = c.ownedBySystem;
+//           var kind = c.kind;
+//           network = #mainnet;
+//           createdAt = c.createdAt;
+//           var deployedAt = c.deployedAt;
+//           var deletedAt = c.deletedAt;
+//         },
+//       );
+//     };
+//   }
+// )
+// Rename of the network tag (2026-11-02): the free canisters on hosty's cloud engine subnet
+// were called "testnet"; the registry tag is now #cloud. Removing a variant tag is not stable-
+// compatible, so the migration rewrites every entry; remove it after the upgrade.
 (
   with migration = func(
     old : {
-      canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+      canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
     }
   ) : {
-    canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+    canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #cloud }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
   } {
-    // Every canister registered before this version is on mainnet.
     {
-      canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
+      canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #cloud }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
         old.canisters,
         func(c) = {
           canisterId = c.canisterId;
@@ -101,7 +132,7 @@ import Http "../shared/tiny_http";
           var frontendUrl = c.frontendUrl;
           var ownedBySystem = c.ownedBySystem;
           var kind = c.kind;
-          network = #mainnet;
+          network = switch (c.network) { case (#testnet) #cloud; case (#mainnet) #mainnet };
           createdAt = c.createdAt;
           var deployedAt = c.deployedAt;
           var deletedAt = c.deletedAt;
@@ -138,11 +169,11 @@ persistent actor class Backend() = self {
   type CanisterKind = { #frontend; #backend };
 
   // Where the canister lives. Mainnet canisters are the user's (rented from the pool,
-  // created from their cycles balance or imported). Testnet canisters are created free
+  // created from their cycles balance or imported). Cloud engine canisters are created free
   // on hosty's cloud engine subnet by the hosty API, which is their only controller:
   // the registry is the record of who was given which one (the engine console's
   // metadata is not), and the API deletes them on request or when the quota demands.
-  type CanisterNetwork = { #mainnet; #testnet };
+  type CanisterNetwork = { #mainnet; #cloud };
 
   type CanisterData = {
     canisterId : Principal;
@@ -348,7 +379,7 @@ persistent actor class Backend() = self {
   ignore pt.addPullValue("num_unattended_installs", "", func() = unattendedInstalls);
   ignore pt.addPullValue("num_backend_canisters", "", func() = List.size(List.filter<CanisterData>(canisters, func(c) = c.kind == #backend and Option.isNull(c.deletedAt))));
   ignore pt.addPullValue("num_canisters_rent", "", func() = Queue.size(renters));
-  ignore pt.addPullValue("num_testnet_canisters", "", func() = List.size(List.filter<CanisterData>(canisters, func(c) = c.network == #testnet and Option.isNull(c.deletedAt))));
+  ignore pt.addPullValue("num_cloud_engine_canisters", "", func() = List.size(List.filter<CanisterData>(canisters, func(c) = c.network == #cloud and Option.isNull(c.deletedAt))));
   transient var reservationTopups : Nat = 0;
   ignore pt.addPullValue("num_reservation_topups", "", func() = reservationTopups);
   ignore pt.addPullValue("max_canisters_rentals", "", func() = maxRentals);
@@ -459,8 +490,8 @@ persistent actor class Backend() = self {
         if (d.ownedBySystem) {
           throw Error.reject("Cannot register canister: owned by system");
         };
-        if (d.network == #testnet) {
-          throw Error.reject("Cannot register canister: testnet canisters are managed by hosty.live");
+        if (d.network == #cloud) {
+          throw Error.reject("Cannot register canister: cloud engine canisters are managed by hosty.live");
         };
         switch (Array.indexOf(d.userIds, Principal.equal, caller)) {
           case (?_) return freezeCanisterData_(d);
@@ -581,8 +612,8 @@ persistent actor class Backend() = self {
       case (null) throw Error.reject("Permission denied");
       case (_) {};
     };
-    if (canisterData.network == #testnet and not trusted) {
-      throw Error.reject("Testnet canisters are managed by hosty.live");
+    if (canisterData.network == #cloud and not trusted) {
+      throw Error.reject("Cloud engine canisters are managed by hosty.live");
     };
     if (canisterData.kind != kind) {
       if (kind == #frontend and not trusted) {
@@ -610,7 +641,7 @@ persistent actor class Backend() = self {
   };
 
   // Used by the builder (hosty API) on behalf of an authenticated user, e.g. on the
-  // first backend deployment to a canister. On a testnet canister the API is the only
+  // first backend deployment to a canister. On a cloud engine canister the API is the only
   // controller and checks the module itself (the status proxy cannot read engine
   // canisters: its canister_status call is unbounded-wait), so its word is taken.
   public shared ({ caller }) func setCanisterKindFor(user : Principal, cid : Principal, kind : CanisterKind) : async CanisterInfo {
@@ -618,7 +649,7 @@ persistent actor class Backend() = self {
       throw Error.reject("Permission denied");
     };
     let trusted = switch (getCanister_(cid)) {
-      case (?(_, d)) d.network == #testnet;
+      case (?(_, d)) d.network == #cloud;
       case (null) false;
     };
     await* setCanisterKind_(cid, user, kind, trusted);
@@ -639,8 +670,8 @@ persistent actor class Backend() = self {
     if (canisterData.kind != #backend) {
       Prim.trap("Canister is not a backend canister");
     };
-    if (canisterData.network == #testnet) {
-      Prim.trap("Testnet canisters are managed by the hosty API directly");
+    if (canisterData.network == #cloud) {
+      Prim.trap("Cloud engine canisters are managed by the hosty API directly");
     };
     canisterData;
   };
@@ -748,11 +779,11 @@ persistent actor class Backend() = self {
     { previous; current = CONSTANTS.POOL_CANISTER_FREEZING_THRESHOLD };
   };
 
-  // Testnet canisters: the record of who was given which canister on hosty's cloud
+  // Cloud engine canisters: the record of who was given which canister on hosty's cloud
   // engine subnet. The hosty API creates them (it is their only controller), registers
   // them here right after creation, and marks them deleted after it deleted them (or a
-  // sweep found them gone). The quota (live testnet canisters per user) reads this list.
-  public shared ({ caller }) func registerTestnetCanister(
+  // sweep found them gone). The quota (live cloud engine canisters per user) reads this list.
+  public shared ({ caller }) func registerCloudEngineCanister(
     user : Principal,
     cid : Principal,
     kind : CanisterKind,
@@ -762,7 +793,7 @@ persistent actor class Backend() = self {
     assertBuilder_(caller);
     switch (getCanister_(cid)) {
       case (?(_, d)) {
-        if (d.network != #testnet) Prim.trap("Canister is registered on mainnet");
+        if (d.network != #cloud) Prim.trap("Canister is registered on mainnet");
         // the API retries a registration whose reply it lost
         if (Option.isNull(Array.indexOf(d.userIds, Principal.equal, user))) {
           Prim.trap("Canister is registered to another user");
@@ -782,7 +813,7 @@ persistent actor class Backend() = self {
       var frontendUrl = frontendUrl;
       var ownedBySystem = false;
       var kind = kind;
-      network = #testnet;
+      network = #cloud;
       createdAt = Prim.time();
       var deployedAt = null;
       var deletedAt = null;
@@ -791,30 +822,30 @@ persistent actor class Backend() = self {
     freezeCanisterData_(canisterData);
   };
 
-  public shared ({ caller }) func markTestnetCanisterDeleted(cid : Principal) : async () {
+  public shared ({ caller }) func markCloudEngineCanisterDeleted(cid : Principal) : async () {
     assertBuilder_(caller);
     let ?(_, canisterData) = getCanister_(cid) else Prim.trap("Not found");
-    if (canisterData.network != #testnet) Prim.trap("Canister is registered on mainnet");
+    if (canisterData.network != #cloud) Prim.trap("Canister is registered on mainnet");
     if (Option.isNull(canisterData.deletedAt)) canisterData.deletedAt := ?Prim.time();
   };
 
-  // Live testnet canisters of a user (the quota counts these).
-  public query func countTestnetCanisters(user : Principal) : async Nat {
+  // Live cloud engine canisters of a user (the quota counts these).
+  public query func countCloudEngineCanisters(user : Principal) : async Nat {
     let ?indices = Map.get(userCanistersMap, Principal.compare, user) else return 0;
     var n = 0;
     for (i in List.values(indices)) {
       let c = List.at(canisters, i);
-      if (c.network == #testnet and Option.isNull(c.deletedAt)) n += 1;
+      if (c.network == #cloud and Option.isNull(c.deletedAt)) n += 1;
     };
     n;
   };
 
-  // Every live testnet canister, for the API's reconciliation sweep (canisters an engine
+  // Every live cloud engine canister, for the API's reconciliation sweep (canisters an engine
   // admin deleted from the console, or a whole engine that is gone, are marked deleted).
-  public query func listTestnetCanisters() : async [CanisterInfo] {
+  public query func listCloudEngineCanisters() : async [CanisterInfo] {
     canisters
     |> List.values(_)
-    |> Iter.filter<CanisterData>(_, func(c) = c.network == #testnet and Option.isNull(c.deletedAt))
+    |> Iter.filter<CanisterData>(_, func(c) = c.network == #cloud and Option.isNull(c.deletedAt))
     |> Iter.map<CanisterData, CanisterInfo>(_, freezeCanisterData_)
     |> Iter.toArray(_);
   };
@@ -824,8 +855,8 @@ persistent actor class Backend() = self {
     if (canisterData.ownedBySystem) {
       throw Error.reject("Permission denied");
     };
-    if (canisterData.network == #testnet) {
-      throw Error.reject("Testnet canisters are deleted through hosty.live");
+    if (canisterData.network == #cloud) {
+      throw Error.reject("Cloud engine canisters are deleted through hosty.live");
     };
     switch (Array.indexOf(canisterData.userIds, Principal.equal, caller)) {
       case (null) throw Error.reject("Permission denied");
@@ -1159,8 +1190,8 @@ persistent actor class Backend() = self {
     if (canisterData.ownedBySystem) {
       return #err("Permission denied");
     };
-    if (canisterData.network == #testnet) {
-      return #err("Testnet canisters cannot be donated to the pool");
+    if (canisterData.network == #cloud) {
+      return #err("Cloud engine canisters cannot be donated to the pool");
     };
     switch (Array.indexOf(canisterData.userIds, Principal.equal, caller)) {
       case (null) return #err("Permission denied");

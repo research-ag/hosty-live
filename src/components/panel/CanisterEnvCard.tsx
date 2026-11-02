@@ -37,7 +37,7 @@ interface CanisterEnvCardProps {
   canisterId: string;
   /** The signed-in user is a controller (canister_status and update_settings need it). */
   canEdit: boolean;
-  /** Testnet canisters are controlled by hosty.live: reads and writes go through the API. */
+  /** Cloud engine canisters are controlled by hosty.live: reads and writes go through the API. */
   network?: CanisterNetwork;
 }
 
@@ -54,7 +54,7 @@ export function CanisterEnvCard({ canisterId, canEdit, network = "mainnet" }: Ca
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
-  const viaApi = network === "testnet";
+  const viaApi = network === "cloud";
 
   const kindQuery = useQuery({
     queryKey: ["canister", "assets-kind", canisterId],

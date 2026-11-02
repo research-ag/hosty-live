@@ -6,7 +6,7 @@ export interface Backend {
   'addDeploymentExample' : ActorMethod<[DeploymentExampleInput], undefined>,
   'canRentCanister' : ActorMethod<[], boolean>,
   'clearWasmChunks' : ActorMethod<[Principal, Principal], undefined>,
-  'countTestnetCanisters' : ActorMethod<[Principal], bigint>,
+  'countCloudEngineCanisters' : ActorMethod<[Principal], bigint>,
   'deleteCanister' : ActorMethod<[Principal], undefined>,
   'deleteSnapshot' : ActorMethod<
     [Principal, Principal, Uint8Array | number[]],
@@ -28,9 +28,9 @@ export interface Backend {
     undefined
   >,
   'listCanisters' : ActorMethod<[], Array<CanisterInfo>>,
+  'listCloudEngineCanisters' : ActorMethod<[], Array<CanisterInfo>>,
   'listDeploymentExamples' : ActorMethod<[], Array<DeploymentExample>>,
   'listSnapshots' : ActorMethod<[Principal, Principal], Array<Snapshot>>,
-  'listTestnetCanisters' : ActorMethod<[], Array<CanisterInfo>>,
   'listUserCanisters' : ActorMethod<
     [Principal],
     { 'rented' : [] | [[CanisterInfo, bigint]], 'owned' : Array<CanisterInfo> }
@@ -43,11 +43,11 @@ export interface Backend {
     [Principal, Principal],
     { 'previous' : bigint, 'current' : bigint }
   >,
-  'markTestnetCanisterDeleted' : ActorMethod<[Principal], undefined>,
+  'markCloudEngineCanisterDeleted' : ActorMethod<[Principal], undefined>,
   'onCanisterDeployed' : ActorMethod<[Principal], undefined>,
   'preparePoolCanisters' : ActorMethod<[], bigint>,
   'registerCanister' : ActorMethod<[Principal], CanisterInfo>,
-  'registerTestnetCanister' : ActorMethod<
+  'registerCloudEngineCanister' : ActorMethod<
     [Principal, Principal, CanisterKind, [] | [string], string],
     CanisterInfo
   >,
@@ -113,7 +113,7 @@ export type CanisterInstallMode = { 'reinstall' : null } |
 export type CanisterKind = { 'frontend' : null } |
   { 'backend' : null };
 export type CanisterNetwork = { 'mainnet' : null } |
-  { 'testnet' : null };
+  { 'cloud' : null };
 export interface CanisterUpdates {
   'alias' : [] | [[] | [string]],
   'description' : [] | [[] | [string]],

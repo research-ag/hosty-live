@@ -54,11 +54,11 @@ function formatBytes(bytesBigint: bigint): string {
 }
 
 /**
- * `canister_status` of a testnet canister through the hosty.live API (its key is the only
+ * `canister_status` of a cloud engine canister through the hosty.live API (its key is the only
  * controller; the status proxy cannot read engine canisters), in the management canister's
  * shape so the derived values below work unchanged.
  */
-async function fetchTestnetStatus(canisterId: string): Promise<CanisterStatus> {
+async function fetchCloudEngineStatus(canisterId: string): Promise<CanisterStatus> {
   const s = await canistersApi.status(canisterId);
   const moduleHash = s.moduleHash
     ? new Uint8Array((s.moduleHash.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16)))
@@ -106,7 +106,7 @@ export function useCanisterStatus(
   const query = useQuery<CanisterStatus, Error>({
     queryKey: ["canister", "status", canisterId ?? "unknown", network],
     queryFn: async () => {
-      if (network === "testnet") return fetchTestnetStatus(canisterId!);
+      if (network === "cloud") return fetchCloudEngineStatus(canisterId!);
       try {
         const managementCanister = await getManagementActor();
         const status = await managementCanister.canister_status.withOptions({

@@ -129,7 +129,7 @@ export function useDeployments() {
   const deployWasm = async (input: DeployWasmInput & { network?: CanisterNetwork }): Promise<{ success: boolean; error?: string; data?: { id: string } }> => {
     const { network, ...rest } = input
     // the API lowers it too, but only with a deploy session; the unattended grant cannot change settings
-    if (network !== 'testnet') {
+    if (network !== 'cloud') {
       await lowerFreezingThreshold(input.canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
     }
     try {
@@ -167,9 +167,9 @@ export function useDeployments() {
   })
 
   const grantBackendCommitPermission = async (canisterId: string, network?: CanisterNetwork) => {
-    // Testnet canisters are controlled by hosty.live's key, which authorized the builder at
+    // Cloud engine canisters are controlled by hosty.live's key, which authorized the builder at
     // creation; the user cannot (and need not) sign anything on them.
-    if (network === 'testnet') return
+    if (network === 'cloud') return
     // best effort: the grant below reports a missing controller more clearly
     await lowerFreezingThreshold(canisterId).catch((err) => console.warn('Cannot check the freezing threshold:', err))
     await grantDeployAccess(canisterId, Principal.fromText(import.meta.env.VITE_BACKEND_PRINCIPAL))
