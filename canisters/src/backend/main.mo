@@ -110,37 +110,37 @@ import Http "../shared/tiny_http";
 //     };
 //   }
 // )
-// Rename of the network tag (2026-11-02): the free canisters on hosty's cloud engine subnet
-// were called "testnet"; the registry tag is now #cloud. Removing a variant tag is not stable-
-// compatible, so the migration rewrites every entry; remove it after the upgrade.
-(
-  with migration = func(
-    old : {
-      canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
-    }
-  ) : {
-    canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #cloud }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
-  } {
-    {
-      canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #cloud }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
-        old.canisters,
-        func(c) = {
-          canisterId = c.canisterId;
-          var alias = c.alias;
-          var description = c.description;
-          var userIds = c.userIds;
-          var frontendUrl = c.frontendUrl;
-          var ownedBySystem = c.ownedBySystem;
-          var kind = c.kind;
-          network = switch (c.network) { case (#testnet) #cloud; case (#mainnet) #mainnet };
-          createdAt = c.createdAt;
-          var deployedAt = c.deployedAt;
-          var deletedAt = c.deletedAt;
-        },
-      );
-    };
-  }
-)
+// // Rename of the network tag (2026-11-02): the free canisters on hosty's cloud engine subnet
+// // were called "testnet"; the registry tag is now #cloud. Removing a variant tag is not stable-
+// // compatible, so the migration rewrites every entry; applied on mainnet 2026-11-02, kept as a record.
+// (
+//   with migration = func(
+//     old : {
+//       canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//     }
+//   ) : {
+//     canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #cloud }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+//   } {
+//     {
+//       canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #cloud }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
+//         old.canisters,
+//         func(c) = {
+//           canisterId = c.canisterId;
+//           var alias = c.alias;
+//           var description = c.description;
+//           var userIds = c.userIds;
+//           var frontendUrl = c.frontendUrl;
+//           var ownedBySystem = c.ownedBySystem;
+//           var kind = c.kind;
+//           network = switch (c.network) { case (#testnet) #cloud; case (#mainnet) #mainnet };
+//           createdAt = c.createdAt;
+//           var deployedAt = c.deployedAt;
+//           var deletedAt = c.deletedAt;
+//         },
+//       );
+//     };
+//   }
+// )
 persistent actor class Backend() = self {
 
   transient let CONSTANTS = {
