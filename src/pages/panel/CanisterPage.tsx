@@ -18,6 +18,7 @@ import {
   UserCheck,
   Zap,
 } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import { ensureHttps } from "../../lib/utils";
 import { Button } from "../../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, } from "../../components/ui/Card";
@@ -92,7 +93,12 @@ export function CanisterPage() {
       { enabled: !!icCanisterId && !!domainFromIcDomains }
     );
 
-  const canisterStatus = useCanisterStatus(icCanisterId);
+  const [canister, setCanister] = useState<Canister | null>(null);
+  // testnet canisters are read through the API (hosty.live is their only controller)
+  const canisterStatus = useCanisterStatus(icCanisterId, {
+    network: canister?.network,
+    enabled: !!canister,
+  });
   const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
   const [isWasmModalOpen, setIsWasmModalOpen] = useState(false);
   const [wasmError, setWasmError] = useState<string>("");
@@ -100,7 +106,6 @@ export function CanisterPage() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCustomDomainModalOpen, setIsCustomDomainModalOpen] = useState(false);
   const [_, setCopied] = useState(false);
-  const [canister, setCanister] = useState<Canister | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [deployError, setDeployError] = useState<string>("");
@@ -199,15 +204,18 @@ export function CanisterPage() {
   const handleInstallWasm = async (input: Omit<DeployWasmInput, "canisterId">) => {
     if (!canister) return;
     setWasmError("");
-    try {
-      await ensureActiveSession(15);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Could not open a deploy session";
-      setWasmError(message);
-      toast.error("Deploy session failed", message);
-      return;
+    if (canister.network !== "testnet") {
+      // on the testnet hosty.live is the controller and installs with its own key
+      try {
+        await ensureActiveSession(15);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Could not open a deploy session";
+        setWasmError(message);
+        toast.error("Deploy session failed", message);
+        return;
+      }
     }
-    const result = await deployWasm({ canisterId: canister.id, ...input });
+    const result = await deployWasm({ canisterId: canister.id, network: canister.network, ...input });
     if (result.success) {
       setIsWasmModalOpen(false);
       toast.success("Install started", "Follow the progress on the deployments page.");
@@ -252,6 +260,7 @@ export function CanisterPage() {
 
     const result = await deployToCanister({
       canisterId: canister.id, // Use internal canister ID for deployments
+      network: canister.network,
       file: data.file,
       buildCommand: data.buildCommand,
       outputDir: data.outputDir,
@@ -293,6 +302,7 @@ export function CanisterPage() {
 
     const result = await deployFromGit({
       canisterId: canister.id, // Use internal canister ID for deployments
+      network: canister.network,
       gitRepoUrl: data.gitRepoUrl,
       branch: data.branch,
       buildCommand: data.buildCommand,
@@ -334,6 +344,7 @@ export function CanisterPage() {
 
     const result = await deployFromUrl({
       canisterId: canister.id, // Use internal canister ID for deployments
+      network: canister.network,
       archiveUrl: data.archiveUrl,
       buildCommand: data.buildCommand,
       outputDir: data.outputDir,
@@ -698,7 +709,10 @@ export function CanisterPage() {
   };
 
   const isBackend = canister.kind === "backend";
-  const isController = !!principal && !!canisterStatus.controllers?.includes(principal);
+  // Testnet canisters are controlled by hosty.live's key only; the user manages them through
+  // the API, so everything a controller may do here is open to them.
+  const isTestnet = canister.network === "testnet";
+  const isController = isTestnet || (!!principal && !!canisterStatus.controllers?.includes(principal));
   const canDeploy = !!canisterStatus.moduleHash && isAssetCanister(canisterStatus.moduleHash);
   // status loaded (controllers known) and no module: offer the asset module instead of Deploy
   const isEmptyCanister = !!canisterStatus.controllers && !canisterStatus.moduleHash;
@@ -753,6 +767,11 @@ export function CanisterPage() {
           </div>
           <div className="flex items-center space-x-2">
             {getStatusIcon(canister.status)}
+            {isTestnet && (
+              <TooltipWrapper content="Free testnet canister, managed by hosty.live. Temporary: no cycles, no uptime promise.">
+                <Badge variant="secondary">testnet</Badge>
+              </TooltipWrapper>
+            )}
             <Badge variant="outline">{isBackend ? "backend" : "frontend"}</Badge>
             <Badge
               variant={canister.status === "active" ? "success" : "secondary"}
@@ -774,7 +793,7 @@ export function CanisterPage() {
             <Share2 className="mr-2 h-4 w-4"/>
             Share
           </Button>
-          {!isBackend && (
+          {!isBackend && !isTestnet && (
             <Button
               variant="outline"
               onClick={() => setIsCustomDomainModalOpen(true)}
@@ -784,15 +803,17 @@ export function CanisterPage() {
               Custom Domain
             </Button>
           )}
-          <Button
-            variant="outline"
-            onClick={() => setIsTransferModalOpen(true)}
-            disabled={!principal || canister.ownedBySystem || !canisterStatus.controllers?.includes(principal)}
-            className="w-full sm:w-auto"
-          >
-            <UserCheck className="mr-2 h-4 w-4"/>
-            Ownership
-          </Button>
+          {!isTestnet && (
+            <Button
+              variant="outline"
+              onClick={() => setIsTransferModalOpen(true)}
+              disabled={!principal || canister.ownedBySystem || !canisterStatus.controllers?.includes(principal)}
+              className="w-full sm:w-auto"
+            >
+              <UserCheck className="mr-2 h-4 w-4"/>
+              Ownership
+            </Button>
+          )}
           {isBackend ? (
             <TooltipWrapper content="Only a controller can install code" disabled={isController}>
               <Button
@@ -865,6 +886,17 @@ export function CanisterPage() {
               </label>
               <p className="text-sm font-mono">{canister.id}</p>
             </div>
+            {isTestnet && (
+              <div className="flex gap-2 rounded-md border bg-muted/30 p-3 text-sm">
+                <FlaskConical className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground"/>
+                <span>
+                  Testnet canister: free, holds no cycles, controlled by hosty.live (manage it on this page, not with icp
+                  or dfx). Temporary: hosty.live may delete it and the testnet itself may go away. When the project goes
+                  live, create a mainnet canister and deploy there.
+                </span>
+              </div>
+            )}
+            {!isTestnet && (
             <div>
               <label className="text-sm font-medium text-muted-foreground">
                 Cycles
@@ -913,6 +945,7 @@ export function CanisterPage() {
                 <BurnInfo canisterId={canister.id}/>
               </div>
             </div>
+            )}
             <div>
               <label className="text-sm font-medium text-muted-foreground">
                 Created
@@ -929,7 +962,7 @@ export function CanisterPage() {
                 {new Date(canister.deployedAt).toLocaleString()}
               </p>
             </div>)}
-            {canisterStatus.controllers &&
+            {!isTestnet && canisterStatus.controllers &&
               canisterStatus.controllers.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">
@@ -1054,6 +1087,7 @@ export function CanisterPage() {
                 </p>
               </div>
             )} */}
+            {!isTestnet && (
             <div className="pt-2" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <Button
                 variant="destructive"
@@ -1078,6 +1112,7 @@ export function CanisterPage() {
                 </Button>
               )}
             </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1085,13 +1120,14 @@ export function CanisterPage() {
         {isBackend ? (
           <BackendModuleCard
             canisterId={canister.id}
+            network={canister.network}
             moduleHash={canisterStatus.moduleHash}
             canInstall={isController}
             onInstall={() => setIsWasmModalOpen(true)}
             rentedUntil={canister.rentedUntil}
             onUseAsFrontend={isController ? () => handleSetKind("frontend") : undefined}
             switchingKind={isSwitchingKind}
-            unattended={{
+            unattended={isTestnet ? undefined : {
               enabled: !!canisterStatus.controllers?.includes(backendCanisterId),
               // A rental keeps the pool canister as controller, so its grant cannot be
               // removed; a system canister without the grant may still receive it.
@@ -1264,7 +1300,7 @@ export function CanisterPage() {
         </Card>
         )}
 
-        <CanisterEnvCard canisterId={canister.id} canEdit={isController} />
+        <CanisterEnvCard canisterId={canister.id} canEdit={isController} network={canister.network} />
       </div>
 
       <DeployWasmModal
@@ -1304,7 +1340,7 @@ export function CanisterPage() {
         canister={canister}
       />
 
-      {icCanisterId && (
+      {icCanisterId && !isTestnet && (
         <TopUpCanisterModal
           isOpen={isTopUpModalOpen}
           onClose={() => {
@@ -1331,7 +1367,7 @@ export function CanisterPage() {
         />
       )}
 
-      {icCanisterId && (
+      {icCanisterId && !isTestnet && (
         <WithdrawCyclesModal
           isOpen={isWithdrawModalOpen}
           onClose={() => setIsWithdrawModalOpen(false)}

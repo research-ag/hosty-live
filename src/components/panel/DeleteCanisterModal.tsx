@@ -27,7 +27,8 @@ export function DeleteCanisterModal(
     error
   }: DeleteCanisterModalProps) {
 
-  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canister?.id);
+  const testnet = canister?.network === 'testnet';
+  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canister?.id, { enabled: !testnet });
   const cyclesTC = (() => {
     try {
       if (!cyclesRaw) return undefined;
@@ -56,11 +57,13 @@ export function DeleteCanisterModal(
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             Are you sure you want to delete canister <strong>{canister?.id}</strong>?
-            This action cannot be undone. Consider donating your canister instead.
+            This action cannot be undone.{!testnet && ' Consider donating your canister instead.'}
           </p>
 
           <div className="p-3 text-sm bg-red-50 border border-red-200 text-red-800 rounded-md">
-            {isCanisterStatusLoading ? (
+            {testnet ? (
+              <span>Testnet canister: hosty.live deletes it and everything on it, and frees one of your testnet slots.</span>
+            ) : isCanisterStatusLoading ? (
               <span>Loading canister cycles…</span>
             ) : cyclesTC === undefined ? (
               <span>Unable to determine current cycles. Deleting will discard any remaining cycles.</span>
@@ -84,16 +87,18 @@ export function DeleteCanisterModal(
           <Button type="button" variant="outline" onClick={onClose} disabled={isDeleting || isDonating}>
             Cancel
           </Button>
-          <Button type="button" variant="destructive" onClick={handleDonate} disabled={isDeleting || isDonating}>
-            {isDonating ? (
-              <div className="flex items-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"/>
-                Donating...
-              </div>
-            ) : (
-              'Donate'
-            )}
-          </Button>
+          {!testnet && (
+            <Button type="button" variant="destructive" onClick={handleDonate} disabled={isDeleting || isDonating}>
+              {isDonating ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"/>
+                  Donating...
+                </div>
+              ) : (
+                'Donate'
+              )}
+            </Button>
+          )}
           <Button type="button" variant="destructive" onClick={handleConfirm} disabled={isDeleting || isDonating}>
             {isDeleting ? (
               <div className="flex items-center">

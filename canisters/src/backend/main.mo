@@ -80,6 +80,36 @@ import Http "../shared/tiny_http";
 //     };
 //   }
 // )
+// Migration to the canister network (testnet canisters live on the cloud engine subnet):
+(
+  with migration = func(
+    old : {
+      canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+    }
+  ) : {
+    canisters : List.List<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>;
+  } {
+    // Every canister registered before this version is on mainnet.
+    {
+      canisters = List.map<{ canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }, { canisterId : Principal; var alias : ?Text; var description : ?Text; var userIds : [Principal]; var frontendUrl : Text; var ownedBySystem : Bool; var kind : { #frontend; #backend }; network : { #mainnet; #testnet }; createdAt : Nat64; var deployedAt : ?Nat64; var deletedAt : ?Nat64 }>(
+        old.canisters,
+        func(c) = {
+          canisterId = c.canisterId;
+          var alias = c.alias;
+          var description = c.description;
+          var userIds = c.userIds;
+          var frontendUrl = c.frontendUrl;
+          var ownedBySystem = c.ownedBySystem;
+          var kind = c.kind;
+          network = #mainnet;
+          createdAt = c.createdAt;
+          var deployedAt = c.deployedAt;
+          var deletedAt = c.deletedAt;
+        },
+      );
+    };
+  }
+)
 persistent actor class Backend() = self {
 
   transient let CONSTANTS = {
@@ -107,6 +137,13 @@ persistent actor class Backend() = self {
   // the hosty API under a delegation from the user.
   type CanisterKind = { #frontend; #backend };
 
+  // Where the canister lives. Mainnet canisters are the user's (rented from the pool,
+  // created from their cycles balance or imported). Testnet canisters are created free
+  // on hosty's cloud engine subnet by the hosty API, which is their only controller:
+  // the registry is the record of who was given which one (the engine console's
+  // metadata is not), and the API deletes them on request or when the quota demands.
+  type CanisterNetwork = { #mainnet; #testnet };
+
   type CanisterData = {
     canisterId : Principal;
     var alias : ?Text;
@@ -115,6 +152,7 @@ persistent actor class Backend() = self {
     var frontendUrl : Text;
     var ownedBySystem : Bool;
     var kind : CanisterKind;
+    network : CanisterNetwork;
     createdAt : Nat64;
     var deployedAt : ?Nat64;
     var deletedAt : ?Nat64;
@@ -258,6 +296,7 @@ persistent actor class Backend() = self {
     frontendUrl : Text;
     ownedBySystem : Bool;
     kind : CanisterKind;
+    network : CanisterNetwork;
     createdAt : Nat64;
     deployedAt : ?Nat64;
     deletedAt : ?Nat64;
@@ -270,6 +309,7 @@ persistent actor class Backend() = self {
     frontendUrl = cd.frontendUrl;
     ownedBySystem = cd.ownedBySystem;
     kind = cd.kind;
+    network = cd.network;
     createdAt = cd.createdAt;
     deployedAt = cd.deployedAt;
     deletedAt = cd.deletedAt;
@@ -308,6 +348,7 @@ persistent actor class Backend() = self {
   ignore pt.addPullValue("num_unattended_installs", "", func() = unattendedInstalls);
   ignore pt.addPullValue("num_backend_canisters", "", func() = List.size(List.filter<CanisterData>(canisters, func(c) = c.kind == #backend and Option.isNull(c.deletedAt))));
   ignore pt.addPullValue("num_canisters_rent", "", func() = Queue.size(renters));
+  ignore pt.addPullValue("num_testnet_canisters", "", func() = List.size(List.filter<CanisterData>(canisters, func(c) = c.network == #testnet and Option.isNull(c.deletedAt))));
   transient var reservationTopups : Nat = 0;
   ignore pt.addPullValue("num_reservation_topups", "", func() = reservationTopups);
   ignore pt.addPullValue("max_canisters_rentals", "", func() = maxRentals);
@@ -418,6 +459,9 @@ persistent actor class Backend() = self {
         if (d.ownedBySystem) {
           throw Error.reject("Cannot register canister: owned by system");
         };
+        if (d.network == #testnet) {
+          throw Error.reject("Cannot register canister: testnet canisters are managed by hosty.live");
+        };
         switch (Array.indexOf(d.userIds, Principal.equal, caller)) {
           case (?_) return freezeCanisterData_(d);
           case (_) {};
@@ -464,6 +508,7 @@ persistent actor class Backend() = self {
           var frontendUrl = "https://" # Principal.toText(cid) # ".icp0.io/";
           var ownedBySystem = false;
           var kind = #frontend;
+          network = #mainnet;
           createdAt = Prim.time();
           var deployedAt = null;
           var deletedAt = null;
@@ -530,14 +575,17 @@ persistent actor class Backend() = self {
   // Switching to #frontend is only allowed while the canister runs the hosty assets
   // module: the web app resets a backend canister first, otherwise the frontend
   // flows (file upload, custom domains) would talk to a module they do not understand.
-  func setCanisterKind_(cid : Principal, user : Principal, kind : CanisterKind) : async* CanisterInfo {
+  func setCanisterKind_(cid : Principal, user : Principal, kind : CanisterKind, trusted : Bool) : async* CanisterInfo {
     let ?(_, canisterData) = getCanister_(cid) else throw Error.reject("Not found");
     switch (Array.indexOf(canisterData.userIds, Principal.equal, user)) {
       case (null) throw Error.reject("Permission denied");
       case (_) {};
     };
+    if (canisterData.network == #testnet and not trusted) {
+      throw Error.reject("Testnet canisters are managed by hosty.live");
+    };
     if (canisterData.kind != kind) {
-      if (kind == #frontend) {
+      if (kind == #frontend and not trusted) {
         let statusProxy : (
           actor {
             loadState : shared (canisterId : Principal) -> async (Nat64, Management.CanisterStatus);
@@ -558,16 +606,22 @@ persistent actor class Backend() = self {
   };
 
   public shared ({ caller }) func setCanisterKind(cid : Principal, kind : CanisterKind) : async CanisterInfo {
-    await* setCanisterKind_(cid, caller, kind);
+    await* setCanisterKind_(cid, caller, kind, false);
   };
 
   // Used by the builder (hosty API) on behalf of an authenticated user, e.g. on the
-  // first backend deployment to a canister.
+  // first backend deployment to a canister. On a testnet canister the API is the only
+  // controller and checks the module itself (the status proxy cannot read engine
+  // canisters: its canister_status call is unbounded-wait), so its word is taken.
   public shared ({ caller }) func setCanisterKindFor(user : Principal, cid : Principal, kind : CanisterKind) : async CanisterInfo {
     if (Option.isNull(Array.indexOf(CONSTANTS.BUILDER_PRINCIPALS, Principal.equal, caller))) {
       throw Error.reject("Permission denied");
     };
-    await* setCanisterKind_(cid, user, kind);
+    let trusted = switch (getCanister_(cid)) {
+      case (?(_, d)) d.network == #testnet;
+      case (null) false;
+    };
+    await* setCanisterKind_(cid, user, kind, trusted);
   };
 
   // Unattended backend deploys. A user who wants agents to redeploy a backend canister
@@ -584,6 +638,9 @@ persistent actor class Backend() = self {
     };
     if (canisterData.kind != #backend) {
       Prim.trap("Canister is not a backend canister");
+    };
+    if (canisterData.network == #testnet) {
+      Prim.trap("Testnet canisters are managed by the hosty API directly");
     };
     canisterData;
   };
@@ -691,10 +748,84 @@ persistent actor class Backend() = self {
     { previous; current = CONSTANTS.POOL_CANISTER_FREEZING_THRESHOLD };
   };
 
+  // Testnet canisters: the record of who was given which canister on hosty's cloud
+  // engine subnet. The hosty API creates them (it is their only controller), registers
+  // them here right after creation, and marks them deleted after it deleted them (or a
+  // sweep found them gone). The quota (live testnet canisters per user) reads this list.
+  public shared ({ caller }) func registerTestnetCanister(
+    user : Principal,
+    cid : Principal,
+    kind : CanisterKind,
+    alias : ?Text,
+    frontendUrl : Text,
+  ) : async CanisterInfo {
+    assertBuilder_(caller);
+    switch (getCanister_(cid)) {
+      case (?(_, d)) {
+        if (d.network != #testnet) Prim.trap("Canister is registered on mainnet");
+        // the API retries a registration whose reply it lost
+        if (Option.isNull(Array.indexOf(d.userIds, Principal.equal, user))) {
+          Prim.trap("Canister is registered to another user");
+        };
+        d.deletedAt := null;
+        d.kind := kind;
+        if (Option.isSome(alias)) d.alias := alias;
+        return freezeCanisterData_(d);
+      };
+      case (null) {};
+    };
+    let canisterData : CanisterData = {
+      canisterId = cid;
+      var alias = alias;
+      var description = null;
+      var userIds = [user];
+      var frontendUrl = frontendUrl;
+      var ownedBySystem = false;
+      var kind = kind;
+      network = #testnet;
+      createdAt = Prim.time();
+      var deployedAt = null;
+      var deletedAt = null;
+    };
+    addCanisterToStorage_(canisterData);
+    freezeCanisterData_(canisterData);
+  };
+
+  public shared ({ caller }) func markTestnetCanisterDeleted(cid : Principal) : async () {
+    assertBuilder_(caller);
+    let ?(_, canisterData) = getCanister_(cid) else Prim.trap("Not found");
+    if (canisterData.network != #testnet) Prim.trap("Canister is registered on mainnet");
+    if (Option.isNull(canisterData.deletedAt)) canisterData.deletedAt := ?Prim.time();
+  };
+
+  // Live testnet canisters of a user (the quota counts these).
+  public query func countTestnetCanisters(user : Principal) : async Nat {
+    let ?indices = Map.get(userCanistersMap, Principal.compare, user) else return 0;
+    var n = 0;
+    for (i in List.values(indices)) {
+      let c = List.at(canisters, i);
+      if (c.network == #testnet and Option.isNull(c.deletedAt)) n += 1;
+    };
+    n;
+  };
+
+  // Every live testnet canister, for the API's reconciliation sweep (canisters an engine
+  // admin deleted from the console, or a whole engine that is gone, are marked deleted).
+  public query func listTestnetCanisters() : async [CanisterInfo] {
+    canisters
+    |> List.values(_)
+    |> Iter.filter<CanisterData>(_, func(c) = c.network == #testnet and Option.isNull(c.deletedAt))
+    |> Iter.map<CanisterData, CanisterInfo>(_, freezeCanisterData_)
+    |> Iter.toArray(_);
+  };
+
   public shared ({ caller }) func deleteCanister(cid : Principal) : async () {
     let ?(_, canisterData) = getCanister_(cid) else throw Error.reject("Not found");
     if (canisterData.ownedBySystem) {
       throw Error.reject("Permission denied");
+    };
+    if (canisterData.network == #testnet) {
+      throw Error.reject("Testnet canisters are deleted through hosty.live");
     };
     switch (Array.indexOf(canisterData.userIds, Principal.equal, caller)) {
       case (null) throw Error.reject("Permission denied");
@@ -947,6 +1078,7 @@ persistent actor class Backend() = self {
       var frontendUrl = "https://" # Principal.toText(cid) # ".icp0.io/";
       var ownedBySystem = true;
       var kind = #frontend;
+      network = #mainnet;
       createdAt = Prim.time();
       var deployedAt = null;
       var deletedAt = null;
@@ -1026,6 +1158,9 @@ persistent actor class Backend() = self {
     let canisterData = List.at(canisters, cidx);
     if (canisterData.ownedBySystem) {
       return #err("Permission denied");
+    };
+    if (canisterData.network == #testnet) {
+      return #err("Testnet canisters cannot be donated to the pool");
     };
     switch (Array.indexOf(canisterData.userIds, Principal.equal, caller)) {
       case (null) return #err("Permission denied");

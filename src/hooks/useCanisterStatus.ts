@@ -5,6 +5,8 @@ import type { CanisterStatus } from "../api/status-proxy/status_proxy.did";
 import { getManagementActor } from "../api/management";
 import { isAssetCanister } from "../constants/knownHashes.ts";
 import { arrayBufferToHex } from "../utils/bufffer-utils.ts";
+import { canistersApi } from "../services/api";
+import type { CanisterNetwork } from "../types";
 
 export type CanisterStatusResult = {
   timestampSec: bigint;
@@ -51,10 +53,60 @@ function formatBytes(bytesBigint: bigint): string {
   return `${formatNumber(bytes / kb)} KB`;
 }
 
-export function useCanisterStatus(canisterId?: string) {
+/**
+ * `canister_status` of a testnet canister through the hosty.live API (its key is the only
+ * controller; the status proxy cannot read engine canisters), in the management canister's
+ * shape so the derived values below work unchanged.
+ */
+async function fetchTestnetStatus(canisterId: string): Promise<CanisterStatus> {
+  const s = await canistersApi.status(canisterId);
+  const moduleHash = s.moduleHash
+    ? new Uint8Array((s.moduleHash.match(/.{2}/g) ?? []).map((b) => parseInt(b, 16)))
+    : undefined;
+  return {
+    status: { [s.status]: null } as CanisterStatus["status"],
+    cycles: BigInt(s.cycles),
+    idle_cycles_burned_per_day: BigInt(s.idleCyclesBurnedPerDay),
+    memory_size: BigInt(s.memorySize),
+    module_hash: moduleHash ? [moduleHash] : [],
+    reserved_cycles: 0n,
+    memory_metrics: {
+      wasm_binary_size: BigInt(s.wasmBinarySize ?? "0"),
+      wasm_memory_size: BigInt(s.wasmMemorySize ?? "0"),
+      wasm_chunk_store_size: 0n,
+      stable_memory_size: 0n,
+      global_memory_size: 0n,
+      custom_sections_size: 0n,
+      canister_history_size: 0n,
+      snapshots_size: 0n,
+    } as CanisterStatus["memory_metrics"],
+    query_stats: {
+      num_calls_total: 0n,
+      num_instructions_total: 0n,
+      request_payload_bytes_total: 0n,
+      response_payload_bytes_total: 0n,
+    },
+    settings: {
+      controllers: s.controllers.map((c) => Principal.fromText(c)),
+      freezing_threshold: BigInt(s.freezingThresholdSeconds),
+      wasm_memory_limit: BigInt(s.wasmMemoryLimit),
+      reserved_cycles_limit: 0n,
+      memory_allocation: 0n,
+      compute_allocation: 0n,
+      log_visibility: { controllers: null },
+    } as CanisterStatus["settings"],
+  } as CanisterStatus;
+}
+
+export function useCanisterStatus(
+  canisterId?: string,
+  options: { network?: CanisterNetwork; enabled?: boolean } = {},
+) {
+  const network = options.network ?? "mainnet";
   const query = useQuery<CanisterStatus, Error>({
-    queryKey: ["canister", "status", canisterId ?? "unknown"],
+    queryKey: ["canister", "status", canisterId ?? "unknown", network],
     queryFn: async () => {
+      if (network === "testnet") return fetchTestnetStatus(canisterId!);
       try {
         const managementCanister = await getManagementActor();
         const status = await managementCanister.canister_status.withOptions({
@@ -79,7 +131,7 @@ export function useCanisterStatus(canisterId?: string) {
         }
       }
     },
-    enabled: !!canisterId,
+    enabled: !!canisterId && (options.enabled ?? true),
     staleTime: 60 * 1000,
     refetchOnWindowFocus: true,
     retry: 2,

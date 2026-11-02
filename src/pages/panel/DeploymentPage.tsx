@@ -112,7 +112,7 @@ export function DeploymentPage() {
 
   const handleRedeploy = async () => {
     if (!deployment) return
-    const result = await redeploy(deployment.id, deployment.canisterId)
+    const result = await redeploy(deployment.id, deployment.canisterId, canister?.network)
     if (result.success) {
       toast.success('Redeployment Started', 'A new deployment has been triggered')
       if (result.data?.id) {

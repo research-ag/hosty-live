@@ -9,6 +9,8 @@ import { Input } from "../ui/Input";
 import { useToast } from "../../hooks/useToast";
 import { getManagementActor } from "../../api/management";
 import { detectAssetsKind, readPublishedEnv, refreshEnv } from "../../api/certified-assets";
+import { canistersApi } from "../../services/api";
+import type { CanisterNetwork } from "../../types";
 
 // IC limits on mainnet (resource limits docs); the management canister rejects more.
 const MAX_VARIABLES = 20;
@@ -35,6 +37,8 @@ interface CanisterEnvCardProps {
   canisterId: string;
   /** The signed-in user is a controller (canister_status and update_settings need it). */
   canEdit: boolean;
+  /** Testnet canisters are controlled by hosty.live: reads and writes go through the API. */
+  network?: CanisterNetwork;
 }
 
 const byteLength = (text: string) => new TextEncoder().encode(text).length;
@@ -45,11 +49,12 @@ const byteLength = (text: string) => new TextEncoder().encode(text).length;
  * canisters `PUBLIC_*` variables become the `ic_env` cookie; saving calls `refresh_env`
  * so the page publishes them without an upload.
  */
-export function CanisterEnvCard({ canisterId, canEdit }: CanisterEnvCardProps) {
+export function CanisterEnvCard({ canisterId, canEdit, network = "mainnet" }: CanisterEnvCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
+  const viaApi = network === "testnet";
 
   const kindQuery = useQuery({
     queryKey: ["canister", "assets-kind", canisterId],
@@ -67,6 +72,9 @@ export function CanisterEnvCard({ canisterId, canEdit }: CanisterEnvCardProps) {
   const envQuery = useQuery({
     queryKey: ["canister", "env", canisterId],
     queryFn: async (): Promise<EnvVariable[]> => {
+      if (viaApi) {
+        return (await canistersApi.env(canisterId)).variables.map(({ name, value }) => ({ name, value }));
+      }
       const management = await getManagementActor();
       const target = Principal.fromText(canisterId);
       const status = await management.canister_status.withOptions({ effectiveCanisterId: target })({
@@ -142,6 +150,15 @@ export function CanisterEnvCard({ canisterId, canEdit }: CanisterEnvCardProps) {
   const save = async (republishOnly = false) => {
     setSaving(true);
     try {
+      if (viaApi) {
+        // the API merges the change into the current list and calls refresh_env itself
+        await canistersApi.updateEnv(canisterId, republishOnly ? { set: {}, unset: [] } : change);
+        toast.success(
+          kind === "certified" ? (republishOnly ? "Variables republished" : "Saved and published") : "Environment variables saved",
+        );
+        await reload();
+        return;
+      }
       const management = await getManagementActor();
       const target = Principal.fromText(canisterId);
       if (!republishOnly) {
