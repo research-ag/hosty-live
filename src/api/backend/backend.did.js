@@ -16,7 +16,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const CanisterNetwork = IDL.Variant({
     'mainnet' : IDL.Null,
-    'testnet' : IDL.Null,
+    'cloud' : IDL.Null,
   });
   const CanisterInfo = IDL.Record({
     'alias' : IDL.Opt(IDL.Text),
@@ -88,7 +88,11 @@ export const idlFactory = ({ IDL }) => {
     'addDeploymentExample' : IDL.Func([DeploymentExampleInput], [], []),
     'canRentCanister' : IDL.Func([], [IDL.Bool], ['query']),
     'clearWasmChunks' : IDL.Func([IDL.Principal, IDL.Principal], [], []),
-    'countTestnetCanisters' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
+    'countCloudEngineCanisters' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Nat],
+        ['query'],
+      ),
     'deleteCanister' : IDL.Func([IDL.Principal], [], []),
     'deleteSnapshot' : IDL.Func(
         [IDL.Principal, IDL.Principal, IDL.Vec(IDL.Nat8)],
@@ -112,6 +116,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'listCanisters' : IDL.Func([], [IDL.Vec(CanisterInfo)], ['query']),
+    'listCloudEngineCanisters' : IDL.Func(
+        [],
+        [IDL.Vec(CanisterInfo)],
+        ['query'],
+      ),
     'listDeploymentExamples' : IDL.Func(
         [],
         [IDL.Vec(DeploymentExample)],
@@ -122,7 +131,6 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Snapshot)],
         [],
       ),
-    'listTestnetCanisters' : IDL.Func([], [IDL.Vec(CanisterInfo)], ['query']),
     'listUserCanisters' : IDL.Func(
         [IDL.Principal],
         [
@@ -143,11 +151,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Record({ 'previous' : IDL.Nat, 'current' : IDL.Nat })],
         [],
       ),
-    'markTestnetCanisterDeleted' : IDL.Func([IDL.Principal], [], []),
+    'markCloudEngineCanisterDeleted' : IDL.Func([IDL.Principal], [], []),
     'onCanisterDeployed' : IDL.Func([IDL.Principal], [], []),
     'preparePoolCanisters' : IDL.Func([], [IDL.Nat], []),
     'registerCanister' : IDL.Func([IDL.Principal], [CanisterInfo], []),
-    'registerTestnetCanister' : IDL.Func(
+    'registerCloudEngineCanister' : IDL.Func(
         [
           IDL.Principal,
           IDL.Principal,

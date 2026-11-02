@@ -94,7 +94,7 @@ export function CanisterPage() {
     );
 
   const [canister, setCanister] = useState<Canister | null>(null);
-  // testnet canisters are read through the API (hosty.live is their only controller)
+  // cloud engine canisters are read through the API (hosty.live is their only controller)
   const canisterStatus = useCanisterStatus(icCanisterId, {
     network: canister?.network,
     enabled: !!canister,
@@ -204,8 +204,8 @@ export function CanisterPage() {
   const handleInstallWasm = async (input: Omit<DeployWasmInput, "canisterId">) => {
     if (!canister) return;
     setWasmError("");
-    if (canister.network !== "testnet") {
-      // on the testnet hosty.live is the controller and installs with its own key
+    if (canister.network !== "cloud") {
+      // on the cloud engine hosty.live is the controller and installs with its own key
       try {
         await ensureActiveSession(15);
       } catch (e) {
@@ -709,10 +709,10 @@ export function CanisterPage() {
   };
 
   const isBackend = canister.kind === "backend";
-  // Testnet canisters are controlled by hosty.live's key only; the user manages them through
+  // Cloud engine canisters are controlled by hosty.live's key only; the user manages them through
   // the API, so everything a controller may do here is open to them.
-  const isTestnet = canister.network === "testnet";
-  const isController = isTestnet || (!!principal && !!canisterStatus.controllers?.includes(principal));
+  const isCloudEngine = canister.network === "cloud";
+  const isController = isCloudEngine || (!!principal && !!canisterStatus.controllers?.includes(principal));
   const canDeploy = !!canisterStatus.moduleHash && isAssetCanister(canisterStatus.moduleHash);
   // status loaded (controllers known) and no module: offer the asset module instead of Deploy
   const isEmptyCanister = !!canisterStatus.controllers && !canisterStatus.moduleHash;
@@ -767,9 +767,9 @@ export function CanisterPage() {
           </div>
           <div className="flex items-center space-x-2">
             {getStatusIcon(canister.status)}
-            {isTestnet && (
-              <TooltipWrapper content="Free testnet canister, managed by hosty.live. Temporary: no cycles, no uptime promise.">
-                <Badge variant="secondary">testnet</Badge>
+            {isCloudEngine && (
+              <TooltipWrapper content="Cloud engine canister (free tier), managed by hosty.live. No cycles; may be deleted at the provider's discretion.">
+                <Badge variant="secondary">Cloud engine (free)</Badge>
               </TooltipWrapper>
             )}
             <Badge variant="outline">{isBackend ? "backend" : "frontend"}</Badge>
@@ -793,7 +793,7 @@ export function CanisterPage() {
             <Share2 className="mr-2 h-4 w-4"/>
             Share
           </Button>
-          {!isBackend && !isTestnet && (
+          {!isBackend && !isCloudEngine && (
             <Button
               variant="outline"
               onClick={() => setIsCustomDomainModalOpen(true)}
@@ -803,7 +803,7 @@ export function CanisterPage() {
               Custom Domain
             </Button>
           )}
-          {!isTestnet && (
+          {!isCloudEngine && (
             <Button
               variant="outline"
               onClick={() => setIsTransferModalOpen(true)}
@@ -886,17 +886,17 @@ export function CanisterPage() {
               </label>
               <p className="text-sm font-mono">{canister.id}</p>
             </div>
-            {isTestnet && (
+            {isCloudEngine && (
               <div className="flex gap-2 rounded-md border bg-muted/30 p-3 text-sm">
                 <FlaskConical className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground"/>
                 <span>
-                  Testnet canister: free, holds no cycles, controlled by hosty.live (manage it on this page, not with icp
-                  or dfx). Temporary: hosty.live may delete it and the testnet itself may go away. When the project goes
-                  live, create a mainnet canister and deploy there.
+                  Cloud engine canister (free tier): holds no cycles, controlled by hosty.live (manage it on this page, not with
+                  icp or dfx). It has no fixed expiry or other limitation but may be deleted at the provider's discretion,
+                  including when resources are limited. For a canister that is yours to keep, create it on mainnet.
                 </span>
               </div>
             )}
-            {!isTestnet && (
+            {!isCloudEngine && (
             <div>
               <label className="text-sm font-medium text-muted-foreground">
                 Cycles
@@ -962,7 +962,7 @@ export function CanisterPage() {
                 {new Date(canister.deployedAt).toLocaleString()}
               </p>
             </div>)}
-            {!isTestnet && canisterStatus.controllers &&
+            {!isCloudEngine && canisterStatus.controllers &&
               canisterStatus.controllers.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">
@@ -1087,7 +1087,7 @@ export function CanisterPage() {
                 </p>
               </div>
             )} */}
-            {!isTestnet && (
+            {!isCloudEngine && (
             <div className="pt-2" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <Button
                 variant="destructive"
@@ -1127,7 +1127,7 @@ export function CanisterPage() {
             rentedUntil={canister.rentedUntil}
             onUseAsFrontend={isController ? () => handleSetKind("frontend") : undefined}
             switchingKind={isSwitchingKind}
-            unattended={isTestnet ? undefined : {
+            unattended={isCloudEngine ? undefined : {
               enabled: !!canisterStatus.controllers?.includes(backendCanisterId),
               // A rental keeps the pool canister as controller, so its grant cannot be
               // removed; a system canister without the grant may still receive it.
@@ -1340,7 +1340,7 @@ export function CanisterPage() {
         canister={canister}
       />
 
-      {icCanisterId && !isTestnet && (
+      {icCanisterId && !isCloudEngine && (
         <TopUpCanisterModal
           isOpen={isTopUpModalOpen}
           onClose={() => {
@@ -1367,7 +1367,7 @@ export function CanisterPage() {
         />
       )}
 
-      {icCanisterId && !isTestnet && (
+      {icCanisterId && !isCloudEngine && (
         <WithdrawCyclesModal
           isOpen={isWithdrawModalOpen}
           onClose={() => setIsWithdrawModalOpen(false)}

@@ -27,8 +27,8 @@ export function DeleteCanisterModal(
     error
   }: DeleteCanisterModalProps) {
 
-  const testnet = canister?.network === 'testnet';
-  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canister?.id, { enabled: !testnet });
+  const cloudEngine = canister?.network === 'cloud';
+  const { cyclesRaw, isCanisterStatusLoading } = useCanisterStatus(canister?.id, { enabled: !cloudEngine });
   const cyclesTC = (() => {
     try {
       if (!cyclesRaw) return undefined;
@@ -57,12 +57,12 @@ export function DeleteCanisterModal(
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             Are you sure you want to delete canister <strong>{canister?.id}</strong>?
-            This action cannot be undone.{!testnet && ' Consider donating your canister instead.'}
+            This action cannot be undone.{!cloudEngine && ' Consider donating your canister instead.'}
           </p>
 
           <div className="p-3 text-sm bg-red-50 border border-red-200 text-red-800 rounded-md">
-            {testnet ? (
-              <span>Testnet canister: hosty.live deletes it and everything on it, and frees one of your testnet slots.</span>
+            {cloudEngine ? (
+              <span>Cloud engine canister: hosty.live deletes it and everything on it, and frees one of your cloud engine slots.</span>
             ) : isCanisterStatusLoading ? (
               <span>Loading canister cycles…</span>
             ) : cyclesTC === undefined ? (
@@ -87,7 +87,7 @@ export function DeleteCanisterModal(
           <Button type="button" variant="outline" onClick={onClose} disabled={isDeleting || isDonating}>
             Cancel
           </Button>
-          {!testnet && (
+          {!cloudEngine && (
             <Button type="button" variant="destructive" onClick={handleDonate} disabled={isDeleting || isDonating}>
               {isDonating ? (
                 <div className="flex items-center">

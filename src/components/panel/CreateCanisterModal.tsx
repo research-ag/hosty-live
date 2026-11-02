@@ -31,21 +31,21 @@ export function CreateCanisterModal({
   const [kind, setKind] = useState<CanisterKind>('frontend')
   const [network, setNetwork] = useState<CanisterNetwork>('mainnet')
 
-  // The testnet (free canisters on hosty's cloud engine subnet) and the user's quota on it.
-  const testnet = useQuery({
-    queryKey: ['testnet', 'info'],
-    queryFn: () => canistersApi.testnetInfo(),
+  // The cloud engine (free canisters on hosty's cloud engine subnet) and the user's quota on it.
+  const cloudEngine = useQuery({
+    queryKey: ['cloud', 'info'],
+    queryFn: () => canistersApi.cloudEngineInfo(),
     enabled: isOpen && !rent,
     staleTime: 30_000,
   })
-  const testnetEnabled = !!testnet.data?.enabled
-  const testnetFull = !!testnet.data && testnet.data.used >= testnet.data.max
+  const cloudEngineEnabled = !!cloudEngine.data?.enabled
+  const cloudEngineFull = !!cloudEngine.data && cloudEngine.data.used >= cloudEngine.data.max
   useEffect(() => {
-    // on every open: the free option while it is available, else mainnet (a testnet choice
+    // on every open: the free option while it is available, else mainnet (a cloud engine choice
     // left from an earlier open would otherwise stick after the quota filled up)
     if (!isOpen) return
-    setNetwork(testnetEnabled && !testnetFull ? 'testnet' : 'mainnet')
-  }, [isOpen, testnetEnabled, testnetFull])
+    setNetwork(cloudEngineEnabled && !cloudEngineFull ? 'cloud' : 'mainnet')
+  }, [isOpen, cloudEngineEnabled, cloudEngineFull])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -54,13 +54,13 @@ export function CreateCanisterModal({
 
   const networks: { value: CanisterNetwork; title: string; text: string; icon: typeof Globe; disabled?: boolean }[] = [
     {
-      value: 'testnet',
-      title: 'Testnet (free)',
-      text: testnet.data
-        ? `${testnet.data.used} of ${testnet.data.max} in use. Free and instant, managed by hosty.live. Temporary: for development, staging and previews.`
-        : 'Free and instant, managed by hosty.live. Temporary: for development, staging and previews.',
+      value: 'cloud',
+      title: 'Cloud engine (free)',
+      text: cloudEngine.data
+        ? `${cloudEngine.data.used} of ${cloudEngine.data.max} in use. Managed by hosty.live. Free-tier canisters have no fixed expiry or other limitation but may be deleted at the provider's discretion, including when resources are limited.`
+        : "Managed by hosty.live. Free-tier canisters have no fixed expiry or other limitation but may be deleted at the provider's discretion, including when resources are limited.",
       icon: FlaskConical,
-      disabled: testnetFull,
+      disabled: cloudEngineFull,
     },
     {
       value: 'mainnet',
@@ -104,7 +104,7 @@ export function CreateCanisterModal({
                 ? 'Free for 24 hours, to try things out. Then it goes back to the pool and everything on it is deleted.'
                 : 'This will create a new Internet Computer canister for hosting your applications.'}
             </p>
-            {!rent && testnetEnabled && (
+            {!rent && cloudEngineEnabled && (
               <div className="grid grid-cols-2 gap-3 mb-3 text-left">
                 {networks.map(({ value, title, text, icon: Icon, disabled }) => (
                   <button
@@ -150,14 +150,14 @@ export function CreateCanisterModal({
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Cost:</span>
                 <span className="font-semibold">
-                  {rent ? 'Free for 24 hours' : network === 'testnet' ? 'Free' : `${Number(CREATE_CANISTER_CYCLES[kind]) / 1e12} TC`}
+                  {rent ? 'Free for 24 hours' : network === 'cloud' ? 'Free' : `${Number(CREATE_CANISTER_CYCLES[kind]) / 1e12} TC`}
                 </span>
               </div>
-              {!rent && network === 'testnet' && (
+              {!rent && network === 'cloud' && (
                 <p className="text-xs text-muted-foreground mt-2 text-left">
-                  Testnet canisters are controlled by hosty.live (you manage them here, not with icp or dfx), hold no cycles and
-                  come with no uptime promise: hosty.live may delete one, and the testnet itself may go away. When the
-                  project goes live, create a mainnet canister and deploy there.
+                  Cloud engine canisters are controlled by hosty.live (you manage them here, not with icp or dfx) and hold no
+                  cycles. Free-tier canisters have no fixed expiry or other limitation but may be deleted at the provider's
+                  discretion, including when resources are limited. For a canister that is yours to keep, create it on mainnet.
                 </p>
               )}
             </div>

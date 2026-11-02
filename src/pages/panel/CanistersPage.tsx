@@ -173,12 +173,12 @@ export function CanistersPage() {
 
     if (result.success) {
       toast.success(
-        network === "testnet" ? "Testnet canister created!" : "Canister created!",
-        network === "testnet"
-          ? "Free and ready for deployment. Remember: it is temporary."
+        network === "cloud" ? "Cloud engine canister created!" : "Canister created!",
+        network === "cloud"
+          ? "Free and ready for deployment. It may be deleted at the provider's discretion."
           : "Your new canister is ready for deployment."
       );
-      await queryClient.invalidateQueries({ queryKey: ["testnet", "info"] });
+      await queryClient.invalidateQueries({ queryKey: ["cloud", "info"] });
       setIsCreateModalOpen(false);
       await refreshCanisters();
     } else {
@@ -236,11 +236,11 @@ export function CanistersPage() {
       if (result.success) {
         toast.success(
           "Canister deleted",
-          canisterToDelete.network === "testnet"
-            ? "The testnet canister was deleted and its slot is free again."
+          canisterToDelete.network === "cloud"
+            ? "The cloud engine canister was deleted and its slot is free again."
             : "Your canister has been successfully removed. Reclaimed " + result.data.reclaimedTC.toFixed(4) + " TC."
         );
-        await queryClient.invalidateQueries({ queryKey: ["testnet", "info"] });
+        await queryClient.invalidateQueries({ queryKey: ["cloud", "info"] });
         setIsDeleteModalOpen(false);
       } else {
         toast.error(
@@ -489,9 +489,9 @@ export function CanistersPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {canister.network === "testnet" && (
-                    <TooltipWrapper content="Free testnet canister, managed by hosty.live. Temporary: no cycles, no uptime promise.">
-                      <Badge variant="secondary">testnet</Badge>
+                  {canister.network === "cloud" && (
+                    <TooltipWrapper content="Cloud engine canister (free tier), managed by hosty.live. No cycles; may be deleted at the provider's discretion.">
+                      <Badge variant="secondary">Cloud engine (free)</Badge>
                     </TooltipWrapper>
                   )}
                   <Badge variant="outline">{canister.kind}</Badge>
@@ -511,7 +511,7 @@ export function CanistersPage() {
                   <p className="text-muted-foreground text-xs font-medium">
                     Cycles
                   </p>
-                  {canister.network === "testnet" ? (
+                  {canister.network === "cloud" ? (
                     <p className="font-semibold text-primary">free</p>
                   ) : (
                   <div className="flex items-center gap-2">

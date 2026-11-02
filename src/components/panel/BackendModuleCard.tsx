@@ -31,7 +31,7 @@ interface UnattendedGrant {
 
 interface BackendModuleCardProps {
   canisterId: string;
-  /** Testnet canisters are controlled by hosty.live: logs and snapshots go through the API. */
+  /** Cloud engine canisters are controlled by hosty.live: logs and snapshots go through the API. */
   network?: CanisterNetwork;
   moduleHash?: string;
   canInstall: boolean;
@@ -191,9 +191,9 @@ export function BackendModuleCard({
 
         {unattended && <UnattendedSection grant={unattended} />}
 
-        {hasModule && canInstall && <SnapshotsSection canisterId={canisterId} viaApi={network === "testnet"} />}
+        {hasModule && canInstall && <SnapshotsSection canisterId={canisterId} viaApi={network === "cloud"} />}
 
-        {hasModule && <LogsSection canisterId={canisterId} viaApi={network === "testnet"} />}
+        {hasModule && <LogsSection canisterId={canisterId} viaApi={network === "cloud"} />}
       </CardContent>
     </Card>
   );

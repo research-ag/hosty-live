@@ -108,9 +108,9 @@ export function AgentAccessCard() {
     try {
       for (const canister of targets) {
         let outcome: DeployAccessOutcome
-        if (canister.network === 'testnet') {
-          // hosty.live controls testnet canisters and authorized the builder at creation
-          report.push({ id: canister.id, name: canister.alias || canister.id, outcome: { status: 'skipped', reason: 'Testnet canister: hosty.live already deploys to it.' } })
+        if (canister.network === 'cloud') {
+          // hosty.live controls cloud engine canisters and authorized the builder at creation
+          report.push({ id: canister.id, name: canister.alias || canister.id, outcome: { status: 'skipped', reason: 'Cloud engine canister: hosty.live already deploys to it.' } })
           continue
         }
         try {

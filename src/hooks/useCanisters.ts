@@ -78,13 +78,13 @@ export function useCanisters() {
   // Mutation for creating canisters
   const createCanisterMutation = useMutation({
     mutationFn: async ({ kind = 'frontend', network = 'mainnet' }: { kind?: CanisterKind; network?: CanisterNetwork }) => {
-      if (network === 'testnet') {
-        // Free canister on hosty's testnet: the API creates it, is its only controller,
+      if (network === 'cloud') {
+        // Free canister on hosty's cloud engine: the API creates it, is its only controller,
         // registers it and prepares it (asset module for frontends). No cycles involved.
-        setCreationMessage('Creating your testnet canister...')
-        const created = await canistersApi.createTestnet(kind)
+        setCreationMessage('Creating your cloud engine canister...')
+        const created = await canistersApi.createCloudEngine(kind)
         if (created.setupError) {
-          console.warn('Testnet canister setup incomplete:', created.setupError)
+          console.warn('Cloud engine canister setup incomplete:', created.setupError)
         }
         const backend = await getBackendActor()
         const info = await backend.getCanister(Principal.fromText(created.canister.canisterId))
@@ -196,7 +196,7 @@ export function useCanisters() {
   const deleteCanisterMutation = useMutation({
     mutationFn: async (canisterId: string) => {
       const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
-      if (known?.network === 'testnet') {
+      if (known?.network === 'cloud') {
         // hosty.live is the controller: the API stops and deletes it and frees the slot
         await canistersApi.delete(canisterId)
         return { canisterId, reclaimedTC: 0 }
@@ -353,8 +353,8 @@ export function useCanisters() {
       const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
       const backend = await getBackendActor()
       let info
-      if (known?.network === 'testnet') {
-        // the registry refuses the user's own call on testnet canisters; the API checks the module
+      if (known?.network === 'cloud') {
+        // the registry refuses the user's own call on cloud engine canisters; the API checks the module
         await canistersApi.setKind(canisterId, kind)
         info = await backend.getCanister(Principal.fromText(canisterId))
       } else {
@@ -628,7 +628,7 @@ export function useCanisters() {
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       const known = queryClient.getQueryData<Canister[]>(['canisters'])?.find((c) => c.id === canisterId)
-      if (known?.network === 'testnet') {
+      if (known?.network === 'cloud') {
         // hosty.live is the controller: the API installs the module and authorizes the builder
         await canistersApi.setupFrontend(canisterId)
         return { success: true };
