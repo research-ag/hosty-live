@@ -769,7 +769,7 @@ export function CanisterPage() {
             {getStatusIcon(canister.status)}
             {isCloudEngine && (
               <TooltipWrapper content="Cloud engine canister (free tier), managed by hosty.live. No cycles; may be deleted at the provider's discretion.">
-                <Badge variant="secondary">cloudEngine</Badge>
+                <Badge variant="secondary">Cloud engine (free)</Badge>
               </TooltipWrapper>
             )}
             <Badge variant="outline">{isBackend ? "backend" : "frontend"}</Badge>

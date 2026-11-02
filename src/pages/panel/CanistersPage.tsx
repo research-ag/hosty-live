@@ -491,7 +491,7 @@ export function CanistersPage() {
                 <div className="flex items-center gap-1">
                   {canister.network === "cloud" && (
                     <TooltipWrapper content="Cloud engine canister (free tier), managed by hosty.live. No cycles; may be deleted at the provider's discretion.">
-                      <Badge variant="secondary">cloudEngine</Badge>
+                      <Badge variant="secondary">Cloud engine (free)</Badge>
                     </TooltipWrapper>
                   )}
                   <Badge variant="outline">{canister.kind}</Badge>
