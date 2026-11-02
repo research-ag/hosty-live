@@ -476,26 +476,24 @@ export function CanistersPage() {
           >
             <RentedIndicator canister={canister}/>
             <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  {getStatusIcon(canister.status)}
-                  <div className="min-w-0 flex-1">
-                    <CardTitle className="text-lg font-semibold truncate group-hover:text-primary transition-colors">
-                      {canister.alias}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground font-mono truncate mt-1">
-                      {canister.id}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {canister.network === "cloud" && (
-                    <TooltipWrapper content="Cloud engine canister (free tier), managed by hosty.live. No cycles; may be deleted at the provider's discretion.">
-                      <Badge variant="secondary">Cloud engine (free)</Badge>
-                    </TooltipWrapper>
-                  )}
-                  <Badge variant="outline">{canister.kind}</Badge>
-                  {getStatusBadge(canister.status)}
+              <div className="flex items-center justify-end gap-1 flex-wrap mb-3">
+                {canister.network === "cloud" && (
+                  <TooltipWrapper content="Cloud engine canister (free tier), managed by hosty.live. No cycles; may be deleted at the provider's discretion.">
+                    <Badge variant="secondary">Cloud engine (free)</Badge>
+                  </TooltipWrapper>
+                )}
+                <Badge variant="outline">{canister.kind}</Badge>
+                {getStatusBadge(canister.status)}
+              </div>
+              <div className="flex items-center gap-3 min-w-0">
+                {getStatusIcon(canister.status)}
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-lg font-semibold truncate group-hover:text-primary transition-colors">
+                    {canister.alias}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground font-mono truncate mt-1">
+                    {canister.id}
+                  </p>
                 </div>
               </div>
             </CardHeader>
