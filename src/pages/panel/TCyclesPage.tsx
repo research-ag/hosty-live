@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { RefreshCw, Info, Coins } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import {
@@ -10,15 +11,17 @@ import { CopyButton } from "../../components/ui/CopyButton";
 import { useTCycles } from "../../hooks/useTCycles";
 import { useAuth } from "../../hooks/useAuth";
 import { cyclePayBalanceUrl } from "../../utils/cyclepay.ts";
+import { DepositIcpModal } from "../../components/panel/DepositIcpModal";
 
 /** Prefilled on the CyclePay link (about 3 TC: a backend create); changeable there. */
 const BALANCE_LINK_USD = 5;
 
 export function TCyclesPage() {
   const { principal } = useAuth();
-  const { balanceTC, isLoading, isFetching, error, refresh } = useTCycles(
+  const { balanceTC, isLoading, isFetching, error, refresh, formatTC } = useTCycles(
     principal ?? undefined
   );
+  const [isIcpDepositOpen, setIsIcpDepositOpen] = useState(false);
 
   const handleRefresh = async () => {
     await refresh();
@@ -106,6 +109,13 @@ export function TCyclesPage() {
                       >
                         Deposit using Cycle Express
                       </Button>
+                      <Button
+                        onClick={() => setIsIcpDepositOpen(true)}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Deposit ICP
+                      </Button>
                     </div>
                   )}
                 </>
@@ -130,7 +140,9 @@ export function TCyclesPage() {
               hosting it for over a year. For additional services you need a
               cycle balance. You can buy cycles with a credit card through
               CyclePay (1 XDR per TC plus the card fee, no sign-in) or Cycle
-              Express; both credit this balance within minutes.
+              Express; both credit this balance within minutes. If you hold ICP,
+              deposit it with a QR code or a wallet link and convert it into
+              cycles here, at the cycles minting canister's current rate.
             </p>
             <p>
               Expert note: The cycle balance you see here is self-hosted by your
@@ -158,6 +170,16 @@ export function TCyclesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {principal && (
+        <DepositIcpModal
+          isOpen={isIcpDepositOpen}
+          onClose={() => setIsIcpDepositOpen(false)}
+          principal={principal}
+          formatTC={formatTC}
+          onConverted={refresh}
+        />
+      )}
     </div>
   );
 }
