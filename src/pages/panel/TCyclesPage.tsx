@@ -16,6 +16,14 @@ import { DepositIcpModal } from "../../components/panel/DepositIcpModal";
 /** Prefilled on the CyclePay link (about 3 TC: a backend create); changeable there. */
 const BALANCE_LINK_USD = 5;
 
+/** Prefilled in the icp-cli command; the user edits it before running. */
+const CLI_TRANSFER_AMOUNT = "5t";
+
+/** Ready-to-run icp-cli command moving cycles from the CLI identity into this balance. */
+function cyclesTransferCommand(principal: string) {
+  return `icp cycles transfer ${CLI_TRANSFER_AMOUNT} ${principal} -e ic`;
+}
+
 export function TCyclesPage() {
   const { principal } = useAuth();
   const { balanceTC, isLoading, isFetching, error, refresh, formatTC } = useTCycles(
@@ -148,7 +156,7 @@ export function TCyclesPage() {
               Expert note: The cycle balance you see here is self-hosted by your
               principal. Hosty.live does not have access to your cycles. If you
               already own TCYCLES in another wallet then you can transfer them
-              here by sending them your principal.
+              here by sending them to your principal.
             </p>
             {principal ? (
               <div className="rounded-md border p-3">
@@ -160,6 +168,24 @@ export function TCyclesPage() {
                     {principal}
                   </div>
                   <CopyButton text={principal} size="icon" variant="ghost" />
+                </div>
+                <div className="text-xs text-muted-foreground mt-3 mb-2">
+                  Send cycles from icp-cli
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="font-mono text-sm break-all text-foreground flex-1">
+                    {cyclesTransferCommand(principal)}
+                  </code>
+                  <CopyButton
+                    text={cyclesTransferCommand(principal)}
+                    size="icon"
+                    variant="ghost"
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground mt-2">
+                  Change {CLI_TRANSFER_AMOUNT} to the amount you want to send
+                  (t = trillion cycles = TC). The cycles ledger charges 0.0001
+                  TC per transfer.
                 </div>
               </div>
             ) : (
