@@ -13,6 +13,13 @@ export interface DeploySessionInfo {
   requestedUntil: string;
   expiresAt?: string;
   requestedByName?: string;
+  /** The API token that made the request; absent when this web app made it. */
+  requestedByTokenId?: string;
+  requestedByTokenCreatedAt?: string;
+  /** Shown by the agent too, so the user approves the request their agent made. */
+  requestCode?: string;
+  /** What the agent says it will do with the session, in its own words. */
+  purpose?: string;
   approvedAt?: string;
   endedAt?: string;
   createdAt: string;
@@ -42,8 +49,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const sessionsApi = {
   list: () => request<{ sessions: DeploySessionInfo[] }>("/sessions").then((r) => r.sessions),
   current: () => request<DeploySessionInfo | null>("/sessions/current"),
-  request: (hours: number) =>
-    request<DeploySessionInfo>("/sessions", { method: "POST", body: JSON.stringify({ hours }) }),
+  request: (hours: number, purpose?: string) =>
+    request<DeploySessionInfo>("/sessions", { method: "POST", body: JSON.stringify({ hours, purpose }) }),
   approve: (id: string, delegationChain: unknown) =>
     request<DeploySessionInfo>(`/sessions/${id}/approve`, {
       method: "POST",

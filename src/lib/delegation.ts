@@ -4,6 +4,7 @@ import {
   Ed25519PublicKey,
   isDelegationValid,
 } from "@icp-sdk/core/identity";
+import { Principal } from "@icp-sdk/core/principal";
 import { getAuthClient } from "../hooks/useInternetIdentity";
 
 /**
@@ -36,6 +37,20 @@ export async function createDeployDelegation(
   const apiKey = Ed25519PublicKey.fromDer(hexToBytes(publicKeyDerHex));
   const chain = await DelegationChain.create(identity, apiKey, expiresAt, { previous });
   return { delegationChain: chain.toJSON(), expiresAt };
+}
+
+/**
+ * Principal of the key a deploy session delegates to, computed from the same DER key
+ * `createDeployDelegation` signs for (not taken from the API). Undefined for a key that is
+ * not Ed25519, which could not be approved anyway.
+ */
+export function sessionKeyPrincipal(publicKeyDerHex: string): string | undefined {
+  try {
+    const key = Ed25519PublicKey.fromDer(hexToBytes(publicKeyDerHex));
+    return Principal.selfAuthenticating(new Uint8Array(key.toDer())).toText();
+  } catch {
+    return undefined;
+  }
 }
 
 /** Expiry of the current Internet Identity delegation, or null when signed out. */

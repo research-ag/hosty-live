@@ -16,7 +16,11 @@ export function useApiTokens() {
 
   const revokeMutation = useMutation({
     mutationFn: (id: string) => tokensApi.revoke(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['api-tokens'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-tokens'] })
+      // the API ends the deploy sessions the token requested
+      queryClient.invalidateQueries({ queryKey: ['deploy-sessions'] })
+    },
   })
 
   return {
