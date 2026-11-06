@@ -285,7 +285,7 @@ export function AgentAccessCard() {
       <ConfirmDialog
         isOpen={!!tokenToRevoke}
         title="Revoke token?"
-        description={`Agents using "${tokenToRevoke?.name}" will lose access immediately.`}
+        description={`Agents using "${tokenToRevoke?.name}" will lose access immediately, and deploy sessions it requested end. An agent that holds its own session key keeps its signed delegation until it expires.`}
         confirmLabel="Revoke"
         isLoading={isRevoking}
         onConfirm={handleRevoke}

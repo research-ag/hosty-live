@@ -1005,7 +1005,7 @@ export const tokensApi = {
     });
     checkUnauthorized(response);
     if (!response.ok) {
-      throw new Error(`Failed to revoke token (HTTP ${response.status})`);
+      throw new Error(await readError(response));
     }
   },
 };

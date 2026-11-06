@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DeploySessionInfo, sessionsApi } from "../services/sessions";
 import { createDeployDelegation } from "../lib/delegation";
-import { getStoredAccessToken } from "../services/api";
+import { getStoredAccessToken, tokensApi } from "../services/api";
 
 export const DEPLOY_SESSIONS_QUERY_KEY = ["deploy-sessions"];
 
@@ -38,6 +38,14 @@ export function useDeploySessions(options: { enabled?: boolean } = {}) {
 
   const decline = useMutation({ mutationFn: (id: string) => sessionsApi.decline(id), onSettled: invalidate });
   const end = useMutation({ mutationFn: (id: string) => sessionsApi.end(id), onSettled: invalidate });
+  // The API closes the sessions a revoked token requested: pending ones declined, active ones ended.
+  const revokeToken = useMutation({
+    mutationFn: (tokenId: string) => tokensApi.revoke(tokenId),
+    onSettled: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
+    },
+  });
 
   const sessions = query.data ?? [];
   const pending = sessions.filter((s) => s.status === "PENDING");
@@ -47,14 +55,15 @@ export function useDeploySessions(options: { enabled?: boolean } = {}) {
 
   /**
    * Used by the web deploy form: reuse the active session or open and approve a short
-   * one in place, since the user is clicking Deploy themselves.
+   * one in place, since the user is clicking Deploy themselves. The API answers this web
+   * app with its own pending request only, never an agent's: those are approved on their
+   * card, where the user compares the request code.
    */
-  const ensureActiveSession = async (minutes = 15): Promise<DeploySessionInfo> => {
-    const current = await sessionsApi.current();
-    if (current?.status === "ACTIVE" && current.expiresAt && new Date(current.expiresAt).getTime() > Date.now()) {
-      return current;
+  const ensureActiveSession = async (minutes = 15, purpose?: string): Promise<DeploySessionInfo> => {
+    const session = await sessionsApi.request(minutes / 60, purpose);
+    if (session.status === "ACTIVE" && session.expiresAt && new Date(session.expiresAt).getTime() > Date.now()) {
+      return session;
     }
-    const session = current?.status === "PENDING" ? current : await sessionsApi.request(minutes / 60);
     const { delegationChain } = await createDeployDelegation(
       session.publicKeyDer,
       new Date(Math.min(Date.now() + minutes * 60_000, new Date(session.requestedUntil).getTime())),
@@ -73,6 +82,8 @@ export function useDeploySessions(options: { enabled?: boolean } = {}) {
     approve: (session: DeploySessionInfo, minutes?: number) => approve.mutateAsync({ session, minutes }),
     decline: (id: string) => decline.mutateAsync(id),
     end: (id: string) => end.mutateAsync(id),
+    revokeToken: (tokenId: string) => revokeToken.mutateAsync(tokenId),
+    isRevoking: revokeToken.isPending,
     isApproving: approve.isPending,
     ensureActiveSession,
   };

@@ -207,7 +207,7 @@ export function CanisterPage() {
     if (canister.network !== "cloud") {
       // on the cloud engine hosty.live is the controller and installs with its own key
       try {
-        await ensureActiveSession(15);
+        await ensureActiveSession(15, `Install a Wasm module on ${canister.id} from its canister page`);
       } catch (e) {
         const message = e instanceof Error ? e.message : "Could not open a deploy session";
         setWasmError(message);

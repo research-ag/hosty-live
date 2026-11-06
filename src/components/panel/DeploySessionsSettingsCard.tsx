@@ -58,6 +58,9 @@ export function DeploySessionsSettingsCard() {
                 >
                   <Badge variant={VARIANT[s.status] ?? "secondary"}>{s.status}</Badge>
                   <span className="font-medium">{s.requestedByName ?? "hosty.live"}</span>
+                  {s.status === "PENDING" && s.requestCode && (
+                    <span className="font-mono text-xs tracking-wider">{s.requestCode}</span>
+                  )}
                   <span className="text-muted-foreground">
                     {s.status === "ACTIVE" && s.expiresAt
                       ? `until ${new Date(s.expiresAt).toLocaleString()}`
