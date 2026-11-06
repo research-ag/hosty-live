@@ -33,6 +33,7 @@ function readPending(principal: string): bigint | null {
 const NOTIFY_ATTEMPTS = 5;
 const NOTIFY_RETRY_MS = 2000;
 
+/** Notifies the CMC, retrying while it answers pending (processing, or the call failed). */
 async function notifyWithRetry(blockIndex: bigint): Promise<MintResult> {
   let result: MintResult = { status: "pending", reason: "" };
   for (let attempt = 0; attempt < NOTIFY_ATTEMPTS; attempt++) {
@@ -43,6 +44,10 @@ async function notifyWithRetry(blockIndex: bigint): Promise<MintResult> {
   return result;
 }
 
+/**
+ * ICP balance and rate for the deposit dialog (polled while `watch`), and the conversion of the
+ * balance into cycles; finishes a conversion an earlier visit left unnotified.
+ */
 export function useIcpDeposit(principal: string | null, { watch }: { watch: boolean }) {
   const [isConverting, setIsConverting] = useState(false);
   const [result, setResult] = useState<MintResult | null>(null);

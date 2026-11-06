@@ -37,6 +37,7 @@ function icpForTC(tc: number, tcPerIcp: number): bigint | undefined {
   return ((e8s + step - 1n) / step) * step;
 }
 
+/** QR code, wallet link and addresses to receive ICP, and the button converting it into cycles. */
 export function DepositIcpModal({ isOpen, onClose, principal, formatTC, onConverted }: DepositIcpModalProps) {
   const [amountTC, setAmountTC] = useState(DEFAULT_TC);
   const [error, setError] = useState("");

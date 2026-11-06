@@ -22,6 +22,7 @@ const MINT_MEMO = new Uint8Array([0x4d, 0x49, 0x4e, 0x54, 0, 0, 0, 0]);
 
 const Account = IDL.Record({ owner: IDL.Principal, subaccount: IDL.Opt(IDL.Vec(IDL.Nat8)) });
 
+/** The part of the ICP ledger's interface used here (ICRC-1 balance and transfer). */
 const ledgerIdl: IDL.InterfaceFactory = ({ IDL }) => {
   const TransferError = IDL.Variant({
     GenericError: IDL.Record({ message: IDL.Text, error_code: IDL.Nat }),
@@ -52,6 +53,7 @@ const ledgerIdl: IDL.InterfaceFactory = ({ IDL }) => {
   });
 };
 
+/** The part of the cycles minting canister's interface used here (rate and mint). */
 const cmcIdl: IDL.InterfaceFactory = ({ IDL }) => {
   const NotifyError = IDL.Variant({
     Refunded: IDL.Record({ reason: IDL.Text, block_index: IDL.Opt(IDL.Nat64) }),
@@ -125,10 +127,12 @@ interface CmcService {
   >;
 }
 
+/** ICP ledger actor signing with `agent`. */
 function ledger(agent: HttpAgent) {
   return Actor.createActor<LedgerService>(ledgerIdl, { agent, canisterId: ICP_LEDGER_CANISTER_ID });
 }
 
+/** Cycles minting canister actor signing with `agent`. */
 function cmc(agent: HttpAgent) {
   return Actor.createActor<CmcService>(cmcIdl, { agent, canisterId: CMC_CANISTER_ID });
 }
@@ -155,6 +159,7 @@ export function accountIdentifierHex(owner: Principal): string {
   return [...checksum, ...hash].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** CRC-32 (IEEE), the checksum prefix of an account identifier. */
 function crc32(data: Uint8Array): number {
   let crc = 0xffffffff;
   for (const byte of data) {
@@ -180,6 +185,7 @@ export function formatIcp(e8s: bigint): string {
   return frac ? `${whole}.${frac}` : whole.toString();
 }
 
+/** ICP (e8s) in the default account of `owner`. */
 export async function getIcpBalance(agent: HttpAgent, owner: Principal): Promise<bigint> {
   return ledger(agent).icrc1_balance_of({ owner, subaccount: [] });
 }
