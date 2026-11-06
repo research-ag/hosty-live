@@ -16,7 +16,8 @@ export function useApiTokens() {
 
   const revokeMutation = useMutation({
     mutationFn: (id: string) => tokensApi.revoke(id),
-    onSuccess: () => {
+    // settled: a revoke whose session cleanup failed has still revoked the token
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['api-tokens'] })
       // the API ends the deploy sessions the token requested
       queryClient.invalidateQueries({ queryKey: ['deploy-sessions'] })
