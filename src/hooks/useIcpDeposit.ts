@@ -18,6 +18,18 @@ import {
  */
 const pendingKey = (principal: string) => `hosty_icp_mint_pending:${principal}`;
 
+/** The stored block index; an unreadable entry is dropped rather than thrown on. */
+function readPending(principal: string): bigint | null {
+  const stored = localStorage.getItem(pendingKey(principal));
+  if (!stored) return null;
+  try {
+    return BigInt(stored);
+  } catch {
+    localStorage.removeItem(pendingKey(principal));
+    return null;
+  }
+}
+
 const NOTIFY_ATTEMPTS = 5;
 const NOTIFY_RETRY_MS = 2000;
 
@@ -72,9 +84,9 @@ export function useIcpDeposit(principal: string | null, { watch }: { watch: bool
     setResult(null);
     try {
       let earlier: MintResult | null = null;
-      const pending = localStorage.getItem(pendingKey(principal));
-      if (pending) {
-        earlier = finish(BigInt(pending), await notifyWithRetry(BigInt(pending)));
+      const pending = readPending(principal);
+      if (pending !== null) {
+        earlier = finish(pending, await notifyWithRetry(pending));
         if (earlier.status === "pending") return earlier;
       }
       const available = (await getIcpBalance(getAgent(), Principal.fromText(principal))) - ICP_FEE_E8S;
@@ -94,11 +106,11 @@ export function useIcpDeposit(principal: string | null, { watch }: { watch: bool
   // finish a conversion an earlier visit left unnotified
   useEffect(() => {
     if (!principal) return;
-    const pending = localStorage.getItem(pendingKey(principal));
-    if (!pending) return;
+    const pending = readPending(principal);
+    if (pending === null) return;
     let cancelled = false;
-    void notifyWithRetry(BigInt(pending)).then((res) => {
-      if (!cancelled) finish(BigInt(pending), res);
+    void notifyWithRetry(pending).then((res) => {
+      if (!cancelled) finish(pending, res);
     });
     return () => {
       cancelled = true;

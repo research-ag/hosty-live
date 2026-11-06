@@ -190,21 +190,39 @@ export async function getTCPerIcp(agent: HttpAgent): Promise<number> {
   return Number(data.xdr_permyriad_per_icp) / 10_000;
 }
 
+const TRANSFER_ATTEMPTS = 3;
+
 /**
  * Moves `amountE8s` (the fee comes on top) from the caller's default ICP account to its CMC
  * subaccount with the MINT memo. Returns the ledger block index to notify.
+ *
+ * With `created_at_time` set the ledger deduplicates: when a call fails without an answer
+ * (it may still have gone through), the identical request is sent again and a `Duplicate`
+ * answer yields the block index of the first one, so it can still be notified.
  */
 export async function sendIcpToCmc(agent: HttpAgent, amountE8s: bigint): Promise<bigint> {
   const owner = await agent.getPrincipal();
-  const res = await ledger(agent).icrc1_transfer({
-    to: { owner: Principal.fromText(CMC_CANISTER_ID), subaccount: [principalToSubaccount(owner)] },
-    fee: [ICP_FEE_E8S],
-    memo: [MINT_MEMO],
-    from_subaccount: [],
-    created_at_time: [],
+  const request = {
+    to: { owner: Principal.fromText(CMC_CANISTER_ID), subaccount: [principalToSubaccount(owner)] as [Uint8Array] },
+    fee: [ICP_FEE_E8S] as [bigint],
+    memo: [MINT_MEMO] as [Uint8Array],
+    from_subaccount: [] as [],
+    // the agent's offset to the IC's clock, so a skewed local clock is not CreatedInFuture
+    created_at_time: [BigInt(Date.now() + agent.getTimeDiffMsecs()) * 1_000_000n] as [bigint],
     amount: amountE8s,
-  });
+  };
+  let res: Awaited<ReturnType<LedgerService["icrc1_transfer"]>>;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      res = await ledger(agent).icrc1_transfer(request);
+      break;
+    } catch (err) {
+      if (attempt >= TRANSFER_ATTEMPTS) throw err;
+    }
+  }
   if ("Err" in res) {
+    const duplicate = (res.Err as { Duplicate?: { duplicate_of: bigint } }).Duplicate;
+    if (duplicate) return duplicate.duplicate_of;
     const [kind, detail] = Object.entries(res.Err)[0] ?? ["Unknown", null];
     if (kind === "InsufficientFunds") throw new Error("Insufficient ICP balance.");
     if (kind === "BadFee") throw new Error("The ICP ledger fee changed; please try again.");

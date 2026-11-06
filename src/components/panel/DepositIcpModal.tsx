@@ -29,7 +29,10 @@ const DEFAULT_TC = "3";
 /** ICP to request for `tc` teracycles: the conversion's transfer fee on top, rounded up to 0.0001 ICP. */
 function icpForTC(tc: number, tcPerIcp: number): bigint | undefined {
   if (!Number.isFinite(tc) || tc <= 0 || !tcPerIcp) return undefined;
-  const e8s = BigInt(Math.ceil((tc / tcPerIcp) * Number(E8S_PER_ICP))) + ICP_FEE_E8S;
+  const exact = Math.ceil((tc / tcPerIcp) * Number(E8S_PER_ICP));
+  // a huge entry overflows to Infinity, which BigInt() would throw on
+  if (!Number.isFinite(exact)) return undefined;
+  const e8s = BigInt(exact) + ICP_FEE_E8S;
   const step = 10_000n;
   return ((e8s + step - 1n) / step) * step;
 }
