@@ -69,8 +69,10 @@ export function SignInPage() {
   const { login, isLoading } = useAuth()
   const [error, setError] = useState('')
 
-  // Get the intended destination from location state
-  const from = location.state?.from?.pathname || '/panel/canisters'
+  // Get the intended destination from location state (with its query: the OAuth consent page needs ?request=)
+  const from = location.state?.from?.pathname
+    ? `${location.state.from.pathname}${location.state.from.search ?? ''}`
+    : '/panel/canisters'
 
   const handleLogin = async () => {
     setError('')

@@ -16,6 +16,7 @@ import { DeploymentPage } from './pages/panel/DeploymentPage'
 import { TCyclesPage } from './pages/panel/TCyclesPage'
 import { SettingsPage } from './pages/panel/SettingsPage'
 import { SharedCanisterPage } from './pages/shared/SharedCanisterPage'
+import { OAuthConsentPage } from './pages/oauth/OAuthConsentPage'
 import { Navigate } from 'react-router-dom'
 import { ProtectedRoute } from './components/shared/ProtectedRoute'
 import { RouteChangeHandler } from './components/shared/RouteChangeHandler'
@@ -51,6 +52,13 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/panel/sign-in" element={<SignInPage />} />
                   
+                  {/* Connected app consent (OAuth), outside the panel layout */}
+                  <Route path="/oauth/consent" element={
+                    <ProtectedRoute>
+                      <OAuthConsentPage />
+                    </ProtectedRoute>
+                  } />
+
                   {/* Shared Public Routes */}
                   <Route path="/shared" element={<SharedLayout />}>
                     <Route path=":id" element={<SharedCanisterPage />} />
