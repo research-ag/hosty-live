@@ -54,11 +54,17 @@ function PendingSession({
             </p>
             <p className="text-xs text-muted-foreground">
               {session.requestedByTokenId
-                ? `API token${session.requestedByName ? ` "${session.requestedByName}"` : ""}${
-                    session.requestedByTokenCreatedAt
-                      ? `, created ${formatDateTime(session.requestedByTokenCreatedAt)}`
-                      : ""
-                  }`
+                ? session.requestedByConnectedApp
+                  ? `Connected app${session.requestedByName ? ` "${session.requestedByName}"` : ""}${
+                      session.requestedByTokenCreatedAt
+                        ? `, connected ${formatDateTime(session.requestedByTokenCreatedAt)}`
+                        : ""
+                    }`
+                  : `API token${session.requestedByName ? ` "${session.requestedByName}"` : ""}${
+                      session.requestedByTokenCreatedAt
+                        ? `, created ${formatDateTime(session.requestedByTokenCreatedAt)}`
+                        : ""
+                    }`
                 : "This web app, signed in as you"}
               {" · "}requested {formatDateTime(session.createdAt)}
             </p>
@@ -81,7 +87,7 @@ function PendingSession({
                 Approve only if your agent shows you exactly this{" "}
                 {[session.requestCode && "code", keyPrincipal && "principal"].filter(Boolean).join(" and ")}.
                 If no agent asked you to approve a session just now, or it shows something else, decline
-                {onRevoke ? " and revoke the token" : ""}.
+                {onRevoke ? (session.requestedByConnectedApp ? " and disconnect the app" : " and revoke the token") : ""}.
               </p>
             </div>
           )}
@@ -130,7 +136,7 @@ function PendingSession({
             disabled={busy}
           >
             <ShieldX className="h-4 w-4 mr-1" />
-            Decline and revoke token
+            {session.requestedByConnectedApp ? "Decline and disconnect app" : "Decline and revoke token"}
           </Button>
         )}
         <Button variant="ghost" size="sm" onClick={onDecline} disabled={busy}>
@@ -183,14 +189,17 @@ export function DeploySessionCard() {
 
   const handleRevoke = async () => {
     if (!toRevoke?.requestedByTokenId) return;
+    const app = !!toRevoke.requestedByConnectedApp;
     try {
-      await revokeToken(toRevoke.requestedByTokenId);
+      await revokeToken(toRevoke.requestedByTokenId, app);
       toast.success(
-        revokeTargetGone ? "Token revoked" : "Request declined, token revoked",
-        `${toRevoke.requestedByName ? `"${toRevoke.requestedByName}"` : "The token"} no longer works.`,
+        app
+          ? revokeTargetGone ? "App disconnected" : "Request declined, app disconnected"
+          : revokeTargetGone ? "Token revoked" : "Request declined, token revoked",
+        `${toRevoke.requestedByName ? `"${toRevoke.requestedByName}"` : app ? "The app" : "The token"} no longer works.`,
       );
     } catch (err) {
-      toast.error("Could not revoke the token", err instanceof Error ? err.message : undefined);
+      toast.error(app ? "Could not disconnect the app" : "Could not revoke the token", err instanceof Error ? err.message : undefined);
     } finally {
       setToRevoke(null);
     }
@@ -218,7 +227,7 @@ export function DeploySessionCard() {
                 <strong>{agentRequests.length} deploy session requests are waiting.</strong> An agent asks for
                 one session at a time and shows you the code of its request, so more than one usually means
                 something went wrong. Approve only the request whose code your agent shows you, and decline the
-                others; decline and revoke the token of any request you do not recognize.
+                others; decline and revoke the token (or disconnect the app) of any request you do not recognize.
               </p>
             </div>
           )}
@@ -252,15 +261,33 @@ export function DeploySessionCard() {
       )}
       <ConfirmDialog
         isOpen={!!toRevoke}
-        title={revokeTargetGone ? "Revoke the token?" : "Decline and revoke the token?"}
-        description={`${
-          revokeTargetGone
-            ? "This request is no longer pending: it was approved, declined or expired meanwhile. Revoking"
-            : "The request is declined and revoking"
-        } the API token${
-          toRevoke?.requestedByName ? ` "${toRevoke.requestedByName}"` : ""
-        } cuts off every agent using it from hosty.live at once and ends the deploy sessions it requested. Give agents you trust a new token from Settings.`}
-        confirmLabel={revokeTargetGone ? "Revoke token" : "Decline and revoke"}
+        title={
+          toRevoke?.requestedByConnectedApp
+            ? revokeTargetGone ? "Disconnect the app?" : "Decline and disconnect the app?"
+            : revokeTargetGone ? "Revoke the token?" : "Decline and revoke the token?"
+        }
+        description={
+          toRevoke?.requestedByConnectedApp
+            ? `${
+                revokeTargetGone
+                  ? "This request is no longer pending: it was approved, declined or expired meanwhile. Disconnecting"
+                  : "The request is declined and disconnecting"
+              }${
+                toRevoke?.requestedByName ? ` "${toRevoke.requestedByName}"` : " the app"
+              } cuts it off from hosty.live at once and ends the deploy sessions it requested. To use it again, connect it again and sign in.`
+            : `${
+                revokeTargetGone
+                  ? "This request is no longer pending: it was approved, declined or expired meanwhile. Revoking"
+                  : "The request is declined and revoking"
+              } the API token${
+                toRevoke?.requestedByName ? ` "${toRevoke.requestedByName}"` : ""
+              } cuts off every agent using it from hosty.live at once and ends the deploy sessions it requested. Give agents you trust a new token from Settings.`
+        }
+        confirmLabel={
+          toRevoke?.requestedByConnectedApp
+            ? revokeTargetGone ? "Disconnect" : "Decline and disconnect"
+            : revokeTargetGone ? "Revoke token" : "Decline and revoke"
+        }
         isLoading={isRevoking}
         onConfirm={handleRevoke}
         onCancel={() => setToRevoke(null)}

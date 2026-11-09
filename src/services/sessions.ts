@@ -16,6 +16,8 @@ export interface DeploySessionInfo {
   /** The API token that made the request; absent when this web app made it. */
   requestedByTokenId?: string;
   requestedByTokenCreatedAt?: string;
+  /** requestedByTokenId is a connected app (OAuth grant, e.g. the claude.ai connector), not an API token. */
+  requestedByConnectedApp?: boolean;
   /** Shown by the agent too, so the user approves the request their agent made. */
   requestCode?: string;
   /** What the agent says it will do with the session, in its own words. */

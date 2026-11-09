@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DeploySessionInfo, sessionsApi } from "../services/sessions";
 import { createDeployDelegation } from "../lib/delegation";
 import { getStoredAccessToken, tokensApi } from "../services/api";
+import { oauthApi } from "../services/oauth";
+
+export const CONNECTED_APPS_QUERY_KEY = ["connected-apps"];
 
 export const DEPLOY_SESSIONS_QUERY_KEY = ["deploy-sessions"];
 
@@ -38,12 +41,15 @@ export function useDeploySessions(options: { enabled?: boolean } = {}) {
 
   const decline = useMutation({ mutationFn: (id: string) => sessionsApi.decline(id), onSettled: invalidate });
   const end = useMutation({ mutationFn: (id: string) => sessionsApi.end(id), onSettled: invalidate });
-  // The API closes the sessions a revoked token requested: pending ones declined, active ones ended.
+  // The API closes the sessions a revoked token (or disconnected app) requested: pending ones
+  // declined, active ones ended.
   const revokeToken = useMutation({
-    mutationFn: (tokenId: string) => tokensApi.revoke(tokenId),
+    mutationFn: ({ tokenId, connectedApp }: { tokenId: string; connectedApp: boolean }) =>
+      connectedApp ? oauthApi.disconnect(tokenId) : tokensApi.revoke(tokenId),
     onSettled: () => {
       invalidate();
       queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
+      queryClient.invalidateQueries({ queryKey: CONNECTED_APPS_QUERY_KEY });
     },
   });
 
@@ -82,7 +88,8 @@ export function useDeploySessions(options: { enabled?: boolean } = {}) {
     approve: (session: DeploySessionInfo, minutes?: number) => approve.mutateAsync({ session, minutes }),
     decline: (id: string) => decline.mutateAsync(id),
     end: (id: string) => end.mutateAsync(id),
-    revokeToken: (tokenId: string) => revokeToken.mutateAsync(tokenId),
+    /** Revokes the API token, or disconnects the connected app, that requested a session. */
+    revokeToken: (tokenId: string, connectedApp = false) => revokeToken.mutateAsync({ tokenId, connectedApp }),
     isRevoking: revokeToken.isPending,
     isApproving: approve.isPending,
     ensureActiveSession,
