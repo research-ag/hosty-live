@@ -106,7 +106,7 @@ export function OAuthConsentPage() {
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Who asks</p>
                 <p className="text-lg font-semibold break-words">{request.clientName}</p>
                 <p className="text-xs flex items-center gap-1">
-                  {request.clientVerified ? (
+                  {request.clientVerified && request.clientHost ? (
                     <>
                       <ShieldCheck className="h-3.5 w-3.5 text-green-600" />
                       <span className="text-green-700 dark:text-green-500">

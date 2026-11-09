@@ -346,8 +346,8 @@ export function AgentAccessCard() {
                     <div className="min-w-0">
                       <div className="font-medium truncate">
                         {app.clientName}{' '}
-                        <span className={`text-xs font-normal ${app.clientVerified ? 'text-green-700 dark:text-green-500' : 'text-muted-foreground'}`}>
-                          {app.clientVerified ? `verified (${app.clientHost})` : 'name not verified'}
+                        <span className={`text-xs font-normal ${app.clientVerified && app.clientHost ? 'text-green-700 dark:text-green-500' : 'text-muted-foreground'}`}>
+                          {app.clientVerified && app.clientHost ? `verified (${app.clientHost})` : 'name not verified'}
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground">
