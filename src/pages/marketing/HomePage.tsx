@@ -23,6 +23,7 @@ import {
 } from "../../components/ui/Card";
 import { ThemeToggle } from "../../components/shared/ThemeToggle";
 import { ThemeLogo } from "../../components/shared/ThemeLogo";
+import { FooterLinks } from "../../components/panel/Footer";
 
 export function HomePage() {
   return (
@@ -372,8 +373,9 @@ export function HomePage() {
       {/* Footer */}
       <footer className="border-t bg-background">
         <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between text-muted-foreground">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-muted-foreground">
             <p>&copy; 2025 hosty.live. Made by MR Research AG.</p>
+            <FooterLinks />
           </div>
         </div>
       </footer>
